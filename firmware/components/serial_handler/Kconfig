@@ -1,0 +1,27 @@
+menu "Serial Handler Configuration"
+
+    config SERIAL_HANDLER_GPIO_BOOT
+        int "GPIO pin for the BOOT signal"
+        default 4
+        help
+            GPIO pin connected to target's BOOT signal (active low)
+
+    config SERIAL_HANDLER_GPIO_RST
+        int "GPIO pin for the RESET signal"
+        default 7
+        help
+            GPIO pin connected to target's RESET signal (active low)
+
+    config SERIAL_HANDLER_GPIO_RXD
+        int "GPIO pin for the RxD signal"
+        default 6
+        help
+            GPIO pin for UART receive (RxD) from target
+
+    config SERIAL_HANDLER_GPIO_TXD
+        int "GPIO pin for the TxD signal"
+        default 5
+        help
+            GPIO pin for UART transmit (TxD) to target
+
+endmenu

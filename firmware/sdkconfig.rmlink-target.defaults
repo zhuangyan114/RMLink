@@ -1,0 +1,2 @@
+# Build-only target profile. Verify GPIO and wiring before flashing this image.
+CONFIG_RMLINK_TARGET_PINS_CONFIRMED=y

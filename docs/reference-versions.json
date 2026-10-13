@@ -1,0 +1,10 @@
+{
+  "recordedOn": "2026-10-13",
+  "repositories": [
+    {"directory": "esp-usb-bridge", "url": "https://github.com/espressif/esp-usb-bridge", "commit": "fc89a71a77b2c6ce1730aaa7821541616bc4b118", "license": "Apache-2.0", "role": "firmware base"},
+    {"directory": "cmsis_dap_tcp_esp32", "url": "https://github.com/bkuschak/cmsis_dap_tcp_esp32", "commit": "cc547237006452be22fcf03e25f84cffb0de6a65", "license": "Apache-2.0", "role": "TCP framing, STA and NVS reference"},
+    {"directory": "ESP32-Debugger", "url": "https://github.com/MGod-monkey/ESP32-Debugger", "commit": "c70aa4e0497825df69ec0b0b9f43e959bff43259", "license": "Apache-2.0", "role": "single endpoint, discovery, USBIP reference"},
+    {"directory": "Orbit", "url": "https://github.com/zhuangyan114/Orbit", "commit": "3928bbb6f4990ff336dfbe71f745f5f593b12e48", "role": "backend and ownership reference; not integrated"},
+    {"directory": "usbip-win2", "url": "https://github.com/vadimgrn/usbip-win2", "commit": "07146875dd21fd3c2f1f185bb753f63974f1df71", "license": "BSD-2-Clause", "role": "Windows SDK, UDE and WSK source evaluation only"}
+  ]
+}

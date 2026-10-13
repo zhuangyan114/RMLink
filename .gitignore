@@ -1,0 +1,16 @@
+# Separate upstream checkouts and local-only generated/device data.
+/reference/
+/artifacts/
+/.vscode/
+/.codegraph/
+**/.codegraph/
+**/managed_components/
+**/build/
+**/sdkconfig
+**/sdkconfig.old
+**/__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.log

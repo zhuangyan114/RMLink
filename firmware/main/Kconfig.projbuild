@@ -1,0 +1,111 @@
+menu "RMLink Configuration"
+    config RMLINK_TARGET_PINS_CONFIRMED
+        bool "Enable target GPIO after checking board wiring"
+        default n
+    config RMLINK_NRST_GPIO
+        int "Target NRST GPIO (-1 = not connected)"
+        range -1 48
+        default 6
+    config RMLINK_LEDS_ENABLED
+        bool "Enable board activity LEDs"
+        default n
+    config RMLINK_TARGET_UART_ENABLED
+        bool "Enable target UART bridge (requires separate GPIO verification)"
+        default n
+    config RMLINK_MSC_ENABLED
+        bool "Enable upstream ESP UF2 storage (not STM32 Flash)"
+        depends on RMLINK_TARGET_UART_ENABLED
+        default n
+    config RMLINK_WIFI_ENABLED
+        bool "Enable Wi-Fi STA and CMSIS-DAP TCP"
+        default y
+    config RMLINK_TCP_PORT
+        int "CMSIS-DAP TCP port"
+        range 1024 65534
+        default 3241
+endmenu
+
+menu "Bridge Configuration"
+
+    config BRIDGE_USB_VID
+        hex "USB vendor ID"
+        default 0x303A
+        help
+            USB Vendor ID for the bridge device
+
+    config BRIDGE_USB_PID
+        hex "USB product ID"
+        default 0x1002
+        help
+            USB Product ID for the bridge device
+
+    config BRIDGE_MANUFACTURER
+        string "USB bridge manufacturer"
+        default "Espressif Systems Co. Ltd."
+        help
+            Manufacturer string shown in USB device descriptor
+
+    config BRIDGE_PRODUCT_NAME
+        string "USB product name"
+        default "ESP USB Bridge"
+        help
+            Product name string shown in USB device descriptor
+
+    config BRIDGE_GPIO_LED1
+        int "GPIO pin LED1"
+        default 12
+        help
+            GPIO pin for LED1 (typically TX activity indicator)
+
+    config BRIDGE_GPIO_LED2
+        int "GPIO pin LED2"
+        default 13
+        help
+            GPIO pin for LED2 (typically RX activity indicator)
+
+    config BRIDGE_GPIO_LED3
+        int "GPIO pin LED3"
+        default 14
+        help
+            GPIO pin for LED3 (typically debug activity indicator)
+
+    config BRIDGE_GPIO_LED1_ACTIVE
+        int "GPIO pin LED1 active value"
+        range 0 1
+        default 0
+        help
+            Logic level when LED1 is active (0=active low, 1=active high)
+
+    config BRIDGE_GPIO_LED2_ACTIVE
+        int "GPIO pin LED2 active value"
+        range 0 1
+        default 0
+        help
+            Logic level when LED2 is active (0=active low, 1=active high)
+
+    config BRIDGE_GPIO_LED3_ACTIVE
+        int "GPIO pin LED3 active value"
+        range 0 1
+        default 0
+        help
+            Logic level when LED3 is active (0=active low, 1=active high)
+
+    config BRIDGE_MSC_VOLUME_LABEL
+        string "Volume label shown in the MSC disc"
+        default "ESPPROG_MSC"
+        help
+            Volume label shown in the MSC disc. Max length is 11 ASCII characters.
+
+    config BRIDGE_DOWNLOAD_MAGIC_BAUD
+        int "Magic baud rate to enter download mode"
+        default 1200
+        help
+            When the host sets the CDC serial port to this baud rate, download
+            mode reset is armed. Closing the port (clearing DTR) then resets the
+            bridge chip (ESP32-S2 or ESP32-S3) into download mode so its firmware
+            can be updated over USB. Do not use this baud for normal target
+            serial traffic; any DTR clear while armed triggers bridge download
+            mode. Prefer a baud that host tools will not use for the target.
+            Set to 0 to disable.
+
+endmenu
