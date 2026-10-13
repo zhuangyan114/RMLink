@@ -62,5 +62,17 @@ class TcpClientTests(unittest.TestCase):
         with self.assertRaises(ValueError): client.exchange_many([b'\x00\xff', bytes(65)])
         with self.assertRaises(ValueError): client.exchange_many([b'\x00\xff'] * 9)
 
+    def test_abort_never_waits_for_response(self):
+        class CaptureSocket:
+            def __init__(self): self.sent = []
+            def sendall(self, data): self.sent.append(data)
+        client = TcpClient.__new__(TcpClient)
+        client.sock = CaptureSocket()
+        client.abort_transfer()
+        self.assertEqual(client.sock.sent, [b'DAP\0\x01\x00\x01\x00\x07'])
+        with self.assertRaises(ValueError): client.exchange(b'\x07')
+        with self.assertRaises(ValueError): client.exchange_many([b'\x00\xff', b'\x07'])
+        self.assertEqual(len(client.sock.sent), 1)
+
 
 if __name__ == '__main__': unittest.main()

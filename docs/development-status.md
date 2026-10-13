@@ -1,18 +1,22 @@
 # 开发与验证进度
 
-更新日期：2026-10-13。0.1.0 的 USB / Wi-Fi 及 STM32F103C8T8 只读 SWD 已实板验证；当前 0.1.1 新增 ESP32 / PC 传输诊断并实测，整体验收未完成。
+更新日期：2026-10-13。当前固件 0.1.3 已通过 STM32F103 的 USB / Wi-Fi 三线 SWD 烧录、完整 Flash 校验、调试与软件复位验收；原主 Flash 已恢复。NRST 实体复位缺接线，Windows OpenOCD TCP 需兼容模式且仍有主机报错，详见 [本轮验收](stm32-acceptance.md)。
 
 ## 阶段状态
 
 | 阶段 | 源码 / 实现 | 构建 / 主机验证 | 实板状态 |
 | --- | --- | --- | --- |
 | 1：基座与环境 | 五个参考仓库固定提交；独立乐鑫基座；脚本、板级 profile、组件锁定和 CodeGraph | 上游基座、RMLink 默认、目标 GPIO 开启配置均编译通过 | S3 rev0.2、16 MB Flash、8 MB PSRAM 已读出；完整原 Flash 已备份；PSRAM 未启用 |
-| 2：USB / 目标 SWD | Bulk、统一执行器、会话规则、NRST 钩子、边界和主机排队读取已实现 | target profile 已编译并刷写；主机核心通过 | STM32 已接线，USB / TCP 的 DP / AP、芯片信息、Flash 读取及互斥通过；目标 RAM 写入、复位、烧录和暂停 / 继续待测 |
+| 2：USB / 目标 SWD | Bulk、统一执行器、会话规则、NRST 钩子、边界和主机排队读取已实现 | target profile 已编译并刷写；主机核心通过 | USB / TCP 的 64 KiB 烧录与回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT 和软件复位通过；NRST 缺线 |
 | 3：STA / TCP / USB 配网 | NVS、自动入网、mDNS、分片帧和网络独立恢复已实现 | 主机 TCP client 6 项测试通过 | 配网 / STA / TCP / 无 OTG 复位通过；STA 恢复时 USB 的真实目标读取与 owner 保持通过；完全断电及真正热点掉线待测 |
 | 4：Orbit / 板端采样 | 已核对 Orbit 所有权链；未修改 / 接入 Orbit；采样与缓存未实现 | 待实施与测试 | 未验收 |
 | 5：Windows 自动组件 | 已评估 SDK attach / detach / 状态及 UDE / WSK 数据路径 | 未实现服务、USBIP 或驱动封装；未构建 / 安装驱动 | 软件兼容性、安装、签名和系统兼容性未验收 |
 
-当前 artifacts/build/firmware-target/rmlink.bin 为 0.1.1，SHA256 EFD46B89990B272D2909461F7C6BC535651C5EC40E51F2E5353FCA2EF9EFA8F4，target profile。最后刷写记录在 artifacts/hardware/rmlink-last-flash.json。先前 0.1.0 target（65373482BABFD87C15D3C009458079BC527D331B65E5C165054E2B1F73E1C732）镜像 / 刷写记录已归档到 artifacts/hardware/rmlink-0.1.0-target.bin / rmlink-0.1.0-target-flash.json；下面 STM32 证据对应该版本。早期 GPIO 关闭版本仍在 artifacts/build/firmware，SHA256 7134C3375BD3C70BDD81084FA0019049269C6DDB3708179047C60D4175B1BEBA。
+当前 target profile 固件为 0.1.3，SHA256 7439FB8B335F70A0991989957618699D93606A161A3B61A0770C5EA00EA3FC5E。最后刷写记录在 artifacts/hardware/rmlink-last-flash.json；[实板验收](stm32-acceptance.md) 分开记录源码、编译、主机、目标操作与原程序恢复。
+
+新增异步 TransferAbort、TCP 独立收发、断连取消 / 排队清理、传输期限、未实现命令 0xFF 响应和 SWJ 引脚监测 / 等待修正。唯一 SWD 执行器与整段会话所有权保留。
+
+以下测速、首轮只读与无 OTG 启动内容是历史证据，对应各段注明的 0.1.0 / 0.1.1，不代替当前版本验收。
 
 ## ESP32 / 电脑传输专项
 
@@ -126,10 +130,10 @@
 | artifacts/hardware/esp32s3-before-rmlink.bin | 修改前完整 16 MB 备份，仅本地保留 |
 | artifacts/hardware/stm32f103c8-before-rmlink.bin | STM32 64 KiB 主 Flash 只读备份，仅本地保留 |
 
-reference/ 保留上游源码，CodeGraph 元数据不计为实现改动。产物和日志统一在 artifacts/，缓存不放根目录或 scripts/。firmware/ 是独立 Git 工作区，本次实现尚未提交 / 推送。原基座首次构建目录在 Codex 工作区；后续 RMLink 构建统一使用项目内绝对路径。
+reference/ 保留上游源码，CodeGraph 元数据不计为实现改动。产物和日志统一在 artifacts/，缓存不放根目录或 scripts/。这描述早期固件工作区；现已迁入根目录统一 Git，本地提交不推送。原基座首次构建目录在 Codex 工作区；后续 RMLink 构建统一使用项目内绝对路径。
 
 ## 下一验收点
 
-STM32 身份 / 主 Flash 读取、USB / TCP 会话互斥和切换已通过。下一步验收暂停 / 继续、可恢复的 RAM 写读、NRST 实际复位及烧录校验，需要明确使用的目标程序 / 测试映像与 RAM 区域，避免修改未知应用的活动数据。完整原程序主 Flash 已备份，但没有烧录或恢复实测。另补测 ESP32 完全断电上电、实际热点关闭恢复和 SWCLK 波形。
+三线常规烧录 / 调试已通过，原程序和选项数据核对完成。补充 NRST 实体接线、真实 WAIT、USB 物理拔出、ESP32 完全断电上电、实际热点关闭恢复、SWCLK 波形和长期压力测试。Windows TCP 默认排队模式需采用修正 socket 处理的后端，再验收。
 
-目标链路通过后接入 Orbit，补充板端采样、缓存和控制优先级；Windows 自动连接组件按独立阶段推进。
+继续接入 Orbit，补充板端采样、缓存和控制优先级；Windows 自动连接组件独立推进。项目根目录现统一 Git 管理，reference/、artifacts/ 与生成依赖排除，原 firmware/.git 已归档，见 [仓库管理](git-management.md)。

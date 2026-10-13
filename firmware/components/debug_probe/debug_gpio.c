@@ -99,7 +99,7 @@ void debug_probe_init_swd_pins(void)
         gpio_reset_pin(GPIO_SWCLK);
         debug_probe_mode_in_out_enable(GPIO_SWDIO);
         gpio_set_pull_mode(GPIO_SWDIO, GPIO_PULLUP_ONLY);
-        debug_probe_mode_out_enable(GPIO_SWCLK);
+        debug_probe_mode_in_out_enable(GPIO_SWCLK); /* SWJ_Pins must read the real level. */
 
         int bundle_out_gpios[] = { GPIO_SWCLK };
         int bundle_io_gpios[GET_IDX(GPIO_SWDIO_MAX_MASK)] = { 0 };

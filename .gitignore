@@ -9,6 +9,8 @@
 **/sdkconfig
 **/sdkconfig.old
 **/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
 *.py[cod]
 .venv/
 .env

@@ -346,7 +346,7 @@ __STATIC_INLINE void PORT_OFF (void) {
 \return Current status of the SWCLK/TCK DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWCLK_TCK_IN  (void) {
-  return (0U);
+  return gpio_get_level(GPIO_SWCLK);
 }
 
 /** SWCLK/TCK I/O pin: Set Output to High.
@@ -441,7 +441,11 @@ __STATIC_FORCEINLINE void     PIN_TDI_OUT (uint32_t bit) {
 \return Current status of the TDO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_TDO_IN  (void) {
+#if DAP_JTAG
     return debug_probe_tdo_read();
+#else
+    return 0U;
+#endif
 }
 
 

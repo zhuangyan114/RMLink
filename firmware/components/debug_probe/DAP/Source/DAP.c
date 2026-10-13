@@ -349,42 +349,32 @@
    }
  
    if (wait != 0U) {
- #if (TIMESTAMP_CLOCK != 0U)
-     if (wait > 3000000U) {
-       wait = 3000000U;
-     }
- #if (TIMESTAMP_CLOCK >= 1000000U)
-     wait *= TIMESTAMP_CLOCK / 1000000U;
- #else
-     wait /= 1000000U / TIMESTAMP_CLOCK;
- #endif
- #else
-     wait  = 1U;
- #endif
+     // Pin wait uses the ESP microsecond timer independently of the optional
+     // CMSIS-DAP transfer-timestamp capability. Validator bounds it to 1 s.
      timestamp = TIMESTAMP_GET();
      do {
        if ((select & (1U << DAP_SWJ_SWCLK_TCK)) != 0U) {
-         if ((value >> DAP_SWJ_SWCLK_TCK) ^ PIN_SWCLK_TCK_IN()) {
+         if (((value >> DAP_SWJ_SWCLK_TCK) & 1U) ^ PIN_SWCLK_TCK_IN()) {
            continue;
          }
        }
        if ((select & (1U << DAP_SWJ_SWDIO_TMS)) != 0U) {
-         if ((value >> DAP_SWJ_SWDIO_TMS) ^ PIN_SWDIO_TMS_IN()) {
+         if (((value >> DAP_SWJ_SWDIO_TMS) & 1U) ^ PIN_SWDIO_TMS_IN()) {
            continue;
          }
        }
        if ((select & (1U << DAP_SWJ_TDI)) != 0U) {
-         if ((value >> DAP_SWJ_TDI) ^ PIN_TDI_IN()) {
+         if (((value >> DAP_SWJ_TDI) & 1U) ^ PIN_TDI_IN()) {
            continue;
          }
        }
        if ((select & (1U << DAP_SWJ_nTRST)) != 0U) {
-         if ((value >> DAP_SWJ_nTRST) ^ PIN_nTRST_IN()) {
+         if (((value >> DAP_SWJ_nTRST) & 1U) ^ PIN_nTRST_IN()) {
            continue;
          }
        }
        if ((select & (1U << DAP_SWJ_nRESET)) != 0U) {
-         if ((value >> DAP_SWJ_nRESET) ^ PIN_nRESET_IN()) {
+         if (((value >> DAP_SWJ_nRESET) & 1U) ^ PIN_nRESET_IN()) {
            continue;
          }
        }

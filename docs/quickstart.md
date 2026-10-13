@@ -64,18 +64,18 @@ Test-WirelessStartup.ps1 用于检查无原生 USB 枚举的启动：先拔掉�
 
 ## 当前 STM32 接线
 
-用户报告已按下表连接 STM32F103C8T8，USB 和 TCP 均成功读取同一目标的 DP / AP、CPUID、设备 ID 与主 Flash。供电电压未通过仪表量测；保持此前的 3.3 V 逻辑、自供电方案。
+用户本轮将目标标为 STM32F103C8T6（早期报 C8T8），USB / TCP 已通过三线 SWD 烧录 / 调试；寄存器不能区分完整料号后缀。供电电压未通过仪表量测；保持此前的 3.3 V 逻辑、自供电方案。
 
 | RMLink 开发板 | STM32 目标 |
 | --- | --- |
 | GPIO4 | SWDIO |
 | GPIO5 | SWCLK |
-| GPIO6 | NRST，开漏控制 |
+| GPIO6 | NRST，开漏控制，当前缺线 / 未验收 |
 | GND | GND，共地 |
 
 首轮使用 3.3 V 逻辑目标，由目标板自身供电；暂不从 RMLink 给目标供电。GPIO19 / 20 为原生 USB，N16R8 模组的 Flash / PSRAM 引脚及板载 UART、RGB 等占用需保留。不要将开发板的 5 V 接到 STM32 SWD 引脚。当前方案没有专用 VTref 检测或电平转换，不能直接据此接受其他电压目标。
 
-已从 100 kHz 设置开始，完成芯片身份、内存读取、USB / TCP 会话互斥 / 切换及主机请求排队对照。100 kHz、500 kHz、1 MHz、2 MHz 是 DAP 请求的 SWD 时钟，尚未用示波器或逻辑分析仪量测实际 SWCLK。暂未执行目标复位、暂停、RAM 写入或 Flash 烧录。
+已从 100 kHz 设置开始，完成芯片身份、内存读取、USB / TCP 会话互斥 / 切换及主机请求排队对照。100 kHz、500 kHz、1 MHz、2 MHz 是 DAP 请求的 SWD 时钟，尚未用示波器或逻辑分析仪量测实际 SWCLK。0.1.3 已执行软件复位、暂停 / 继续、寄存器 / RAM、断点 / 单步及 64 KiB 烧录 / 校验，详见 [本轮验收](stm32-acceptance.md)。
 
 只读目标检查：
 
@@ -90,4 +90,4 @@ Test-WirelessStartup.ps1 用于检查无原生 USB 枚举的启动：先拔掉�
 
 artifacts/hardware/esp32s3-before-rmlink.bin 是刷入 RMLink 前的完整 16 MB Flash 备份，仅本地保留。备份 SHA256 为 9C7CB67284D4384C5C708A10A5C971D4E49C253D22399052B74F80B209AFEF54。固件可能包含原设备配置，勿作为公开发布内容。
 
-artifacts/hardware/stm32f103c8-before-rmlink.bin 为本次从 STM32 读取的 64 KiB 主 Flash 备份，未修改目标程序。它不包含 RAM、选项字节或系统 ROM，恢复流程尚未验收。原程序备份仅在本地保留，不放入文档分享副本。
+artifacts/hardware/stm32f103c8-before-rmlink.bin 为本次从 STM32 读取的 64 KiB 主 Flash 备份，保存原程序；验收后已重新烧录恢复，并由 USB / TCP 完整回读核对。它不包含 RAM、选项字节或系统 ROM；选项数据仅作读取前后比较，未写入。原程序备份仅在本地保留，不放入文档分享副本。

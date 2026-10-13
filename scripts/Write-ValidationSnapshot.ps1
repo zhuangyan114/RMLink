@@ -48,6 +48,8 @@ $data = [ordered]@{
     transportBenchmark = Read-RmlinkJson 'artifacts\logs\benchmark-transport.json'
     transportDiagnosticChecks = Read-RmlinkJson 'artifacts\logs\verify-transport-bench.json'
     targetFullAcceptance = Read-RmlinkJson 'artifacts\logs\accept-stm32.json'
+    targetExceptions = Read-RmlinkJson 'artifacts\logs\verify-target-exceptions.json'
+    targetOwnershipCurrent = Read-RmlinkJson 'artifacts\logs\verify-target-ownership-final.json'
     evidenceBoundary = 'Inspect individual result.complete and restored fields; older read-only/transport evidence is version specific; actual SWCLK/voltage/waveforms not instrument-measured'
 }
 $output = Join-Path $root 'artifacts\validation-snapshot.json'

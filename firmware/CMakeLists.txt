@@ -9,5 +9,5 @@ if(${IDF_VERSION_MAJOR} LESS 5)
         "Please use v5.0 or newer.")
 endif()
 
-set(PROJECT_VER "0.1.2")
+set(PROJECT_VER "0.1.3")
 project(rmlink)

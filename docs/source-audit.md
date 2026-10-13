@@ -54,3 +54,11 @@
 ESP-IDF v5.1.2，SDK 提交 482a8fb2d78e3b58eb21b26da8a5bedf90623213。本机 SDK 有原有修改，报告 v5.1.2-dirty；RMLink 未改 SDK。组件锁定为 TinyUSB 0.18.0~6、mDNS 1.2.5、esp-serial-flasher 1.11.0 等，完整版本 / 哈希见 firmware/dependencies.lock。
 
 上游 SWD 基座、RMLink 默认传输配置和目标 GPIO 开启配置均已编译。用户确认接线后已烧入 target profile，GPIO 启用；新增 rmlink_swd.py、test_target_ownership.py 和只读 benchmark 脚本验证真实目标。主机 USB / TCP client 新增最多 8 包连续提交，TCP client 6 项测试通过；本轮未修改 ARM SWD 内核。源码、构建、主机、ESP32 传输和 STM32 验收分别记录于 development-status.md。
+
+## 0.1.3 SWD 补齐与实板验收
+
+旧传输未在活动请求期间设置内核 TransferAbort 标志。现从接收路径按活动 transport / session 原子取消，TCP RX 固定到另一核，回复独立，目标执行仍只有一套。断连使会话失效，取消并清理旧排队请求，FIFO 屏障保证回调上下文有效。
+
+ARM DAP.c 本轮修改：取消初始化移到执行器、原子读取及 1 秒期限、TransferBlock 成功 word 之间取消、SWJ_Pins 微秒等待和正确比较单 bit。SWCLK 空输入钩子改为实际 GPIO 读回。此前“未修改 ARM 内核”仅适用于 0.1.0 阶段。
+
+0.1.3 完成三线烧录 / 调试并恢复原 Flash；NRST 缺线、WAIT 未独立实物触发和 Windows TCP 主机兼容限制见 stm32-acceptance.md。引用仓库未改，许可 / 版权保留。
