@@ -1,6 +1,6 @@
 # 仓库管理
 
-唯一开发仓库根目录为 D:\STM32\RMLink，统一管理 firmware/、scripts/、tests/ 和 docs/。firmware/ 是本项目选定并改造的固件源码，保留上游 Apache-2.0 许可证、版权声明和来源记录。
+唯一开发仓库根目录为 D:\STM32\RMLink，统一管理 firmware/、host/、scripts/、tests/ 和 docs/。firmware/ 是本项目选定并改造的固件源码，保留上游 Apache-2.0 许可证、版权声明和来源记录。
 
 reference/ 中的独立参考仓库全部忽略，不记录为 submodule 或 gitlink；其提交和来源清单在 docs/reference-versions.json，可从原地址重建。artifacts/、下载工具、构建输出、设备备份、日志、缓存、CodeGraph 索引、生成的 sdkconfig 和 managed_components 均不进入 Git。热点凭据保存在设备 NVS，不写入源码。
 

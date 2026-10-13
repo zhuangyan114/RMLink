@@ -50,6 +50,14 @@ $data = [ordered]@{
     targetFullAcceptance = Read-RmlinkJson 'artifacts\logs\accept-stm32.json'
     targetExceptions = Read-RmlinkJson 'artifacts\logs\verify-target-exceptions.json'
     targetOwnershipCurrent = Read-RmlinkJson 'artifacts\logs\verify-target-ownership-final.json'
+    connectorDevice = Read-RmlinkJson 'artifacts\logs\verify-connector-device.json'
+    connectorSdk = Read-RmlinkJson 'artifacts\logs\verify-connector-sdk.json'
+    virtualUsbAcceptance = Read-RmlinkJson 'artifacts\logs\accept-virtual-usb.json'
+    connectorReconnect = Read-RmlinkJson 'artifacts\logs\verify-connector-reconnect.json'
+    pyocdVirtual = Read-RmlinkJson 'artifacts\logs\verify-pyocd-virtual.json'
+    connectorBinarySha256 = if (Test-Path -LiteralPath (Join-Path $root 'artifacts\build\connector\dist\RMLinkConnector.exe')) {
+        (Get-FileHash -LiteralPath (Join-Path $root 'artifacts\build\connector\dist\RMLinkConnector.exe')).Hash
+    } else { $null }
     evidenceBoundary = 'Inspect individual result.complete and restored fields; older read-only/transport evidence is version specific; actual SWCLK/voltage/waveforms not instrument-measured'
 }
 $output = Join-Path $root 'artifacts\validation-snapshot.json'

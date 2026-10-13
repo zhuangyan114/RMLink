@@ -7,6 +7,7 @@
 | 目录 | 用途 |
 | --- | --- |
 | firmware/ | 以乐鑫 esp-usb-bridge 为基础的 RMLink 固件源码 |
+| host/ | Windows 连接服务、本机 USB/IP 代理及 Orbit 接入 SDK |
 | reference/ | 上游参考仓库及引用版本记录；保持上游源码可对照 |
 | scripts/ | 可复现构建、设备检查及验证脚本 |
 | docs/ | 项目方向、源码核对、协议、接线与开发进度 |
@@ -26,6 +27,7 @@
 - [构建、连接与接线](docs/quickstart.md)
 - [已实现的开发协议](docs/protocol-v1.md)
 - [Windows 连接组件评估](docs/windows-connector-evaluation.md)
+- [Windows 连接组件使用与验收](docs/windows-connector.md)
 - [ESP32 / 电脑传输速率与延迟](docs/transport-benchmark.md)
 
 当前硬件：普通双 USB-C ESP32-S3 开发板；COM13 为 CH343 下载/日志口。
@@ -33,6 +35,6 @@
 
 当前开发按阶段推进，构建或主机测试通过不代表目标 STM32 已通过实板调试、烧录或性能验收。
 
-2026-10-13：当前固件 0.1.3 已完成 USB / Wi-Fi 三线 SWD 烧录、64 KiB 回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT、软件复位及异常恢复，原主 Flash 已恢复。NRST 缺线，Windows OpenOCD TCP 需兼容模式且仍有主机报错，详见 [实板验收](docs/stm32-acceptance.md)。不能据此宣称全部 CMSIS-DAP 可选功能或所有软件兼容。
+2026-10-13：当前固件 0.1.4。USB / Wi-Fi 三线 SWD 已完成烧录、64 KiB 回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT、软件复位及异常恢复，原主 Flash 已恢复。新增 Windows 连接服务与 usbip-win2 虚拟 USB 封装，OpenOCD 通过虚拟 CMSIS-DAP 经 Wi-Fi 完成同样的实板验收，64 KiB 烧录 / 校验约 11.3 秒且无 Error 行。NRST 缺线；直接 OpenOCD TCP 的旧验收仍有兼容模式 / 主机报错限制，详见 [实板验收](docs/stm32-acceptance.md) 与 [连接组件](docs/windows-connector.md)。
 
-此前无 OTG 的无线启动和 0.1.1 ESP32 / PC 测速是独立历史证据。板端采样、Orbit 后端、USBIP 和 Windows 自动连接组件未实现。
+连接服务已实现 mDNS 发现、明确配对、后台重连、自动重挂载、本机 API 与虚拟 USB / API 会话互斥；独立 EXE 无需安装 Python。此前无 OTG 启动与 0.1.1 测速是独立历史证据。板端采样、实际 Orbit 后端接入、HID 及统一产品安装界面仍未实现，不能宣称所有 CMSIS-DAP 软件均兼容。

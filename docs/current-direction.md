@@ -8,7 +8,7 @@ RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基�
 
 | 协议 | 有线 | 无线 |
 | --- | --- | --- |
-| 标准 CMSIS-DAP | USB Bulk；HID 根据软件兼容性再评估 | TCP DAP；USBIP 路径另行实现并验证 |
+| 标准 CMSIS-DAP | USB Bulk；HID 根据软件兼容性再评估 | TCP DAP；本机 USB/IP 代理 + Windows UDE，OpenOCD 虚拟 Bulk 已实板验证 |
 | 定制 RMLink | 首版使用 CMSIS-DAP 厂商命令 | 同一命令通过 TCP 承载；后续评估采样连续数据接口 |
 
 USB、网络和未来后台采样共用一个固定 CPU 核的目标执行器。同一目标只允许一个控制会话；未来执行调度遵循 control > watch > timeline > background，控制请求优先于后台采样。逐次 GPIO 加锁不能替代会话所有权。
@@ -17,15 +17,15 @@ USB、网络和未来后台采样共用一个固定 CPU 核的目标执行器。
 
 ## 基座与引用
 
-三套固件参考同时保留在 reference/，版本见 source-audit.md 和 reference/versions.json。firmware/ 为独立的乐鑫基座开发仓库；网络能力吸收前两套的协议、单端与发现思路，不引入另一套 SWD 实现。参考源码和第三方许可证保留。
+三套固件参考同时保留在 reference/，固定提交见 reference-versions.json。firmware/ 为乐鑫基座的开发源码，现由根目录 Git 统一管理；参考仓库和构建产物均排除。网络能力吸收前两套的协议、单端与发现思路，保留一套 SWD 实现与第三方许可证。
 
-Orbit 的实际目标所有权、后端调用链已经开始核对；尚未修改或接入 Orbit。Windows 组件先评估 usbip-win2 的控制接口及数据路径，兼容性验证后再决定是否自研 UDE 驱动。
+Orbit 的实际所有权 / 后端链已核对，新增连接服务本地 API 与 SDK；尚未修改或接入实际 Orbit。Windows 首版选择 usbip-win2 签名 UDE 驱动 + 自有本机 USB/IP / TCP DAP 代理，已通过 OpenOCD 实板验收，后续按软件与系统逐项扩展兼容性。
 
 ## 硬件
 
 实物为 DOIT 标识的双 USB-C ESP32-S3 开发板。CH343 下载 / 日志口为本机 COM13，另一个直通 USB&OTG 口已识别为原生 USB。芯片工具实测为 16 MB Flash、8 MB 内置 PSRAM；当前固件未启用 PSRAM。
 
-GPIO19 / GPIO20 留给原生 USB。用户已确认 GPIO4 / GPIO5 / GPIO6 分别接 STM32F103C8T8 的 SWDIO / SWCLK / NRST，并连接 GND；当前烧入 target profile，已通过 USB / TCP 只读 SWD 和会话互斥测试。目标电压未仪表量测；NRST 实际复位、暂停 / 继续和烧录仍待验收。
+GPIO19 / GPIO20 留给原生 USB。GPIO4 / GPIO5 接 STM32F103C8 的 SWDIO / SWCLK 并共地，GPIO6 预留 NRST；用户缺少额外杜邦线，实体 NRST 尚未验收。当前 target profile 已通过 USB、TCP 与 Windows 虚拟 Bulk 的三线烧录 / 调试，目标电压与实际时钟未仪表量测。
 
 ## 推进顺序
 

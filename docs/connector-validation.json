@@ -1,0 +1,79 @@
+{
+  "recordedAt": "2026-10-13T21:36:04.416064+08:00",
+  "connectorVersion": "0.1.0",
+  "firmwareVersion": "0.1.4",
+  "windowsVersion": "10.0.26100.0",
+  "connectorBinarySha256": "938504773f1a7b220382bf782f4b8b8598db64ea21929a7f3d5ece5ad0ed02d9",
+  "firmwareBinarySha256": "5f4ad7c96ac411aed846a9767b0af3333cdc362b488465d78ab3f16152c64bb4",
+  "driver": {
+    "release": "0.9.8.1",
+    "architecture": "x64",
+    "installerSha256": "38cad6d4432b52d5bb9409d9ad03b72fdffc4ada4cd3a48fbeca1a2752a8518a",
+    "installerSignature": "Valid",
+    "catalogSignature": "Valid",
+    "catalogSigner": "Microsoft Windows Hardware Compatibility Publisher",
+    "installed": true,
+    "installerRequestedRestart": true,
+    "computerRestarted": false
+  },
+  "hostTests": {
+    "passed": 16,
+    "failed": 0
+  },
+  "openocd": {
+    "version": "v0.12.0-esp32-20260831",
+    "virtualSerial": "RM50787D15A924",
+    "complete": true,
+    "programVerify64KiBMs": 11324.08,
+    "errorLines": [],
+    "restored": true,
+    "originalFlashSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+    "physicalNrstTested": false
+  },
+  "reconnect": {
+    "capturedAt": "2026-10-13T21:30:45.416777+08:00",
+    "complete": true,
+    "deviceId": "50787d15a924",
+    "method": "USB vendor 80/05 disconnects only RMLink STA; PC hotspot stays on",
+    "realVirtualExcludesApiOwner": true,
+    "realApiExcludesVirtualOwner": true,
+    "oldSessionFailedMs": 3032.88,
+    "automaticVirtualRecoveryMs": 5279.69,
+    "oldLeaseRemainsLost": true,
+    "newSessionCpuid": "0x411fc231",
+    "remountedVirtualCpuid": "0x411fc231",
+    "ownerAtEnd": null
+  },
+  "nodeSdk": {
+    "capturedAt": "2026-10-13T13:30:53.096Z",
+    "complete": true,
+    "sdk": "Node local API",
+    "deviceId": "50787d15a924",
+    "dapProtocolVersion": "2.1.2",
+    "firmwareVersion": "0.1.4"
+  },
+  "pyocd": {
+    "capturedAt": "2026-10-13T21:23:30.955872+08:00",
+    "complete": false,
+    "pyocdVersion": "0.45.1",
+    "failure": "CMSIS-DAP v2 startup idle Bulk read did not honor host timeout; bounded process terminated",
+    "targetOperationsStarted": false
+  },
+  "evidenceFiles": [
+    "artifacts/logs/accept-virtual-usb.json",
+    "artifacts/logs/verify-connector-reconnect.json",
+    "artifacts/logs/verify-connector-device.json",
+    "artifacts/logs/verify-connector-final-state.json",
+    "artifacts/logs/verify-pyocd-virtual-run.log",
+    "artifacts/logs/usbip-timeout-diagnostic.log"
+  ],
+  "remaining": [
+    "Windows idle Bulk cancellation compatibility",
+    "Keil/IAR/HID compatibility",
+    "USB/WiFi automatic selection",
+    "Orbit backend integration",
+    "board-side sampling",
+    "product installer/autostart",
+    "actual PC hotspot loss and power-cycle tests"
+  ]
+}

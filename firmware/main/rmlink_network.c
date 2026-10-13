@@ -216,6 +216,11 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
 {
     out[0] = 0x80; out[1] = len > 1 ? r[1] : 0xff; out[2] = 1;
     if (len < 2) return 3;
+    if (r[1] == 9) { /* Stable probe identity, no target access or credentials. */
+        out[2] = 0;
+        esp_efuse_mac_get_default(out + 3);
+        return 9;
+    }
     if (r[1] == 7) { /* 64-byte deterministic reply; no target access. */
         if (len < 6) return 3;
         out[2] = 0; memcpy(out + 3, r + 2, 4);

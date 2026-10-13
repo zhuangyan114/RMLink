@@ -1,6 +1,6 @@
 # 开发与验证进度
 
-更新日期：2026-10-13。当前固件 0.1.3 已通过 STM32F103 的 USB / Wi-Fi 三线 SWD 烧录、完整 Flash 校验、调试与软件复位验收；原主 Flash 已恢复。NRST 实体复位缺接线，Windows OpenOCD TCP 需兼容模式且仍有主机报错，详见 [本轮验收](stm32-acceptance.md)。
+更新日期：2026-10-13。当前固件 0.1.4，连接服务 0.1.0。USB / TCP 三线 SWD 的既有验收保持为独立记录；新增 Windows 虚拟 USB 经 Wi-Fi 的 64 KiB 烧录、回读、调试与异常恢复验收通过，原 Flash 已恢复。NRST 缺线，直接 OpenOCD TCP 仍有旧版主机限制；虚拟 Bulk 路径的 OpenOCD 日志无 Error，详见 [实板验收](stm32-acceptance.md) 与 [Windows 组件](windows-connector.md)。
 
 ## 阶段状态
 
@@ -9,10 +9,10 @@
 | 1：基座与环境 | 五个参考仓库固定提交；独立乐鑫基座；脚本、板级 profile、组件锁定和 CodeGraph | 上游基座、RMLink 默认、目标 GPIO 开启配置均编译通过 | S3 rev0.2、16 MB Flash、8 MB PSRAM 已读出；完整原 Flash 已备份；PSRAM 未启用 |
 | 2：USB / 目标 SWD | Bulk、统一执行器、会话规则、NRST 钩子、边界和主机排队读取已实现 | target profile 已编译并刷写；主机核心通过 | USB / TCP 的 64 KiB 烧录与回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT 和软件复位通过；NRST 缺线 |
 | 3：STA / TCP / USB 配网 | NVS、自动入网、mDNS、分片帧和网络独立恢复已实现 | 主机 TCP client 6 项测试通过 | 配网 / STA / TCP / 无 OTG 复位通过；STA 恢复时 USB 的真实目标读取与 owner 保持通过；完全断电及真正热点掉线待测 |
-| 4：Orbit / 板端采样 | 已核对 Orbit 所有权链；未修改 / 接入 Orbit；采样与缓存未实现 | 待实施与测试 | 未验收 |
-| 5：Windows 自动组件 | 已评估 SDK attach / detach / 状态及 UDE / WSK 数据路径 | 未实现服务、USBIP 或驱动封装；未构建 / 安装驱动 | 软件兼容性、安装、签名和系统兼容性未验收 |
+| 4：Orbit / 板端采样 | 已核对 Orbit 所有权链；新增本机 API / Node SDK；实际 Orbit 与采样尚未接入 | SDK 经真实服务完成连接、批量查询和释放 | API 读 STM32、与虚拟 USB 双向互斥通过；板端采样未验收 |
+| 5：Windows 自动组件 | mDNS、配对、一个物理 TCP、USB/IP 代理、自动重挂载与 UDE 驱动控制 | 独立 EXE 构建、16 项主机测试通过；官方 usbip-win2 0.9.8.1 已安装 | 驱动与 WinUSB 枚举 / Bulk 实测通过，OpenOCD 烧录 / 调试通过；STA 断连约 5 秒自动恢复，跨 Windows / ARM64 / HID 兼容性待测 |
 
-当前 target profile 固件为 0.1.3，SHA256 7439FB8B335F70A0991989957618699D93606A161A3B61A0770C5EA00EA3FC5E。最后刷写记录在 artifacts/hardware/rmlink-last-flash.json；[实板验收](stm32-acceptance.md) 分开记录源码、编译、主机、目标操作与原程序恢复。
+当前 target profile 固件为 0.1.4，SHA256 5F4AD7C96AC411AED846A9767B0AF3333CDC362B488465D78AB3F16152C64BB4。0.1.4 新增只读 MAC 查询，SWD 内核沿用 0.1.3。最后刷写记录在 artifacts/hardware/rmlink-last-flash.json；[实板验收](stm32-acceptance.md) 分开记录各版本的证据。
 
 新增异步 TransferAbort、TCP 独立收发、断连取消 / 排队清理、传输期限、未实现命令 0xFF 响应和 SWJ 引脚监测 / 等待修正。唯一 SWD 执行器与整段会话所有权保留。
 

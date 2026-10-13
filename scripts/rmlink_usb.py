@@ -24,7 +24,7 @@ class PipeInfo(C.Structure):
 class UsbClient:
     GUID_TEXT = '{CDB3B5AD-293B-4663-AA36-1AAE46463776}'
 
-    def __init__(self):
+    def __init__(self, *, bcd_device=None, serial=None):
         self.file = self.handle = None
         self.kernel = C.WinDLL('kernel32', use_last_error=True)
         self.setup = C.WinDLL('setupapi', use_last_error=True)
@@ -61,11 +61,18 @@ class UsbClient:
                 if len(descriptor) < 18:
                     self.close()
                     continue
+                self.bcd_device = int.from_bytes(descriptor[12:14], 'little')
+                if bcd_device is not None and self.bcd_device != bcd_device:
+                    self.close()
+                    continue
                 self.product = self._descriptor(3, descriptor[15], 0x409)[2:].decode('utf-16le', errors='strict')
                 if self.product != 'RMLink CMSIS-DAP':
                     self.close()
                     continue
                 self.serial = self._descriptor(3, descriptor[16], 0x409)[2:].decode('utf-16le', errors='strict')
+                if serial is not None and self.serial != serial:
+                    self.close()
+                    continue
                 interface = UsbInterface()
                 self._check(self.usb.WinUsb_QueryInterfaceSettings(handle, 0, C.byref(interface)))
                 self.ep_in = self.ep_out = None

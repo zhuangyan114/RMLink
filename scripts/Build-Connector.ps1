@@ -1,0 +1,25 @@
+param([string]$Python = 'D:\ESP32\ESP32idf\Espressif\python_env\idf5.1_py3.11_env\Scripts\python.exe')
+$ErrorActionPreference = 'Stop'
+$root = Split-Path $PSScriptRoot -Parent
+$venv = Join-Path $root 'artifacts\tools\connector-build-venv'
+$build = Join-Path $root 'artifacts\build\connector'
+$pythonExe = Join-Path $venv 'Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $pythonExe)) {
+    & $Python -m venv $venv
+    if ($LASTEXITCODE -ne 0) { throw 'Connector build environment failed' }
+}
+& $pythonExe -m pip install --disable-pip-version-check pyinstaller==6.16.0
+if ($LASTEXITCODE -ne 0) { throw 'PyInstaller install failed' }
+New-Item -ItemType Directory -Force $build | Out-Null
+& $pythonExe -m pip freeze | Set-Content -Encoding utf8 (Join-Path $build 'build-requirements.txt')
+& $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name RMLinkConnector --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\connector_entry.py')
+if ($LASTEXITCODE -ne 0) { throw 'Connector executable build failed' }
+Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $build 'dist\RMLink-LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $root 'reference\usbip-win2\LICENSE.txt') -Destination (Join-Path $build 'dist\usbip-win2-LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $venv 'Lib\site-packages\pyinstaller-6.16.0.dist-info\licenses\COPYING.txt') -Destination (Join-Path $build 'dist\PyInstaller-COPYING.txt')
+$basePython = & $pythonExe -c 'import sys; print(sys.base_prefix)'
+$pythonLicense = Join-Path $basePython 'LICENSE.txt'
+if (Test-Path -LiteralPath $pythonLicense) {
+    Copy-Item -LiteralPath $pythonLicense -Destination (Join-Path $build 'dist\Python-LICENSE.txt')
+}
+Get-FileHash (Join-Path $build 'dist\RMLinkConnector.exe')
