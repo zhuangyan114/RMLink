@@ -1,10 +1,10 @@
 {
-  "recordedAt": "2026-10-13T21:36:04.416064+08:00",
-  "connectorVersion": "0.1.0",
-  "firmwareVersion": "0.1.4",
+  "recordedAt": "2026-10-14T15:50:07.426916+08:00",
+  "connectorVersion": "0.1.1",
+  "firmwareVersion": "0.1.5",
   "windowsVersion": "10.0.26100.0",
-  "connectorBinarySha256": "938504773f1a7b220382bf782f4b8b8598db64ea21929a7f3d5ece5ad0ed02d9",
-  "firmwareBinarySha256": "5f4ad7c96ac411aed846a9767b0af3333cdc362b488465d78ab3f16152c64bb4",
+  "connectorBinarySha256": "7c524c5a6c0d4f501c5ef2bcc680f8f513edb0a546154549047575d822ed27d6",
+  "firmwareBinarySha256": "68640a9b1678f59691f628a9f94587594e75a38f01efb1807ec67281d0e7061c",
   "driver": {
     "release": "0.9.8.1",
     "architecture": "x64",
@@ -14,10 +14,36 @@
     "catalogSigner": "Microsoft Windows Hardware Compatibility Publisher",
     "installed": true,
     "installerRequestedRestart": true,
-    "computerRestarted": false
+    "computerRestarted": true,
+    "computerBootedAt": "2026-10-14T14:15:25.5000000+08:00",
+    "currentBoot": {
+      "secureBoot": true,
+      "memoryIntegrity": true,
+      "testSigningActive": false,
+      "bitLockerCProtection": "Off",
+      "bootedAt": "2026-10-14T14:15:25.5000000+08:00"
+    },
+    "currentController": {
+      "instance": "ROOT\\USB\\0000",
+      "inf": "oem122.inf",
+      "version": "12.1.30.403",
+      "state": "Running",
+      "binary": "C:\\WINDOWS\\system32\\DriverStore\\FileRepository\\usbip2_ude.inf_amd64_bcfb5e9b79f800fa\\usbip2_ude.sys",
+      "sha256": "ABD4FC43DCE40E027E4ACC884CBFE92433E026206F6565C5EE5284A39441169A"
+    },
+    "testPatch": {
+      "sourceCommit": "55e1fa7f0c2157017b02dc1f3236e98169a535e4",
+      "patchSha256": "E74128296AB50C12D13F5ADF12C63332A83F5ED8D67CB6FB1DC4E8C0CCCCB269",
+      "embeddedSignature": "Valid",
+      "catalogAndBinaryHashVerified": true,
+      "installed": false,
+      "runtimeAcceptanceComplete": false,
+      "signedBinarySha256": "E44D55A36843154D22D06E6CE1271EA74676CB3E233FBFA724CC61C3DF717D31",
+      "manifest": "artifacts/driver-test/test-driver.json"
+    }
   },
   "hostTests": {
-    "passed": 16,
+    "passed": 19,
     "failed": 0
   },
   "openocd": {
@@ -28,7 +54,9 @@
     "errorLines": [],
     "restored": true,
     "originalFlashSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
-    "physicalNrstTested": false
+    "physicalNrstTested": false,
+    "testedFirmwareVersion": "0.1.4",
+    "testedConnectorVersion": "0.1.0"
   },
   "reconnect": {
     "capturedAt": "2026-10-13T21:30:45.416777+08:00",
@@ -42,22 +70,28 @@
     "oldLeaseRemainsLost": true,
     "newSessionCpuid": "0x411fc231",
     "remountedVirtualCpuid": "0x411fc231",
-    "ownerAtEnd": null
+    "ownerAtEnd": null,
+    "testedFirmwareVersion": "0.1.4",
+    "testedConnectorVersion": "0.1.0"
   },
   "nodeSdk": {
-    "capturedAt": "2026-10-13T13:30:53.096Z",
+    "capturedAt": "2026-10-14T07:36:25.192Z",
     "complete": true,
     "sdk": "Node local API",
     "deviceId": "50787d15a924",
     "dapProtocolVersion": "2.1.2",
-    "firmwareVersion": "0.1.4"
+    "firmwareVersion": "0.1.5"
   },
   "pyocd": {
-    "capturedAt": "2026-10-13T21:23:30.955872+08:00",
+    "capturedAt": "2026-10-14T14:24:25.469266+08:00",
     "complete": false,
     "pyocdVersion": "0.45.1",
-    "failure": "CMSIS-DAP v2 startup idle Bulk read did not honor host timeout; bounded process terminated",
-    "targetOperationsStarted": false
+    "timeoutSeconds": 20,
+    "failure": "pyOCD test exceeded time limit; inspect the run log for the stage",
+    "path": "virtual USB",
+    "targetOperationsStarted": false,
+    "testedFirmwareVersion": "0.1.4",
+    "driver": "official 0.9.8.1"
   },
   "evidenceFiles": [
     "artifacts/logs/accept-virtual-usb.json",
@@ -65,7 +99,16 @@
     "artifacts/logs/verify-connector-device.json",
     "artifacts/logs/verify-connector-final-state.json",
     "artifacts/logs/verify-pyocd-virtual-run.log",
-    "artifacts/logs/usbip-timeout-diagnostic.log"
+    "artifacts/logs/usbip-timeout-diagnostic.log",
+    "artifacts/logs/post-reboot-20261014/pyocd-physical-015.json",
+    "artifacts/logs/post-reboot-20261014/preconnect-clock-015.json",
+    "artifacts/logs/post-reboot-20261014/connector-preconnect-011.json",
+    "artifacts/logs/post-reboot-20261014/verify-original-flash-015.json",
+    "artifacts/logs/post-reboot-20261014/connector-sdk-011.json",
+    "artifacts/logs/post-reboot-20261014/final-target-state.json",
+    "artifacts/logs/post-reboot-20261014/idle-native-fresh.json",
+    "artifacts/logs/post-reboot-20261014/usbip-ude.txt",
+    "artifacts/logs/post-reboot-20261014/usbip-filter.txt"
   ],
   "remaining": [
     "Windows idle Bulk cancellation compatibility",
@@ -75,5 +118,102 @@
     "board-side sampling",
     "product installer/autostart",
     "actual PC hotspot loss and power-cycle tests"
-  ]
+  ],
+  "physicalPyocd": {
+    "capturedAt": "2026-10-14T15:23:50.230816+08:00",
+    "complete": true,
+    "requestedSerial": "50787D15A924",
+    "pyocdVersion": "0.45.1",
+    "probeSerial": "50787D15A924",
+    "cpuid": "0x411fc231",
+    "pcWhileHalted": "0x80006ac",
+    "haltReadRegisterResume": true
+  },
+  "preconnectClock": {
+    "capturedAt": "2026-10-14T15:24:13.668255+08:00",
+    "complete": true,
+    "device": {
+      "version": "0.1.5",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 0,
+      "ownerSession": 0,
+      "packetSize": 64
+    },
+    "invalidTcpClockDoesNotClaim": true,
+    "usb": {
+      "clockBeforeConnect": true,
+      "foreignClockConnectTransferDisconnectDenied": true,
+      "cpuid": "0x411fc231",
+      "releasedAfterDisconnect": true
+    },
+    "tcp": {
+      "clockBeforeConnect": true,
+      "foreignClockConnectTransferDisconnectDenied": true,
+      "cpuid": "0x411fc231",
+      "releasedAfterDisconnect": true
+    },
+    "disconnectBeforeConnectReleases": true,
+    "ownerAfterTests": {
+      "version": "0.1.5",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 0,
+      "ownerSession": 0,
+      "packetSize": 64
+    },
+    "tcpCloseBeforeConnectReleases": true,
+    "evidence": "Physical STM32 CPUID reads and USB/TCP session arbitration; no target Flash/RAM writes or reset"
+  },
+  "connectorPreconnect": {
+    "capturedAt": "2026-10-14T15:36:23.893911+08:00",
+    "complete": true,
+    "connectorVersion": "0.1.1",
+    "firmwareVersion": "0.1.5",
+    "apiClockBeforeConnect": true,
+    "invalidClockDoesNotClaim": true,
+    "apiForeignDenied": true,
+    "apiVirtualMutualExclusion": true,
+    "apiAndVirtualCpuid": "0x411fc231",
+    "apiCloseBeforeConnectReleases": true,
+    "ownerAfterTests": null,
+    "evidence": "Real connector API, installed virtual WinUSB and STM32 SWD; no Flash writes or target reset"
+  },
+  "flashReadConsistency": {
+    "capturedAt": "2026-10-14T15:33:22.451631+08:00",
+    "results": [
+      {
+        "transport": "USB",
+        "clockRequestedHz": 2000000,
+        "bytes": 65536,
+        "elapsedMs": 1843.41,
+        "sha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+        "contentMatchesBackup": true
+      },
+      {
+        "transport": "TCP",
+        "clockRequestedHz": 2000000,
+        "bytes": 65536,
+        "elapsedMs": 11163.07,
+        "sha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+        "contentMatchesBackup": true
+      }
+    ],
+    "evidence": "Full main Flash backup read consistency; no erase/program/target halt/reset or backup restoration tested"
+  },
+  "finalTargetState": {
+    "capturedAt": "2026-10-14T15:47:09.494456+08:00",
+    "connectorVersion": "0.1.1",
+    "firmwareVersion": "0.1.5",
+    "coreHalted": false,
+    "dhcsr": "0x1010000",
+    "owner": null
+  },
+  "coldPcRestartDiscovery": {
+    "deviceId": "50787d15a924",
+    "previousAddress": "192.168.137.151",
+    "newAddress": "192.168.137.243",
+    "mdnsIdentityVerified": true,
+    "autoMounted": true
+  }
 }

@@ -1,14 +1,23 @@
-"""Independent pyOCD CMSIS-DAP v2 connection through the virtual probe only."""
+"""Bounded independent pyOCD CMSIS-DAP v2 acceptance by exact USB serial."""
 from datetime import datetime
 import json
 from pathlib import Path
 import subprocess
 import sys
+import argparse
+
+ROOT = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser(description='Bounded pyOCD CMSIS-DAP test with an exact USB serial')
+parser.add_argument('--serial', default='RM50787D15A924')
+parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/logs/verify-pyocd-virtual.json')
+parser.add_argument('--child', action='store_true', help=argparse.SUPPRESS)
+args = parser.parse_args()
 
 # Bound discovery/idle-read problems without leaving a hung Python child behind.
 if __name__ == '__main__' and '--child' not in sys.argv:
-    root = Path(__file__).resolve().parents[1]
-    process = subprocess.Popen([sys.executable, '-B', str(Path(__file__).resolve()), '--child'],
+    root = ROOT
+    process = subprocess.Popen([sys.executable, '-B', str(Path(__file__).resolve()), '--child',
+                               '--serial', args.serial, '--output', str(args.output)],
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         output, _ = process.communicate(timeout=20)
@@ -17,31 +26,32 @@ if __name__ == '__main__' and '--child' not in sys.argv:
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         output, _ = process.communicate(timeout=5)
         from importlib.metadata import version
-        (root / 'artifacts/logs/verify-pyocd-virtual.json').write_text(json.dumps({
+        args.output.write_text(json.dumps({
             'capturedAt': datetime.now().astimezone().isoformat(), 'complete': False,
+            'requestedSerial': args.serial,
             'pyocdVersion': version('pyocd'), 'timeoutSeconds': 20,
             'failure': 'pyOCD test exceeded time limit; inspect the run log for the stage'
         }, indent=2) + '\n', encoding='utf-8')
-    (root / 'artifacts/logs/verify-pyocd-virtual-run.log').write_bytes(output)
+    args.output.with_suffix('.log').write_bytes(output)
     print(output.decode('utf-8', errors='replace'))
     sys.exit(process.returncode)
 
 import pyocd
 from pyocd.core.helpers import ConnectHelper
 
-ROOT = Path(__file__).resolve().parents[1]
-report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False, pyocdVersion=pyocd.__version__)
+report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False,
+              requestedSerial=args.serial, pyocdVersion=pyocd.__version__)
 try:
-    print('Select virtual CMSIS-DAP RM50787D15A924', flush=True)
+    print(f'Select CMSIS-DAP {args.serial}', flush=True)
     session = ConnectHelper.session_with_chosen_probe(
-        blocking=False, unique_id='cmsisdap:RM50787D15A924',
+        blocking=False, unique_id='cmsisdap:' + args.serial,
         target_override='cortex_m', frequency=2000000, connect_mode='attach',
         resume_on_disconnect=True)
-    assert session is not None, 'Virtual probe not discovered by pyOCD'
+    assert session is not None, 'Requested probe not discovered by pyOCD'
     with session:
         target = session.target
         report['probeSerial'] = session.probe.unique_id
-        assert report['probeSerial'] == 'RM50787D15A924'
+        assert report['probeSerial'] == args.serial
         report['cpuid'] = hex(target.read32(0xe000ed00))
         assert report['cpuid'] == '0x411fc231'
         target.halt()
@@ -57,5 +67,5 @@ except BaseException as exc:
     report['failure'] = f'{type(exc).__name__}: {exc}'
     raise
 finally:
-    (ROOT / 'artifacts/logs/verify-pyocd-virtual.json').write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
+    args.output.write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     print(json.dumps(report, indent=2), flush=True)

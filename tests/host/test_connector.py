@@ -30,6 +30,9 @@ class FakeTransport:
             elif p[0] == 2: result.append(b'\x02\x01')
             elif p[0] == 3: result.append(b'\x03\x00')
             elif p[0] == 5: result.append(b'\x05\x00\x11')
+            elif p[0] == 0x11:
+                valid = len(p) >= 5 and 1000 <= int.from_bytes(p[1:5], 'little') <= 10000000
+                result.append(b'\x11\x00' if valid else b'\x11\xff')
             else: result.append(b'\xff')
         return result
     async def abort(self): self.block.set()
@@ -52,6 +55,34 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
     async def test_info_free_during_foreign_owner(self):
         await self.broker.submit('a', [b'\x02\x01'])
         self.assertEqual(await self.broker.submit('b', [b'\x00\xff']), [b'\x00\x02\x40\x00'])
+
+    async def test_preconnect_clock_reserves_session_and_denies_foreign_changes(self):
+        clock = b'\x11' + (2000000).to_bytes(4, 'little')
+        self.assertEqual(await self.broker.submit('a', [clock]), [b'\x11\x00'])
+        self.assertEqual(self.broker.owner, 'a')
+        before = len(self.transport.requests)
+        self.assertEqual(await self.broker.submit('b', [clock, b'\x02\x01', b'\x03']),
+                         [b'\x11\xff', b'\x02\x00', b'\x03\xff'])
+        self.assertEqual(len(self.transport.requests), before)
+        self.assertEqual(await self.broker.submit('a', [b'\x02\x01', b'\x03']),
+                         [b'\x02\x01', b'\x03\x00'])
+        self.assertIsNone(self.broker.owner)
+
+    async def test_invalid_preconnect_clock_does_not_claim_session(self):
+        packets = [b'\x11', b'\x11' + bytes(4), b'\x11' + (10000001).to_bytes(4, 'little')]
+        self.assertEqual(await self.broker.submit('a', packets), [b'\x11\xff'] * 3)
+        self.assertIsNone(self.broker.owner)
+        self.assertEqual(await self.broker.submit('b', [b'\x02\x01']), [b'\x02\x01'])
+
+    async def test_clock_transition_in_batch_and_release_before_connect(self):
+        clock = b'\x11' + (2000000).to_bytes(4, 'little')
+        self.assertEqual(await self.broker.submit('a', [b'\x00\xff', clock, b'\x02\x01', b'\x05\x00\x00']),
+                         [b'\x00\x02\x40\x00', b'\x11\x00', b'\x02\x01', b'\x05\x00\x11'])
+        await self.broker.release('a')
+        await self.broker.submit('b', [clock])
+        await self.broker.release('b')
+        self.assertIsNone(self.broker.owner)
+        self.assertEqual(self.transport.requests[-1], b'\x03')
 
     async def test_abort_bypasses_worker_but_checks_owner(self):
         await self.broker.submit('a', [b'\x02\x01'])

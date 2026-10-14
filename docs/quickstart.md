@@ -56,7 +56,7 @@ $env:PYTHONPYCACHEPREFIX = 'D:\STM32\RMLink\artifacts\cache\python'
 & $rmlinkPython 'D:\STM32\RMLink\scripts\rmlink_tool.py' verify --host rmlink-15a924.local
 ```
 
-也可运行 rmlink_tool.py provision 手动本地输入账号密码。当前 IP 192.168.137.151 是本次 DHCP 地址，不能当作永久固定值。TCP 默认端口 3241；现有调试软件是否支持这种 TCP DAP，需要逐软件验证。USBIP 服务、自动挂载和 Orbit 专用后端仍待实现。
+也可运行 rmlink_tool.py provision 手动本地输入账号密码。IP 由热点 DHCP 分配，重启后的本轮地址为 192.168.137.243，不能当作永久固定值。TCP 默认端口 3241；现有调试软件是否支持这种 TCP DAP，需要逐软件验证。Windows USB/IP 服务和自动挂载已实现，使用入口与限制见 [Windows 连接组件](windows-connector.md)；Orbit 专用后端仍待接入。
 
 test_device_transport.py 需要 USB 和 Wi-Fi 均在线，会主动三次断开 STA，检查 USB 持续查询、运行时间和新 TCP 连接；仅供传输验收，不进行 STM32 操作。运行时应停止其他占用该设备的工具。
 

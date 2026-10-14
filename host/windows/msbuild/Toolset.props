@@ -1,0 +1,33 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Local NuGet WDK overlay; imported only by Build-PatchedVirtualUsbDriver.ps1. -->
+  <Import Project="$(VCTargetsPath)\Platforms\x64\PlatformToolsets\v145\Toolset.props" />
+  <PropertyGroup>
+    <WDKContentRoot>$(WDKContentRoot)\</WDKContentRoot>
+    <WDKBuildFolder>10.0.28000.0</WDKBuildFolder>
+    <IsKernelModeToolset>true</IsKernelModeToolset>
+    <IsDriverAppToolset>false</IsDriverAppToolset>
+    <DDKPlatform>x64</DDKPlatform>
+    <DDK_INC_PATH>$(WDKContentRoot)Include\$(WDKBuildFolder)\km\</DDK_INC_PATH>
+    <DDK_LIB_PATH>$(WDKContentRoot)Lib\$(WDKBuildFolder)\km\x64\</DDK_LIB_PATH>
+    <KM_IncludePath>$(DDK_INC_PATH);$(DDK_INC_PATH)crt</KM_IncludePath>
+    <KIT_SHARED_IncludePath>$(WindowsSdkDir)Include\$(WDKBuildFolder)\shared</KIT_SHARED_IncludePath>
+    <CRT_IncludePath>$(DDK_INC_PATH)crt</CRT_IncludePath>
+    <KMDF_LIB_PATH>$(WDKContentRoot)Lib\wdf\kmdf\x64\</KMDF_LIB_PATH>
+    <KMDF_VER_PATH>1.27</KMDF_VER_PATH>
+    <DDK_LibraryPath_DDKPlatform>$(DDK_LIB_PATH)</DDK_LibraryPath_DDKPlatform>
+  </PropertyGroup>
+  <Import Project="$(WDKContentRoot)build\$(WDKBuildFolder)\WindowsDriver.Default.props" />
+  <Import Project="$(WDKContentRoot)build\$(WDKBuildFolder)\WindowsDriver.KernelMode.Default.props" />
+  <Import Project="$(WDKContentRoot)build\$(WDKBuildFolder)\WindowsDriver.Common.props" />
+  <Import Project="$(WDKContentRoot)build\$(WDKBuildFolder)\WindowsDriver.KernelMode.props" />
+  <PropertyGroup>
+    <IncludePath>$(CRT_IncludePath);$(KM_IncludePath);$(KIT_SHARED_IncludePath);$(WDKContentRoot)Include\$(WDKBuildFolder)\shared;$(WDKContentRoot)Include\wdf\kmdf\1.27;$(DDK_INC_PATH)ude\1.1;$(VCToolsInstallDir)include</IncludePath>
+    <LibraryPath>$(DDK_LIB_PATH);$(KMDF_LIB_PATH)1.27;$(LibraryPath)</LibraryPath>
+    <InfToolPath>$(WDKBinRoot_x64)</InfToolPath>
+    <WppToolPath>$(WDKBinRoot_x64)</WppToolPath>
+    <Inf2CatToolPath>$(WDKBinRoot)\x86</Inf2CatToolPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
+  </ItemDefinitionGroup>
+</Project>

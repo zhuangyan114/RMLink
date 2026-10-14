@@ -94,15 +94,15 @@ class Broker:
                         job.future.set_exception(ConnectionError('Client closed during batch'))
                         break
                     p = job.packets[i]
-                    if not informational(p) and p[0] != 2 and self.owner != job.source:
+                    if not informational(p) and p[0] not in (2, 0x11) and self.owner != job.source:
                         if p[0] == 3 and self.owner is None: replies.append(b'\x03\x00')
                         else: replies.append(denied(p[0]))
                         i += 1; continue
-                    if p[0] == 2:
-                        if self.owner not in (None, job.source): replies.append(denied(2))
+                    if p[0] in (2, 0x11):
+                        if self.owner not in (None, job.source): replies.append(denied(p[0]))
                         else:
                             response = (await self.transport.exchange_many([p]))[0]
-                            if response == b'\x02\x01': self.owner = job.source
+                            if response == (b'\x02\x01' if p[0] == 2 else b'\x11\x00'): self.owner = job.source
                             replies.append(response)
                         i += 1; continue
                     if p[0] == 3:
@@ -112,7 +112,7 @@ class Broker:
                     group = [p]; i += 1
                     while i < len(job.packets):
                         n = job.packets[i]
-                        if n[0] in (2, 3) or (not informational(n) and self.owner != job.source): break
+                        if n[0] in (2, 3, 0x11) or (not informational(n) and self.owner != job.source): break
                         group.append(n); i += 1
                     replies.extend(await self.transport.exchange_many(group))
                 if not job.future.done(): job.future.set_result(replies)

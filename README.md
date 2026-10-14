@@ -28,6 +28,7 @@
 - [已实现的开发协议](docs/protocol-v1.md)
 - [Windows 连接组件评估](docs/windows-connector-evaluation.md)
 - [Windows 连接组件使用与验收](docs/windows-connector.md)
+- [虚拟 USB 取消问题与测试驱动](docs/virtual-usb-cancellation.md)
 - [ESP32 / 电脑传输速率与延迟](docs/transport-benchmark.md)
 
 当前硬件：普通双 USB-C ESP32-S3 开发板；COM13 为 CH343 下载/日志口。
@@ -38,3 +39,5 @@
 2026-10-13：当前固件 0.1.4。USB / Wi-Fi 三线 SWD 已完成烧录、64 KiB 回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT、软件复位及异常恢复，原主 Flash 已恢复。新增 Windows 连接服务与 usbip-win2 虚拟 USB 封装，OpenOCD 通过虚拟 CMSIS-DAP 经 Wi-Fi 完成同样的实板验收，64 KiB 烧录 / 校验约 11.3 秒且无 Error 行。NRST 缺线；直接 OpenOCD TCP 的旧验收仍有兼容模式 / 主机报错限制，详见 [实板验收](docs/stm32-acceptance.md) 与 [连接组件](docs/windows-connector.md)。
 
 连接服务已实现 mDNS 发现、明确配对、后台重连、自动重挂载、本机 API 与虚拟 USB / API 会话互斥；独立 EXE 无需安装 Python。此前无 OTG 启动与 0.1.1 测速是独立历史证据。板端采样、实际 Orbit 后端接入、HID 及统一产品安装界面仍未实现，不能宣称所有 CMSIS-DAP 软件均兼容。
+
+2026-10-14：固件 0.1.5 / 服务 0.1.1 补齐 Connect 前设置时钟的会话规则，直连 USB 的 pyOCD 读目标、暂停与继续通过，USB / TCP / API / 虚拟 USB 的连接前互斥通过，19 项主机测试通过。电脑重启未解决虚拟 pyOCD 的空读取消问题；UDE 取消长度修补已构建、测试签名和目录哈希验证通过，仍待关闭 Secure Boot、开启测试模式后的实际加载验收。当前运行的仍是官方签名驱动。

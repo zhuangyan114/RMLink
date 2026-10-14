@@ -69,7 +69,7 @@ static size_t process(const request_t *job, uint8_t *out)
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 1; out[6] = 4; /* firmware 0.1.4 */
+            out[5] = 1; out[6] = 5; /* firmware 0.1.5 */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */
@@ -100,6 +100,14 @@ static size_t process(const request_t *job, uint8_t *out)
         if (r[1] > 1 || !rmlink_owner_claim(&s_owner, job->transport, job->session)) return rmlink_dap_error(2, out);
         size_t n = DAP_ProcessCommand(r, out) & 0xffff;
         if (!out[1]) rmlink_owner_release(&s_owner, job->transport, job->session);
+        return n;
+    }
+    /* pyOCD sets SWJ clock before Connect. Reserve the same whole session. */
+    if (r[0] == 0x11) {
+        bool newly_claimed = !s_owner.session;
+        if (!rmlink_owner_claim(&s_owner, job->transport, job->session)) return rmlink_dap_error(r[0], out);
+        size_t n = DAP_ProcessCommand(r, out) & 0xffff;
+        if (out[1] && newly_claimed) rmlink_owner_release(&s_owner, job->transport, job->session);
         return n;
     }
     if (!rmlink_owner_matches(&s_owner, job->transport, job->session)) return rmlink_dap_error(r[0], out);

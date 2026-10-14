@@ -1,6 +1,6 @@
 # RMLink 开发协议 v1
 
-固件 0.1.4，更新：2026-10-13。当前为开发接口，采样 / 批量内存 API 尚未实现。
+固件 0.1.5，更新：2026-10-14。当前为开发接口，采样 / 批量内存 API 尚未实现。
 
 ## 标准 DAP 与传输
 
@@ -50,7 +50,7 @@ DAP_ResetTarget 为 GPIO6 的 10 ms 开漏脉冲，实现返回值不证明目�
 | --- | --- | --- |
 | 0 | 3 | 80 00 00 |
 | 3 | 1 | 协议版本，当前 1 |
-| 4 | 3 | 固件 major / minor / patch，当前 0 / 1 / 4 |
+| 4 | 3 | 固件 major / minor / patch，当前 0 / 1 / 5 |
 | 7 | 2 | little-endian 能力；bit0 USB、bit1 TCP、bit2 USB 配网；当前 0x0007 |
 | 9 | 1 | 编译配置是否允许目标 GPIO |
 | 10 | 1 | 当前目标 owner：0 无、1 USB、2 TCP |
@@ -65,7 +65,7 @@ DAP_ResetTarget 为 GPIO6 的 10 ms 开漏脉冲，实现返回值不证明目�
 
 ## 会话约束与后续接口
 
-DAP_Info、HostStatus 和设备 / 网络信息查询不占用目标。DAP_Connect 在目标 GPIO 已启用时申请整段会话；后续目标命令必须来自同一 transport + session。DAP_Disconnect、USB reset / 拔出、TCP 关闭释放相应会话，并走同一执行器清理。
+DAP_Info、HostStatus 和设备 / 网络信息查询不占用目标。目标 GPIO 已启用时，DAP_Connect 或有效的 DAP_SWJ_Clock 申请整段会话；允许 pyOCD 在 Connect 之前设置时钟。无效时钟不申请会话，时钟已申请的会话在后续 Connect 中延续；其他客户端的时钟、Connect、Transfer 和 Disconnect 均被拒绝。后续目标命令必须来自同一 transport + session。DAP_Disconnect、USB reset / 拔出、TCP 关闭释放相应会话，并走同一执行器清理。
 
 当前标准 USB 会话由 USB 总线代次区分；固件无法从相同端点判断两个主机进程身份。本机开发工具以独占句柄打开设备。新连接服务独占一条物理 TCP，通过租约与 USB/IP 导入会话管理客户端；板端继续独立约束 USB / TCP 目标所有权。服务不能感知直接有线调试软件的句柄退出，调试软件应发送 DAP_Disconnect；遗留占用可在确认接口未被使用后清理。板端采样调度尚未实现。
 

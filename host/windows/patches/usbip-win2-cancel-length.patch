@@ -1,0 +1,26 @@
+diff --git a/drivers/ude/request_list.cpp b/drivers/ude/request_list.cpp
+--- a/drivers/ude/request_list.cpp
++++ b/drivers/ude/request_list.cpp
+@@ -9,6 +9,7 @@
+ #include "context.h"
+ #include "wsk_context.h"
+ #include "device_ioctl.h"
+ #include "wsk_receive.h"
++#include "urbtransfer.h"
+ 
+ #include <libdrv/ioctl.h>
+@@ -106,6 +107,14 @@ void complete(_In_ WDFREQUEST request, _In_ NTSTATUS status)
+ 
+ 	auto &urb = *urb_from_irp(irp);
+ 	auto &urb_st = urb.UrbHeader.Status;
++
++	// A cancelled Bulk URB has no response payload. Clear its requested length
++	// before completing it, so WinUSB cannot report the untouched buffer as data.
++	if (status == STATUS_CANCELLED &&
++	    (urb.UrbHeader.Function == URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER ||
++	     urb.UrbHeader.Function == URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER_USING_CHAINED_MDL)) {
++		AsUrbTransfer(urb).TransferBufferLength = 0;
++	}
+ 
+ 	if (status == STATUS_CANCELLED && urb_st == USBD_STATUS_PENDING) {
+ 		urb_st = USBD_STATUS_CANCELED; // FIXME: is this really required?
