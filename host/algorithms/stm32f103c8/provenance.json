@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/zhuangyan114/Orbit",
+  "commit": "3928bbb6f4990ff336dfbe71f745f5f593b12e48",
+  "source": "native/cmsis-dap-flash-algorithm/stm32f103c8_flash_algorithm.c",
+  "linker": "native/cmsis-dap-flash-algorithm/stm32f103c8_flash_algorithm.ld",
+  "license": "MIT",
+  "copyScope": "one independently built target RAM algorithm and its linker script; not the Orbit repository"
+}

@@ -14,7 +14,7 @@ from rmlink_tool import status
 from rmlink_usb import UsbClient
 
 
-def check(client, capacity, backup):
+def check(client, capacity, backup, transport_only=False):
     assert client.packet_size == capacity
     info = status(client)
     assert info['packetSize'] == capacity and not info['ownerTransport']
@@ -24,7 +24,9 @@ def check(client, capacity, backup):
         (seed + i*31) & 255 for i in range(capacity - 7)) for seed in seeds]
     assert client.exchange_many(packets) == expected
     assert client.exchange(b'\x00\xff') == b'\x00\x02' + capacity.to_bytes(2, 'little')
-    with SwdSession(client, 2000000) as swd:
+    if transport_only:
+        return dict(packetSize=capacity,fullResponses=8,shortInfoAfterFullResponses=True,targetAccess=False)
+    with SwdSession(client, 4000000) as swd:
         assert swd.read32(0xe000ed00) == 0x411fc231
         # Invalid output budgets are rejected before entering the DAP core.
         for command, budget, flags in ((6, (capacity - 4)//4 + 1, 0x0f),):
@@ -43,19 +45,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tcp-size', type=int, choices=[64,128,256,512], required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--transport-only', action='store_true',help='Verify packet flow without touching the target')
+    parser.add_argument('--expected-image',type=Path,default=ROOT/'artifacts/build/stm32-fixture/fixture-64k.bin')
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False,
-                  scope='Read-only target Flash; native USB, virtual WiFi USB and local API')
+                  scope='Transport only, no target access' if args.transport_only else 'Read-only target Flash; native USB, virtual WiFi USB and local API')
     try:
-        backup = (ROOT / 'artifacts/hardware/stm32f103c8-before-rmlink.bin').read_bytes()
+        backup = None if args.transport_only else args.expected_image.read_bytes()
         api = ApiClient()
         snapshot = api.request('GET', '/v1/status')
         assert all(d['owner'] is None for d in snapshot['devices'])
         report['connectorVersion'] = snapshot['version']
         for name, serial, capacity in (('native', '50787D15A924', 64), ('virtual', 'RM50787D15A924', args.tcp_size)):
-            with UsbClient(serial=serial) as client: report[name] = check(client, capacity, backup)
-        with api.open('50787d15a924'): report['api'] = check(api, args.tcp_size, backup)
+            with UsbClient(serial=serial) as client: report[name] = check(client, capacity, backup,args.transport_only)
+        with api.open('50787d15a924'): report['api'] = check(api, args.tcp_size, backup,args.transport_only)
         assert all(d['owner'] is None for d in api.request('GET', '/v1/status')['devices'])
         report['complete'] = True
     except BaseException as exc:

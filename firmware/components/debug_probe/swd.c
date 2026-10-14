@@ -14,10 +14,12 @@
 #include "freertos/semphr.h"
 #include "freertos/ringbuf.h"
 #include "esp_log.h"
+#include "esp_check.h"
 #include "debug_probe.h"
 #include "rmlink_executor.h"
 #include "DAP_config.h"
 #include "DAP.h"
+#include "rmlink_capture.h"
 
 typedef struct {
     uint32_t session;
@@ -42,6 +44,7 @@ static rmlink_owner_t s_owner;
 static atomic_uint s_tcp_session;
 static portMUX_TYPE s_active_mux = portMUX_INITIALIZER_UNLOCKED;
 static rmlink_owner_t s_active;
+static void capture_wake(void) { if (s_executor) xTaskNotifyGive(s_executor); }
 
 void rmlink_abort(uint8_t transport, uint32_t session)
 {
@@ -66,11 +69,13 @@ static size_t process(const request_t *job, uint8_t *out)
 {
     const uint8_t *r = job->request;
     size_t capacity = job->transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
+    if (r[0] == 0x81)
+        return rmlink_capture_command(job->transport, job->session, r, job->len, out, &s_owner);
     if (r[0] == 0x80) {
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 1; out[6] = 6; /* firmware 0.1.6 */
+            out[5] = 2; out[6] = 0; /* firmware 0.2.0: subscription development */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */
@@ -96,11 +101,13 @@ static size_t process(const request_t *job, uint8_t *out)
     if (r[0] == 0x03) {
         if (!s_owner.session) { out[0] = 3; out[1] = 0; return 2; }
         if (!rmlink_owner_release(&s_owner, job->transport, job->session)) return rmlink_dap_error(3, out);
+        rmlink_capture_closed(job->transport, job->session);
         return DAP_ProcessCommand(r, out) & 0xffff;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
     return rmlink_dap_error(r[0], out);
 #else
+    if (!rmlink_capture_raw_allowed()) return rmlink_dap_error(r[0], out);
     if (r[0] == 2) {
         if (r[1] > 1 || !rmlink_owner_claim(&s_owner, job->transport, job->session)) return rmlink_dap_error(2, out);
         size_t n = DAP_ProcessCommand(r, out) & 0xffff;
@@ -125,9 +132,21 @@ static void swd_task(void *arg)
     request_t job;
     uint8_t out[RMLINK_PACKET_SIZE];
     for (;;) {
-        if (xQueueReceive(s_requests, &job, portMAX_DELAY) != pdTRUE) continue;
+        if (xQueueReceive(s_requests, &job, 0) != pdTRUE) {
+            portENTER_CRITICAL(&s_active_mux);
+            DAP_TransferBegin();
+            s_active = s_owner;
+            portEXIT_CRITICAL(&s_active_mux);
+            bool sampled = rmlink_capture_run();
+            portENTER_CRITICAL(&s_active_mux);
+            memset(&s_active, 0, sizeof(s_active));
+            portEXIT_CRITICAL(&s_active_mux);
+            if (!sampled) ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            continue;
+        }
         if (job.close) {
             rmlink_vendor_transport_closed(job.transport);
+            rmlink_capture_closed(job.transport, job.session);
             if (rmlink_owner_release(&s_owner, job.transport, job.session)) {
                 const uint8_t disconnect[] = {3};
                 DAP_ProcessCommand(disconnect, out);
@@ -139,7 +158,7 @@ static void swd_task(void *arg)
         bool stale = !session_live(&job);
         if (stale && !job.done) continue;
         /* A synchronous caller must always be released, including after USB reset. */
-        bool transfer = !stale && (job.request[0] == 5 || job.request[0] == 6);
+        bool transfer = !stale && (job.request[0] == 5 || job.request[0] == 6 || job.request[0] == 0x81);
         if (transfer) {
             portENTER_CRITICAL(&s_active_mux);
             DAP_TransferBegin();
@@ -177,7 +196,10 @@ esp_err_t debug_probe_init(void)
     s_requests = xQueueCreate(DAP_PACKET_COUNT, sizeof(request_t));
     s_usb_replies = xRingbufferCreate(1024, RINGBUF_TYPE_NOSPLIT);
     if (!s_requests || !s_usb_replies) return ESP_ERR_NO_MEM;
-    if (xTaskCreatePinnedToCore(swd_task, "rmlink_executor", 4096, NULL,
+    esp_err_t capture_result = rmlink_capture_init(capture_wake);
+    if (capture_result != ESP_OK)
+        ESP_LOGW("rmlink", "Capture unavailable: %s; standard DAP remains enabled", esp_err_to_name(capture_result));
+    if (xTaskCreatePinnedToCore(swd_task, "rmlink_executor", 6144, NULL,
         DEBUG_PROBE_TASK_PRI, &s_executor, esp_cpu_get_core_id()) != pdPASS) return ESP_ERR_NO_MEM;
     return ESP_OK;
 }
@@ -187,7 +209,9 @@ esp_err_t debug_probe_process_data(const uint8_t *data, size_t len)
     request_t job = { .transport = RMLINK_USB, .session = atomic_load(&s_usb_session), .len = len };
     if (data[0] == 7) { rmlink_abort(RMLINK_USB, job.session); return ESP_OK; }
     memcpy(job.request, data, len);
-    return xQueueSend(s_requests, &job, pdMS_TO_TICKS(100)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+    bool queued = xQueueSend(s_requests, &job, pdMS_TO_TICKS(100)) == pdTRUE;
+    if (queued) capture_wake();
+    return queued ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 esp_err_t rmlink_execute(uint8_t transport, uint32_t session, const uint8_t *data,
         size_t len, uint8_t *response, size_t *response_len)
@@ -205,6 +229,7 @@ esp_err_t rmlink_execute(uint8_t transport, uint32_t session, const uint8_t *dat
     if (xQueueSend(s_requests, &job, pdMS_TO_TICKS(100)) != pdTRUE) {
         vSemaphoreDelete(done); return ESP_ERR_TIMEOUT;
     }
+    capture_wake();
     /* Don't abandon a queued job: it references the caller's response and semaphore. */
     xSemaphoreTake(done, portMAX_DELAY);
     vSemaphoreDelete(done); return ESP_OK;
@@ -220,6 +245,7 @@ void rmlink_transport_closed(uint8_t transport, uint32_t session)
     StaticSemaphore_t storage;
     if (transport == RMLINK_TCP) job.done = xSemaphoreCreateBinaryStatic(&storage);
     xQueueSend(s_requests, &job, portMAX_DELAY);
+    capture_wake();
     if (job.done) { xSemaphoreTake(job.done, portMAX_DELAY); vSemaphoreDelete(job.done); }
 }
 void rmlink_tcp_session_open(uint32_t session) { atomic_store(&s_tcp_session, session); }
@@ -232,7 +258,9 @@ esp_err_t rmlink_submit_tcp(uint32_t session, const uint8_t *data, size_t len,
     request_t job = { .transport = RMLINK_TCP, .session = session, .len = len,
                      .reply = reply, .context = context };
     memcpy(job.request, data, len);
-    return xQueueSend(s_requests, &job, pdMS_TO_TICKS(100)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+    bool queued = xQueueSend(s_requests, &job, pdMS_TO_TICKS(100)) == pdTRUE;
+    if (queued) capture_wake();
+    return queued ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 uint8_t *debug_probe_get_data_to_send(size_t *len, TickType_t timeout)
 {

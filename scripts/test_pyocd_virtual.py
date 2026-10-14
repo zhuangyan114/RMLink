@@ -45,7 +45,7 @@ try:
     print(f'Select CMSIS-DAP {args.serial}', flush=True)
     session = ConnectHelper.session_with_chosen_probe(
         blocking=False, unique_id='cmsisdap:' + args.serial,
-        target_override='cortex_m', frequency=2000000, connect_mode='attach',
+        target_override='cortex_m', frequency=4000000, connect_mode='attach',
         resume_on_disconnect=True)
     assert session is not None, 'Requested probe not discovered by pyOCD'
     with session:

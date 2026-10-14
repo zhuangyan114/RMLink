@@ -322,6 +322,8 @@
  extern uint32_t DAP_ExecuteCommand       (const uint8_t *request, uint8_t *response);
  
  extern void     DAP_Setup (void);
+ extern void     DAP_TransferBeginBounded(uint32_t timeout_us);
+ extern void     DAP_TransferDeadline(uint32_t timeout_us);
  
  // Configurable delay for clock generation
  #ifndef DELAY_SLOW_CYCLES

@@ -13,8 +13,11 @@ import time
 from rmlink_tool import TcpClient, status
 
 
+DEFAULT_SWD_CLOCK_HZ = 4_000_000
+
+
 class SwdSession:
-    def __init__(self, client, clock=100000):
+    def __init__(self, client, clock=DEFAULT_SWD_CLOCK_HZ):
         self.client = client
         self.clock = clock
         self.packet_size = getattr(client, 'packet_size', 64)
@@ -234,7 +237,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', help='Omit for USB')
     parser.add_argument('--port', type=int, default=3241)
-    parser.add_argument('--clock', type=int, default=100000)
+    parser.add_argument('--clock', type=int, default=DEFAULT_SWD_CLOCK_HZ)
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     if args.host:

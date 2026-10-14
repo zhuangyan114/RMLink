@@ -20,17 +20,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--transport', choices=['USB','VirtualUSB'], required=True)
     parser.add_argument('--samples', type=int, default=5)
+    parser.add_argument('--expected-image', type=Path, default=ROOT / 'artifacts/build/stm32-fixture/fixture-64k.bin')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if not 3 <= args.samples <= 20: parser.error('Use 3..20 repetitions')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False,
-                  transport=args.transport, actualClockMeasured=False, clockRestoredHz=2000000, rows=[])
+                  transport=args.transport, actualClockMeasured=False, clockRestoredHz=4000000, rows=[])
     try:
         snapshot = ApiClient().request('GET','/v1/status')
         assert all(d['owner'] is None for d in snapshot['devices'])
-        backup = (ROOT / 'artifacts/hardware/stm32f103c8-before-rmlink.bin').read_bytes()
-        assert hashlib.sha256(backup).hexdigest() == '75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff'
+        backup = args.expected_image.read_bytes()
+        assert len(backup) == 65536
         serial = '50787D15A924' if args.transport == 'USB' else 'RM50787D15A924'
         with UsbClient(serial=serial) as client:
             report['packetSize'] = client.packet_size
@@ -54,9 +55,9 @@ def main():
                 except (RuntimeError, OSError, AssertionError) as error:
                     # A failed clock is recorded, then reinitialize at the known setting.
                     row['failure'] = f'{type(error).__name__}: {error}'
-                    with SwdSession(client, 2000000) as swd: assert swd.read32(0xe000ed00) == 0x411fc231
+                    with SwdSession(client, 4000000) as swd: assert swd.read32(0xe000ed00) == 0x411fc231
                 report['rows'].append(row); print(json.dumps(row), flush=True)
-            with SwdSession(client, 2000000) as swd: assert swd.read32(0xe000ed00) == 0x411fc231
+            with SwdSession(client, 4000000) as swd: assert swd.read32(0xe000ed00) == 0x411fc231
         report['complete'] = True
         report['defaultChanged'] = False
     except BaseException as error:

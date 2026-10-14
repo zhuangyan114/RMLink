@@ -1,5 +1,7 @@
 # RMLink Windows 连接组件
 
+2026-10-15：0.2.0将通用目标控制、三类板端订阅、缓存、二进制分发和F103C8页镜像Flash接口集中到用户态服务。独立Python／Node／WinHTTP C SDK及公开API供第三方前端调用，Orbit实验适配通过相同API。内核UDE保持现有版本。源码／模型／ESP32验证与STM32待验收范围见 [实施记录](subscriptions-implementation.md)，调用文档见 [API](api-v1.md)。安装脚本已准备，统一产品安装界面和正式签名另行完成；下文0.1.x结果为独立历史记录。
+
 最新提速实现：2026-10-14，服务 0.1.4、固件 0.1.6。服务按 DAP_Info 协商 64 / 128 / 256 / 512 容量，虚拟 USB / API / SDK 共用该容量；原生 USB 保留 64。已知 DAP 命令按实际结构去除零填充后发送 Wi-Fi，保留真实写入零值和未知命令。39 项主机测试通过；各档实板结果与后续阶段见 [提速计划](performance-plan.md)。RMLINK_USBIP_BATCH_US 为 0..2000 us 的候选聚合开关，默认 0。下面保留服务 0.1.1 驱动修复验收的独立记录。
 
 最终服务 0.1.4 / 512 档的完整 OpenOCD 烧录 / 校验 / 调试、原 Flash 恢复、WinUSB 空读取消、pyOCD、SDK、大包与短包、互斥和 STA 自动重挂载通过；重挂载后再次验证取消及 pyOCD。原始日志在 artifacts/logs/speed-packets-20261014/，数据与限制见 [提速结果](performance-results.md)。

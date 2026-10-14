@@ -2,7 +2,7 @@
 
 Runs the same image over USB and TCP with upstream OpenOCD, then independently
 checks actual Flash bytes, core controls, RAM, FPB/DWT, NRST and error recovery.
-Always attempts to restore the original 64 KiB Flash in finally. Option bytes
+The default entry point uses virtual USB and retains the fixture. Option bytes
 are read/compared, never written. Requires --allow-target-write.
 """
 import argparse
@@ -74,7 +74,7 @@ def openocd(args, transport, image, label):
     else:
         command += ['-c', f'cmsis-dap tcp host {args.host}', '-c', 'cmsis-dap tcp port 3241',
                     '-c', 'cmsis-dap tcp min_timeout 500', '-c', 'cmsis-dap quirk enable']
-    command += ['-c', 'transport select swd', '-f', 'target/stm32f1x.cfg', '-c', 'adapter speed 2000',
+    command += ['-c', 'transport select swd', '-f', 'target/stm32f1x.cfg', '-c', 'adapter speed 4000',
                 '-c', f'program {image.as_posix()} 0x08000000 verify reset exit']
     begin = time.perf_counter()
     done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
@@ -89,8 +89,8 @@ def openocd(args, transport, image, label):
     return result
 
 
-def debug_checks(client, image, label, result, without_nrst=False):
-    with SwdSession(client, 2000000) as s:
+def debug_checks(client, image, label, result, without_nrst=False, clock=4000000):
+    with SwdSession(client, clock) as s:
         require(s.read32(0xe0042000) & 0xfff == 0x410, 'Expected STM32F103 medium-density')
         begin = time.perf_counter()
         readback = main_flash(s)
@@ -231,7 +231,7 @@ def debug_checks(client, image, label, result, without_nrst=False):
                 f'Block cancellation/count failed: {reply.hex()}')
         require(all(v == s.idcode for v in struct.unpack('<' + 'I' * count, reply[4:])), 'Cancelled block data mismatch')
         result['blockAbort'] = dict(requestedWords=15, actualWords=count, elapsedMs=round(elapsed, 2), response=reply.hex())
-        s.command(b'\x11' + struct.pack('<I', 2000000), b'\x11\x00')
+        s.command(b'\x11' + struct.pack('<I', clock), b'\x11\x00')
         s.command(b'\x04\x02\x64\x00\x00\x00', b'\x04\x00')
         require(s.read32(0xe000ed00) == 0x411fc231, 'Post-abort/deadline recovery failed')
         result['coreRunningAtEnd'] = not bool(s.read32(DHCSR) & 0x20000)
@@ -241,69 +241,9 @@ def debug_checks(client, image, label, result, without_nrst=False):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--allow-target-write', action='store_true')
-    parser.add_argument('--without-nrst', action='store_true', help='Explicit three-wire SWD scope; physical NRST remains unaccepted')
-    parser.add_argument('--host', default='rmlink-15a924.local')
-    parser.add_argument('--openocd', type=Path, default=ROOT / 'artifacts/tools/openocd-20260831/openocd-esp32/bin/openocd.exe')
-    parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/logs/accept-stm32.json')
-    args = parser.parse_args()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    if not args.allow_target_write: parser.error('Explicit --allow-target-write required; erases/programs target main Flash')
-    image_path = ROOT / 'artifacts/build/stm32-fixture/fixture-64k.bin'
-    backup_path = ROOT / 'artifacts/hardware/stm32f103c8-before-rmlink.bin'
-    image, backup = image_path.read_bytes(), backup_path.read_bytes()
-    require(len(image) == len(backup) == 65536, 'Expected exactly 64 KiB main Flash')
-    require(hashlib.sha256(backup).hexdigest() == '75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff', 'Original backup hash differs')
-    report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False, transports={},
-                  requestedClockHz=2000000, fixtureSha256=hashlib.sha256(image).hexdigest(),
-                  originalFlashSha256=hashlib.sha256(backup).hexdigest(),
-                  resetScope='three-wire SWD, software SYSRESETREQ; physical NRST excluded' if args.without_nrst else 'software and physical NRST')
-    modified = False
-    try:
-        with UsbClient(serial='50787D15A924') as c, SwdSession(c, 2000000) as s:
-            require(s.read32(0x1ffff7e0) & 0xffff == 64, 'Expected 64 KiB target')
-            report['optionBytesBefore'] = s.read_words(0x1ffff800, 4)
-            report['uniqueId'] = s.read_words(0x1ffff7e8, 3)
-        for label, backend in (('USB', 'usb_bulk'), ('WiFi', 'tcp')):
-            print(f'{label}: OpenOCD erase/program/verify/reset 64 KiB', flush=True)
-            result = report['transports'][label] = {}
-            modified = True  # Set before programming; uncertain failures also require recovery.
-            result['openocdProgram'] = openocd(args, backend, image_path, label.lower())
-            print(f'{label}: full readback and debug checks', flush=True)
-            with (UsbClient(serial='50787D15A924') if label == 'USB' else TcpClient(args.host, 3241)) as c:
-                result['device'] = status(c)
-                debug_checks(c, image, label, result, args.without_nrst)
-            print(f'{label}: PASS', flush=True)
-        report['complete'] = args.without_nrst or all(r['nrstAndResetTarget']['passed'] for r in report['transports'].values())
-        if not report['complete']: report['pending'] = 'NRST target reset has not passed; see per-transport pin/command results'
-    except BaseException as exc:
-        report['failure'] = f'{type(exc).__name__}: {exc}'
-        raise
-    finally:
-        if modified:
-            print('Restoring original 64 KiB main Flash through USB', flush=True)
-            try:
-                report['restoreOpenocd'] = openocd(args, 'usb_bulk', backup_path, 'restore')
-                report['restoreChecks'] = {}
-                for label in ('USB', 'WiFi'):
-                    with (UsbClient(serial='50787D15A924') if label == 'USB' else TcpClient(args.host, 3241)) as c, SwdSession(c, 2000000) as s:
-                        restored = main_flash(s)
-                        require(restored == backup, f'{label}: original Flash restore mismatch')
-                        options = s.read_words(0x1ffff800, 4)
-                        require(options == report['optionBytesBefore'], 'Option bytes changed')
-                        report['restoreChecks'][label] = dict(sha256=hashlib.sha256(restored).hexdigest(),
-                                                            optionBytesUnchanged=True,
-                                                            coreHalted=bool(s.read32(DHCSR) & 0x20000))
-                report['restored'] = True
-            except BaseException as exc:
-                report['complete'] = False; report['restored'] = False
-                report['restoreFailure'] = f'{type(exc).__name__}: {exc}'
-                print(report['restoreFailure'], flush=True)
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        print(f'Report: {args.output}', flush=True)
-    require(report['complete'] and report.get('restored'), 'Acceptance/restore incomplete')
+    # Standard acceptance now has one public path: virtual USB.
+    from accept_virtual_usb import main as accept_virtual
+    accept_virtual()
 
 
 if __name__ == '__main__': main()

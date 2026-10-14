@@ -2,6 +2,8 @@
 
 固件 0.1.6，更新：2026-10-14。当前为开发接口，采样 / 离散地址批量 API 尚未实现。
 
+Watch / Timeline / RTT 板端订阅的新增协议、数据流与所有权设计见 [subscription-design.md](subscription-design.md)。其中 0x81、3244 等均为规划值；本文件仍只描述当前已实现接口。
+
 ## 标准 DAP 与传输
 
 原生 USB Bulk OUT 0x03、IN 0x83，最大 DAP 逻辑包仍为 64 字节。TCP 可构建为 64 / 128 / 256 / 512 字节，虚拟 USB 使用对应 TCP 容量；两种传输进入同一个 SWD 内核。DAP_Info 0xFF 及定制状态返回当前传输的真实容量，0xFE 声明排队容量 8。主机先查询容量，再据此组织命令、接收缓冲和边界检查；开发 WinUSB 工具的首次查询使用短 OUT，后续 OUT 填充至协商容量，IN 返回实际响应长度。虚拟 Full-Speed USB 端点物理包为 64 字节，UDE URB 可承载较大的逻辑包；尚未实现原生 USB 的多包组装。HID、SWO、Atomic Commands 未实现 / 启用。
@@ -67,13 +69,13 @@ DAP_ResetTarget 为 GPIO6 的 10 ms 开漏脉冲，实现返回值不证明目�
 
 DAP_Info、HostStatus 和设备 / 网络信息查询不占用目标。目标 GPIO 已启用时，DAP_Connect 或有效的 DAP_SWJ_Clock 申请整段会话；允许 pyOCD 在 Connect 之前设置时钟。无效时钟不申请会话，时钟已申请的会话在后续 Connect 中延续；其他客户端的时钟、Connect、Transfer 和 Disconnect 均被拒绝。后续目标命令必须来自同一 transport + session。DAP_Disconnect、USB reset / 拔出、TCP 关闭释放相应会话，并走同一执行器清理。
 
-当前标准 USB 会话由 USB 总线代次区分；固件无法从相同端点判断两个主机进程身份。本机开发工具以独占句柄打开设备。新连接服务独占一条物理 TCP，通过租约与 USB/IP 导入会话管理客户端；板端继续独立约束 USB / TCP 目标所有权。服务不能感知直接有线调试软件的句柄退出，调试软件应发送 DAP_Disconnect；遗留占用可在确认接口未被使用后清理。板端采样调度尚未实现。
+当前标准 USB 会话由 USB 总线代次区分；固件无法从相同端点判断两个主机进程身份。本机开发工具以独占句柄打开设备。连接服务独占一条物理 TCP，通过租约与 USB/IP 导入会话管理客户端；板端继续独立约束 USB / TCP 目标所有权。服务不能感知直接有线调试软件的句柄退出，调试软件应发送 DAP_Disconnect；遗留占用可在确认接口未被使用后清理。0.2.0增加有界采样和整段控制屏障，增强会话在结束／到期／失联时停止订阅并清理目标。
 
 主机工具 exchange_many 可连续提交 1..8 个标准 DAP 包，再按序接收相同数量的响应；TCP 将多个独立帧合入一次发送，USB 连续提交多个 OUT。逐请求内存访问在调用起点和 MEM-AP 1 KiB 边界设置 TAR，检查当前块完整成功后才沿用地址递增。流水线每个包使用一条独立的标准 DAP_Transfer，将 TAR 设置和读写组合在同一个包中；前一个包部分完成或被取消后，后续包仍携带自己的正确地址。两条路径均不跨越 1 KiB 边界。
 
 容量 P 下，流水线每包最多 floor((P-3)/4) 个 read word 或 floor((P-8)/5) 个 write word；逐请求 TransferBlock 为 floor((P-4)/4) 个 read word 或 floor((P-5)/4) 个 write word。64 KiB 连续流水线回读的命令数在 64 / 128 / 256 / 512 档分别为 1152 / 576 / 320 / 192；逐块单独 TAR + 15-word block 的旧路径为 2304 条。调用间不缓存地址，响应数量 / ACK / 完成数量均检查，批次失败不重放未知完成状态的写入。此前跨流水线包缓存 TAR 的检查点已替换，不能在异常路径中依赖它。这里仍使用标准命令与主机排队，不增加 Atomic Commands 或板端采样能力。
 
-采样能力未在能力位中声明。后续新增命令必须定义地址宽度、访问粒度、时基、序号、丢样 / 缓存溢出、断连和控制优先级，完成独立测试后再声明能力。
+定制订阅使用厂商命令0x81，独立于标准 DAP_Info 能力位；没有将自定义采样伪装成标准 Atomic Commands。配置、运行、屏障、统计和二进制帧格式见 [API](api-v1.md)，验证范围见 [实施记录](subscriptions-implementation.md)。标准能力声明保持与已有内核相符。
 
 ## 临时 TCP 传输测试
 

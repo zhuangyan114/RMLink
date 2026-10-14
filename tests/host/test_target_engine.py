@@ -1,0 +1,69 @@
+"""Public high-level target operations against an independent memory/DP oracle."""
+import struct
+import unittest
+from rmlink_connector.broker import Broker
+from rmlink_connector.target import TargetEngine,TargetAccessError
+
+class TargetModel:
+    def __init__(self,capacity):self.packet_size=capacity;self.memory={0xe000edf0:0x30000,0xe0002000:0x60,0xe000ed00:0x411fc231,0xe0042000:0x410};self.requests=[];self.fault=False
+    async def connect(self):pass
+    async def close(self):pass
+    async def abort(self):pass
+    def read(self,address):return self.memory.get(address,address^0x13579bdf)
+    async def exchange_many(self,packets):
+        out=[]
+        for p in packets:
+            self.requests.append(p)
+            if p[0]==0x81:out.append(bytes([0x81,p[1],0]));continue
+            if p[0]!=5:out.append(bytes([p[0],1 if p[0]==2 else 0]));continue
+            if self.fault:out.append(b'\x05\x00\x07');continue
+            pos=3;address=None;data=[]
+            for _ in range(p[2]):
+                flags=p[pos];pos+=1
+                if flags&2:
+                    data.append(self.read(address) if flags==15 else 0xf0000040)
+                else:
+                    value=struct.unpack_from('<I',p,pos)[0];pos+=4
+                    if flags==5:address=value
+                    elif flags==13:
+                        self.memory[address]=value
+                        if address==0xe000edf0:self.memory[address]=0x30000 if value&2 or value&4 else 0x10000
+                        if address==0xe000edf4 and not value&0x10000:self.memory[0xe000edf8]=0x08000100+value*4
+                        address+=4
+            out.append(bytes([5,p[2],1])+struct.pack('<'+'I'*len(data),*data))
+        return out
+
+class TargetEngineTests(unittest.IsolatedAsyncioTestCase):
+    async def check_capacity(self,capacity):
+        model=TargetModel(capacity);broker=Broker(model,'model');await broker.start()
+        engine=TargetEngine(broker,'owner');await engine.connect()
+        try:
+            result=await engine.execute('read_memory',{'address':0x200003ff,'byte_length':1025})
+            expected=b''.join(struct.pack('<I',model.read(a)) for a in range(0x200003fc,0x20000800,4))[3:1028]
+            self.assertEqual(bytes.fromhex(result['data']),expected)
+            target_packets=[p for p in model.requests if p[0]==5]
+            self.assertTrue(all(len(p)<=capacity for p in target_packets))
+            self.assertTrue(all(p[3]==8 and p[8]==1 for p in target_packets[3:]))
+            data=bytes(range(256))*8
+            result=await engine.execute('write_memory',{'address':0x200003f8,'data':data.hex()})
+            self.assertEqual(result['bytes_written'],len(data))
+            actual=b''.join(struct.pack('<I',model.memory[a]) for a in range(0x200003f8,0x200003f8+len(data),4))
+            self.assertEqual(actual,data)
+            self.assertEqual((await engine.execute('read_register',{'index':15}))['value'],0x0800013c)
+            await engine.execute('run',{})
+            with self.assertRaises(ValueError):await engine.execute('read_register',{'index':0})
+            await engine.execute('halt',{})
+            # Free comparator oracle must start at zero, then preserve occupied slots.
+            for i in range(6):model.memory[0xe0002008+i*4]=0
+            bp=await engine.execute('set_breakpoint',{'address':0x08000102})
+            self.assertEqual(model.memory[0xe0002008],0x88000101)
+            await engine.execute('clear_breakpoint',{'id':bp['id']});self.assertEqual(model.memory[0xe0002008],0)
+            model.fault=True
+            with self.assertRaises(TargetAccessError) as ctx:await engine.execute('state',{})
+            self.assertEqual(ctx.exception.code,'DapNoAck')
+            self.assertEqual(model.requests[-1],b'\x81\x09') # finally closes barrier even on failure
+        finally:await broker.close()
+    async def test_native64_and_wireless512(self):
+        await self.check_capacity(64);await self.check_capacity(512)
+
+if __name__=='__main__':unittest.main()

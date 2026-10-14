@@ -54,10 +54,14 @@
  // RMLink: executor resets before publishing the active session; RX abort cannot
  // be lost to a reset inside Transfer. Atomic access covers the second CPU.
  static int64_t transfer_deadline;
- void DAP_TransferBegin(void) {
-   __atomic_store_n(&DAP_TransferAbort, 0U, __ATOMIC_RELAXED);
-   transfer_deadline = esp_timer_get_time() + 1000000;
+ void DAP_TransferDeadline(uint32_t timeout_us) {
+   transfer_deadline = esp_timer_get_time() + timeout_us;
  }
+ void DAP_TransferBeginBounded(uint32_t timeout_us) {
+   __atomic_store_n(&DAP_TransferAbort, 0U, __ATOMIC_RELAXED);
+   DAP_TransferDeadline(timeout_us);
+ }
+ void DAP_TransferBegin(void) { DAP_TransferBeginBounded(1000000); }
  static uint8_t TransferAborted(void) {
    return __atomic_load_n(&DAP_TransferAbort, __ATOMIC_RELAXED) ||
           esp_timer_get_time() >= transfer_deadline;

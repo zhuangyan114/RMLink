@@ -11,10 +11,13 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 & $pythonExe -m pip install --disable-pip-version-check pyinstaller==6.16.0
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller install failed' }
 New-Item -ItemType Directory -Force $build | Out-Null
+& (Join-Path $PSScriptRoot 'Build-FlashAlgorithm.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Flash algorithm build failed' }
 & $pythonExe -m pip freeze | Set-Content -Encoding utf8 (Join-Path $build 'build-requirements.txt')
-& $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name RMLinkConnector --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\connector_entry.py')
+& $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name RMLinkConnector --add-data "$(Join-Path $root 'artifacts\build\flash-algorithms\stm32f103c8.bin');rmlink_algorithms" --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\connector_entry.py')
 if ($LASTEXITCODE -ne 0) { throw 'Connector executable build failed' }
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $build 'dist\RMLink-LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $root 'host\algorithms\stm32f103c8\LICENSE') -Destination (Join-Path $build 'dist\Orbit-FlashAlgorithm-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $root 'reference\usbip-win2\LICENSE.txt') -Destination (Join-Path $build 'dist\usbip-win2-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $venv 'Lib\site-packages\pyinstaller-6.16.0.dist-info\licenses\COPYING.txt') -Destination (Join-Path $build 'dist\PyInstaller-COPYING.txt')
 $basePython = & $pythonExe -c 'import sys; print(sys.base_prefix)'

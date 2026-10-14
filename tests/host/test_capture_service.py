@@ -1,0 +1,159 @@
+"""No Orbit: public HTTP control plus a real binary socket and stream response."""
+import asyncio
+import json
+import struct
+import tempfile
+import ctypes
+from pathlib import Path
+import unittest
+from rmlink_connector.broker import Broker
+from rmlink_connector.service import Connector
+from rmlink_connector.state import State
+from test_capture import record
+
+
+class ProbeModel:
+    packet_size=512
+    host='127.0.0.1'
+    def __init__(self): self.started=asyncio.Event(); self.requests=[]
+    async def connect(self): pass
+    async def close(self): pass
+    async def abort(self): pass
+    async def exchange_many(self,packets):
+        out=[]
+        for p in packets:
+            self.requests.append(p)
+            if p[0]==0x81:
+                if p[1]==11: out.append(b'\x81\x0b\x00'+b'X'*16)
+                elif p[1]==7: out.append(bytes([0x81,7,0])+struct.pack('<BBBIIQQQQIB',2,1,2,7,5,5,0,0,0,0,0))
+                else:
+                    if p[1]==3:self.started.set()
+                    out.append(bytes([0x81,p[1],0]))
+            elif p[0]==5:
+                pos=3; reads=[];address=0
+                for _ in range(p[2]):
+                    flags=p[pos];pos+=1
+                    if flags&2: reads.append({0xe000ed00:0x411fc231,0xe0042000:0x410}.get(address,0xf0000040 if flags==6 else 0x1ba01477))
+                    else:
+                        if flags==5:address=struct.unpack_from('<I',p,pos)[0]
+                        pos+=4
+                out.append(bytes([5,p[2],1])+struct.pack('<'+'I'*len(reads),*reads))
+            else: out.append(bytes([p[0],1 if p[0]==2 else 0]))
+        return out
+
+
+class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.connector=Connector(State(self.tmp.name))
+        self.probe=ProbeModel();self.broker=Broker(self.probe,'model');await self.broker.start()
+        self.connector.brokers['model']=self.broker
+        self.server=await asyncio.start_server(self.peer,'127.0.0.1',3244)
+        self.api=await self.connector.start(0,0)
+        # Avoid discovery/mounting real devices during a host-only test.
+        self.connector.background.cancel();await asyncio.gather(self.connector.background,return_exceptions=True)
+        self.connector.background=None
+    async def asyncTearDown(self):
+        await self.connector.close();self.server.close();await self.server.wait_closed();self.tmp.cleanup()
+    async def peer(self,reader,writer):
+        try:
+            self.assertEqual(await reader.readexactly(20),b'RMS1'+b'X'*16)
+            writer.write(b'OKAY');await writer.drain();await self.probe.started.wait()
+            data=b''.join(record(i) for i in range(5))
+            for i in range(0,len(data),7):writer.write(data[i:i+7]);await writer.drain()
+            await reader.read()
+        finally:writer.close();await writer.wait_closed()
+    async def http(self,method,path,body=None):
+        reader,writer=await asyncio.open_connection('127.0.0.1',self.api)
+        data=json.dumps(body or {}).encode()
+        writer.write(f'{method} {path} HTTP/1.1\r\nAuthorization: Bearer {self.connector.state.data["token"]}\r\nContent-Length: {len(data)}\r\n\r\n'.encode()+data)
+        await writer.drain();header=await reader.readuntil(b'\r\n\r\n')
+        length=int(next(line.split(b':')[1] for line in header.split(b'\r\n') if line.lower().startswith(b'content-length:')))
+        result=json.loads(await reader.readexactly(length));writer.close();await writer.wait_closed()
+        return int(header.split()[1]),result
+    async def test_full_public_subscription_path(self):
+        code,r=await self.http('POST','/v1/sessions',{'device_id':'model'});self.assertEqual(code,200)
+        root='/v1/sessions/'+r['session_id']
+        code,r=await self.http('POST',root+'/target',{'command':'connect'});self.assertEqual(code,200)
+        self.assertEqual(r['clock_hz'],4000000)
+        code,r=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]})
+        self.assertEqual((code,r['subscription_id']),(200,1))
+        code,events=await self.http('POST',root+'/events',{'wait_ms':1000});self.assertEqual(code,200)
+        self.assertEqual(len(events['records']),5)
+        self.assertEqual((await self.http('POST',root+'/dap',{'packets':['0201']}))[0],400)
+        code,r=await self.http('GET',root+'/subscriptions/1');self.assertEqual((code,r['completed']),(200,5))
+        reader,writer=await asyncio.open_connection('127.0.0.1',self.api)
+        writer.write(f'GET {root}/stream HTTP/1.1\r\nAuthorization: Bearer {self.connector.state.data["token"]}\r\n\r\n'.encode());await writer.drain()
+        header=await reader.readuntil(b'\r\n\r\n');self.assertIn(b'application/vnd.rmlink.stream',header)
+        size=int((await reader.readline()).strip(),16);body=await reader.readexactly(size)
+        self.assertEqual(struct.unpack_from('<QI',body),(0,64))
+        self.assertEqual(body[12:16],b'RML1')
+        writer.close();await writer.wait_closed()
+        self.assertEqual((await self.http('DELETE',root+'/subscriptions/1'))[0],200)
+        self.assertEqual((await self.http('DELETE',root))[0],200)
+        self.assertIsNone(self.broker.owner)
+
+    async def test_native_c_sdk_uses_public_api_without_orbit(self):
+        dll_path=Path(__file__).resolve().parents[2]/'artifacts/build/sdk/rmlink.dll'
+        if not dll_path.exists():self.skipTest('Build-Sdk.ps1 required for native ABI test')
+        self.connector.brokers['50787d15a924']=self.broker
+        lib=ctypes.CDLL(str(dll_path))
+        lib.rm_open.argtypes=[ctypes.c_char_p,ctypes.c_uint16,ctypes.c_char_p];lib.rm_open.restype=ctypes.c_void_p
+        lib.rm_close.argtypes=[ctypes.c_void_p]
+        lib.rm_devices.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
+        lib.rm_capabilities.argtypes=lib.rm_devices.argtypes
+        lib.rm_target_connect.argtypes=[ctypes.c_void_p,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_size_t]
+        lib.rm_subscribe.argtypes=[ctypes.c_void_p,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_size_t]
+        cb_type=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p)
+        lib.rm_stream.argtypes=[ctypes.c_void_p,cb_type,ctypes.c_void_p]
+        token=self.connector.state.data['token'].encode();received=[]
+        def run():
+            discovery=lib.rm_open(None,self.api,token);self.assertTrue(discovery)
+            try:
+                out=ctypes.create_string_buffer(4096)
+                required=ctypes.c_size_t()
+                self.assertEqual(lib.rm_capabilities(discovery,out,len(out),ctypes.byref(required)),200)
+                self.assertEqual(json.loads(out.value)['default_clock_hz'],4000000)
+                self.assertEqual(lib.rm_devices(discovery,out,len(out),ctypes.byref(required)),200)
+                self.assertEqual(json.loads(out.value),[])
+                self.assertEqual(lib.rm_target_connect(discovery,0,out,len(out)),-87)
+                self.assertFalse(self.connector.sessions)
+                self.assertIsNone(self.broker.owner)
+            finally:lib.rm_close(discovery)
+            client=lib.rm_open(b'50787d15a924',self.api,token);self.assertTrue(client)
+            try:
+                out=ctypes.create_string_buffer(4096)
+                self.assertEqual(lib.rm_target_connect(client,4000000,out,len(out)),200)
+                config=json.dumps({'kind':'memory_series','addresses':[0x20000000,0x20000004]}).encode()
+                self.assertEqual(lib.rm_subscribe(client,config,out,len(out)),200)
+                @cb_type
+                def callback(cursor,frame,size,context):
+                    received.append((cursor,ctypes.string_at(frame,size)));return 1
+                self.assertEqual(lib.rm_stream(client,callback,None),200)
+            finally:lib.rm_close(client)
+        await asyncio.to_thread(run)
+        self.assertEqual(received[0][0],0);self.assertEqual(received[0][1][:4],b'RML1')
+
+    async def test_session_close_fences_requests_and_waits_for_cleanup_before_release(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        sid=session['session_id'];root='/v1/sessions/'+sid
+        await self.http('POST',root+'/dap',{'packets':['0201']})
+        entered=asyncio.Event();finish=asyncio.Event();order=[]
+        class Target:
+            async def cleanup(self):
+                entered.set();await finish.wait();order.append('target')
+        class Captures:
+            async def close(self):order.append('captures')
+        class Flash:cancelled=False
+        flash=Flash()
+        self.connector.sessions[sid].update(target=Target(),captures=Captures(),flash=flash)
+        close=asyncio.create_task(self.connector.close_session(sid))
+        await entered.wait()
+        self.assertTrue(flash.cancelled)
+        self.assertEqual(self.broker.owner,sid)
+        self.assertEqual((await self.http('POST',root+'/heartbeat'))[0],503)
+        finish.set();await close
+        self.assertEqual(order,['captures','target'])
+        self.assertIsNone(self.broker.owner)
+        await self.connector.close_session(sid) # repeated close is harmless
+
+if __name__=='__main__':unittest.main()

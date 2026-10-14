@@ -257,6 +257,8 @@ void app_main(void)
     init_serial_no();
     ESP_ERROR_CHECK(debug_probe_init());
     esp_err_t network_result = rmlink_network_init();
+    extern esp_err_t rmlink_stream_init(void);
+    if (network_result == ESP_OK) ESP_ERROR_CHECK(rmlink_stream_init());
     if (network_result != ESP_OK) ESP_LOGW(TAG, "Wi-Fi unavailable: %s; USB remains enabled", esp_err_to_name(network_result));
 
     ESP_ERROR_CHECK(eub_usb_phy_init());

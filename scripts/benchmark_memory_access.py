@@ -70,11 +70,12 @@ def main():
     parser.add_argument('--bytes', type=int, default=4096)
     parser.add_argument('--offset', type=lambda value: int(value, 0), default=0)
     parser.add_argument('--samples', type=int, default=5)
-    parser.add_argument('--clock', type=int, default=2000000)
+    parser.add_argument('--clock', type=int, default=4000000)
     parser.add_argument('--pipeline-only', action='store_true')
     parser.add_argument('--optimized-only', action='store_true', help='Capacity sweep with the same safe addressed algorithm')
     parser.add_argument('--compare-capacity', type=int, choices=[64,128,256],
                         help='Interleave a smaller memory packet budget on the same negotiated transport')
+    parser.add_argument('--expected-image', type=Path, default=ROOT / 'artifacts/build/stm32-fixture/fixture-64k.bin')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if args.optimized_only and args.compare_capacity: parser.error('Choose one comparison mode')
@@ -90,7 +91,7 @@ def main():
                   clockRequestedHz=args.clock, repetitions=args.samples, rows=[],
                   scope='Flash read-only; host SWD setup, no halt/reset/erase/program; no write replay')
     try:
-        backup = (ROOT / 'artifacts/hardware/stm32f103c8-before-rmlink.bin').read_bytes()
+        backup = args.expected_image.read_bytes()
         expected = backup[args.offset:args.offset + args.bytes]
         if len(expected) != args.bytes: raise ValueError('Backup slice missing')
         report['expectedSha256'] = hashlib.sha256(expected).hexdigest()

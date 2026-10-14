@@ -10,6 +10,7 @@ set(debug_probe_sources
     "esp_usb_jtag.c"
     "debug_gpio.c"
     "rmlink_core.c"
+    "rmlink_capture.c"
 )
 
 set(include_dirs
@@ -24,6 +25,7 @@ set(priv_include_dirs
 
 set(dependencies
     "esp_timer"
+    "esp_hw_support"
     "hal"
     "util"
     "esp_ringbuf"

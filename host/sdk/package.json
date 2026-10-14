@@ -1,0 +1,10 @@
+{
+  "name": "@rmlink/client",
+  "version": "0.2.0",
+  "description": "Public RMLink connector SDK for target control and probe subscriptions",
+  "type": "module",
+  "main": "rmlink-client.mjs",
+  "types": "rmlink-client.d.ts",
+  "license": "Apache-2.0",
+  "files": ["rmlink-client.mjs", "rmlink-client.d.ts", "c/rmlink.h", "c/rmlink.c"]
+}
