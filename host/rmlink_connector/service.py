@@ -17,6 +17,7 @@ from .usbip import UsbIpServer
 from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
 from .flash import FlashProgrammer
+from .clock_sync import ClockSync
 from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
 
@@ -34,6 +35,7 @@ class Connector:
         self.mount_errors = {}
         self.connection_errors = {}
         self.refresh_lock = asyncio.Lock()
+        self.clock_sync=ClockSync()
 
     async def refresh(self):
         async with self.refresh_lock: await self._refresh()
@@ -123,9 +125,16 @@ class Connector:
                 'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
                 'capture_wire_version':1,'flash_api':True,'flash_profile':'stm32f103c8-page-images','source_stepping':False,
+                'time_sync':True,'memory_overflow_policy':'drop_old_bounded',
                 'validation':'development; target throughput and full 4 MHz acceptance pending'}
         if method == 'GET' and path == '/v1/status': return self.snapshot()
         if method == 'GET' and path == '/v1/devices': return self.snapshot()['devices']
+        if method=='POST' and path.startswith('/v1/devices/') and path.endswith('/time-sync'):
+            parts=path.split('/')
+            if len(parts)!=5:raise ValueError('Clock sync route invalid')
+            broker=self.brokers.get(parts[3])
+            if not broker or broker.failed:raise ConnectionError('Device offline')
+            return await self.clock_sync.measure(broker,body.get('samples',8))
         if method == 'POST' and path == '/v1/pair':
             key = body.get('device_id')
             if key not in self.devices: raise ValueError('Choose a discovered device_id')

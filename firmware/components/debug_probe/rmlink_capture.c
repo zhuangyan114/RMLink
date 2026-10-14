@@ -174,7 +174,19 @@ static void emit(subscription_t *s,unsigned id,uint64_t timestamp,uint32_t durat
     w32(r+32,s->seq); w64(r+36,timestamp); w32(r+44,duration);
     w32(r+48,valid); w16(r+52,flags); w16(r+54,bytes);
     memcpy(r+56,data,bytes); w32(r+28,crc32(r+32,payload));
-    if(xRingbufferSend(s_records[id-1],r,total,0)!=pdTRUE) s->dropped++;
+    RingbufHandle_t ring=s_records[id-1];
+    if(xRingbufferSend(ring,r,total,0)==pdTRUE)return;
+    if(s->kind!=3) {
+        /* Realtime memory subscriptions retain recent complete frames. Bound
+         * disposal even if a concurrent sender still holds an unreturned item. */
+        for(unsigned retry=0;retry<8;retry++) {
+            size_t old_size;void *old=xRingbufferReceive(ring,&old_size,0);
+            if(!old)break;
+            vRingbufferReturnItem(ring,old);s->dropped++;
+            if(xRingbufferSend(ring,r,total,0)==pdTRUE)return;
+        }
+    }
+    s->dropped++; /* New frame could not fit; never wait in the SWD executor. */
 }
 static void sample_finish(subscription_t *s,unsigned id) {
     uint8_t values[FIELDS*4];
@@ -322,10 +334,18 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
                             size_t len,uint8_t *out,const rmlink_owner_t *owner) {
     out[0]=0x81; out[1]=len>1?r[1]:255; out[2]=1;
     if(len<2) return 3;
+    if(r[1]==13) { /* TIME_SYNC: echo token64, executor receive/send timestamps. */
+        uint64_t received=esp_timer_get_time();
+        if(len<10)return 3;
+        out[2]=0;memcpy(out+3,r+2,8);w64(out+11,received);
+        w64(out+19,esp_timer_get_time());return 27;
+    }
     if(!s_timer) { out[2]=4; return 3; }
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
-        w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024); return 20;
+        w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
+        w32(out+20,3); /* bit0 TIME_SYNC, bit1 realtime memory drop-old */
+        return 24;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
     out[2]=2; return 3;

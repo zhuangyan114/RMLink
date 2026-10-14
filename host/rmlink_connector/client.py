@@ -17,6 +17,9 @@ from .state import State
 
 
 class ApiClient:
+    def time_sync(self,device_id,samples=8):
+        return self.request('POST',f'/v1/devices/{device_id}/time-sync',{'samples':samples})
+
     def __init__(self, directory=None, port=3243):
         for attempt in range(25):
             try:

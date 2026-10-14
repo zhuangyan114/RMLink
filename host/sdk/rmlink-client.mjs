@@ -98,6 +98,9 @@ export class RMLinkClient {
     return result.responses.map(r => Buffer.from(r, 'hex'));
   }
   async abort() { return this.request('POST', `/sessions/${this.session}/abort`); }
+  async timeSync(deviceId, samples = 8) {
+    return this.request('POST', `/devices/${deviceId}/time-sync`, {samples});
+  }
   async target(command, parameters = {}) {
     return this.request('POST', `/sessions/${this.session}/target`, {command, ...parameters});
   }

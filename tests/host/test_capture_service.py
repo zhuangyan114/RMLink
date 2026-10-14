@@ -6,6 +6,7 @@ import tempfile
 import ctypes
 from pathlib import Path
 import unittest
+import time
 from rmlink_connector.broker import Broker
 from rmlink_connector.service import Connector
 from rmlink_connector.state import State
@@ -24,7 +25,10 @@ class ProbeModel:
         for p in packets:
             self.requests.append(p)
             if p[0]==0x81:
-                if p[1]==11: out.append(b'\x81\x0b\x00'+b'X'*16)
+                if p[1]==13:
+                    now=time.perf_counter_ns()//1000
+                    out.append(b'\x81\x0d\x00'+p[2:10]+struct.pack('<QQ',now,now))
+                elif p[1]==11: out.append(b'\x81\x0b\x00'+b'X'*16)
                 elif p[1]==7: out.append(bytes([0x81,7,0])+struct.pack('<BBBIIQQQQIB',2,1,2,7,5,5,0,0,0,0,0))
                 else:
                     if p[1]==3:self.started.set()
@@ -101,6 +105,7 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         lib.rm_close.argtypes=[ctypes.c_void_p]
         lib.rm_devices.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
         lib.rm_capabilities.argtypes=lib.rm_devices.argtypes
+        lib.rm_time_sync.argtypes=[ctypes.c_void_p,ctypes.c_char_p,ctypes.c_uint,ctypes.c_void_p,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
         lib.rm_target_connect.argtypes=[ctypes.c_void_p,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_size_t]
         lib.rm_subscribe.argtypes=[ctypes.c_void_p,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_size_t]
         cb_type=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p)
@@ -115,6 +120,8 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(json.loads(out.value)['default_clock_hz'],4000000)
                 self.assertEqual(lib.rm_devices(discovery,out,len(out),ctypes.byref(required)),200)
                 self.assertEqual(json.loads(out.value),[])
+                self.assertEqual(lib.rm_time_sync(discovery,b'50787d15a924',4,out,len(out),ctypes.byref(required)),200)
+                self.assertEqual(json.loads(out.value)['samples'],4)
                 self.assertEqual(lib.rm_target_connect(discovery,0,out,len(out)),-87)
                 self.assertFalse(self.connector.sessions)
                 self.assertIsNone(self.broker.owner)

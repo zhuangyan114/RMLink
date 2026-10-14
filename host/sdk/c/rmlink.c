@@ -93,6 +93,12 @@ int rm_devices(rm_client *c,char *out,size_t capacity,size_t *required) {
 int rm_capabilities(rm_client *c,char *out,size_t capacity,size_t *required) {
     return c?call_path(c,"GET","/v1/capabilities",NULL,out,capacity,required):-87;
 }
+int rm_time_sync(rm_client *c,const char *device,unsigned samples,char *out,size_t capacity,size_t *required) {
+    if(!c || !device || strlen(device)!=12 || strspn(device,"0123456789abcdefABCDEF")!=12 || !samples || samples>16)return -87;
+    char path[128],body[64];snprintf(path,sizeof(path),"/v1/devices/%s/time-sync",device);
+    snprintf(body,sizeof(body),"{\"samples\":%u}",samples);
+    return call_path(c,"POST",path,body,out,capacity,required);
+}
 int rm_target_connect(rm_client *c,uint32_t clock,char *out,size_t size) {
     char body[128];snprintf(body,sizeof(body),"{\"command\":\"connect\",\"clock_hz\":%lu}",(unsigned long)(clock?clock:4000000));
     return rm_call(c,"POST","/target",body,out,size,NULL);

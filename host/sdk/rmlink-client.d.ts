@@ -21,5 +21,6 @@ export class RMLinkClient {
   unsubscribe(id:number):Promise<unknown>;
   stream(options?:{signal?:AbortSignal}):AsyncGenerator<{cursor:bigint;frame:Uint8Array;sample:CaptureSample}>;
   abort():Promise<unknown>;
+  timeSync(deviceId:string,samples?:number):Promise<Record<string,unknown>>;
   close():Promise<void>;
 }

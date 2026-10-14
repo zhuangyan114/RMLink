@@ -37,6 +37,11 @@ static void address(unsigned sid,unsigned index,uint32_t a) {
 }
 int main(void) {
     assert(rmlink_capture_init(NULL)==0);
+    uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};
+    unsigned sync_reads=reads;owner.session=8;
+    assert(command(sync,sizeof(sync))==27 && out[2]==0);
+    assert(memcmp(out+3,sync+2,8)==0 && reads==sync_reads);
+    owner.session=7;
     prepare(1,1,2); address(1,0,0x20000000);
     uint8_t start[]={0x81,3,1}; command(start,3); assert(out[2]==1); assert(reads==0);
     address(1,1,0x20000004); ram[0]=0x13579bdf; ram[1]=0x2468ace0;
@@ -90,6 +95,16 @@ int main(void) {
     uint8_t bad[]={0x81,1,1,1,1,0,0,0,0}; command(bad,sizeof(bad)); assert(out[2]==1);
     owner.session=8; command(ticket,2); assert(out[2]==2);
     owner.session=7;rmlink_capture_closed(2,7);
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);
+    for(unsigned i=0;i<2000;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
+    action(5,1);unsigned retained=0;uint32_t last_value=0;
+    while(rmlink_capture_take(frame,sizeof(frame),0)) {
+        memcpy(&v,frame+56,4);if(!retained)assert(v>0);
+        assert(!retained || v>last_value);last_value=v;retained++;
+    }
+    assert(retained && retained<2000 && last_value==1999);
+    action(7,1);uint64_t drops;memcpy(&drops,out+30,8);assert(drops==2000-retained);
+    rmlink_capture_closed(2,7);
     uint32_t seed=0x718293a4;uint8_t fuzz[512];
     for(unsigned iteration=0;iteration<20000;iteration++) {
         seed=seed*1664525u+1013904223u;unsigned length=seed%sizeof(fuzz);
@@ -98,6 +113,6 @@ int main(void) {
         size_t reply=command(fuzz,length);assert(reply>=3 && reply<=64);
     }
     rmlink_capture_closed(2,7);
-    printf("Capture state machine: configuration, samples, barriers, Watch reuse/takeover, pointers, faults, RTT wrap, tickets, ownership passed\n");
+    printf("Capture state machine: configuration, samples, barriers, Watch reuse/takeover, pointers, faults, RTT wrap, tickets, ownership, TIME_SYNC, realtime overflow passed\n");
     return 0;
 }

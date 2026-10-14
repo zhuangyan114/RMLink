@@ -1,6 +1,6 @@
 # RMLink 公开连接组件 API v1.1（开发版）
 
-适用于固件/服务 0.2.0。三订阅、高层控制和烧录已实现源码与主机模型；真实 ESP32 的流绑定/错误路径已验证。当前 STM32 无应答，4 MHz 全流程、新采样率和新烧录引擎尚未通过实板验收。标准虚拟 USB 的历史验收不等同于本版增强能力验收。
+适用于固件/服务 0.2.1。三订阅、高层控制和烧录已实现源码与主机模型；真实 ESP32 的流绑定/错误路径与时间同步已验证。当前 STM32 无应答，4 MHz 全流程、新采样率和新烧录引擎尚未通过实板验收。标准虚拟 USB 的历史验收不等同于本版增强能力验收。
 
 ## 接入与能力
 
@@ -62,9 +62,11 @@ Watch 静态 32-bit 重合字段复用正在运行的 Timeline；Timeline 停止
 
 帧头为 32 B：RML1、version、kind、subscription_id、flags、capture_id、revision、sequence、payload_len、record_count、header_len、payload CRC32。内存样本头为 24 B：seq32、timestamp_us64、duration_us32、valid_bitmap32、sample_flags16、data_len16，之后是每字段 uint32 原始值。sample_flags：bit0 partial、bit1 执行预算超限、bit2 Watch 复用。RTT 数据部分为 channel32 + byte_sequence64 + length32 + bytes。
 
-首版每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算，不是已测采样率。探针缓存：Timeline48 KiB、Watch4 KiB、两个 RTT 各6 KiB，总64 KiB；内存帧当前满缓存丢新帧并计数，RTT 无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。实时丢旧、严格录制和应用确认重传尚未实现。
+每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算，不是已测采样率。探针缓存：Timeline48 KiB、Watch4 KiB、两个 RTT 各6 KiB，总64 KiB。0.2.1的内存缓存满时有界丢旧并计数，最多回收8条；若并发发送仍占用空间则丢新，绝不阻塞SWD。RTT无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。严格录制和应用确认重传尚未实现。
 
-timestamp 表示探针单调时基，duration 是采集跨度，变量不是原子快照。Orbit 实验分支用首帧对齐主机时间并保留探针间隔；TIME_SYNC 的漂移/不确定度估计尚未实现。断电/断线末尾丢失可能无法精确计数。
+timestamp表示探针单调时基，duration是采集跨度，变量不是原子快照。Orbit实验分支用首帧对齐主机时间并保留探针间隔；SDK提供TIME_SYNC映射供其他客户端使用，Orbit尚未使用其绝对时间映射。断电/断线末尾丢失可能无法精确计数。
+
+`POST /v1/devices/{device_id}/time-sync`，body `{"samples":8}`（1..16），不创建会话、不占目标，可与现有owner共存。固件0x81/13回显随机token并返回执行器接收／回复时间；服务记录主机往返，选择最小不确定度的映射，返回probe_us、host_monotonic_ns、offset_ns、uncertainty_ns和全部测量。64-bit主机时间以十进制字符串返回。探针重启被观察到时更换clock_epoch；服务重启也换epoch。host_wall_time_ns在检测到明显系统时间跳变时为null。误差范围包含剩余往返的一半及1 us量化，不代表单程延迟已测或已补偿时钟漂移；客户端需周期重测并识别epoch。
 
 ## 通用烧录接口
 
