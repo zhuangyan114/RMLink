@@ -40,4 +40,6 @@
 
 连接服务已实现 mDNS 发现、明确配对、后台重连、自动重挂载、本机 API 与虚拟 USB / API 会话互斥；独立 EXE 无需安装 Python。此前无 OTG 启动与 0.1.1 测速是独立历史证据。板端采样、实际 Orbit 后端接入、HID 及统一产品安装界面仍未实现，不能宣称所有 CMSIS-DAP 软件均兼容。
 
-2026-10-14：固件 0.1.5 / 服务 0.1.1 补齐 Connect 前设置时钟的会话规则，直连 USB 的 pyOCD 读目标、暂停与继续通过，USB / TCP / API / 虚拟 USB 的连接前互斥通过，19 项主机测试通过。电脑重启未解决虚拟 pyOCD 的空读取消问题；UDE 取消长度修补已构建、测试签名和目录哈希验证通过，仍待关闭 Secure Boot、开启测试模式后的实际加载验收。当前运行的仍是官方签名驱动。
+2026-10-14：固件 0.1.5 / 服务 0.1.1 补齐 Connect 前设置时钟的会话规则。修补 UDE 已通过本地测试签名加载，虚拟 USB 空读取消和 pyOCD 0.45.1 的目标识别、暂停、读 PC、继续运行均通过。OpenOCD 经虚拟 USB / Wi-Fi 完成 64 KiB 烧录、校验约 12.85 秒及三线调试验收；原 Flash 已恢复，完整回读匹配备份，选项字节未变。API / 虚拟 USB 互斥和 STA 断连自动恢复也通过，重挂载后再次验收空读及 pyOCD 成功。证据见 [Windows 连接组件](docs/windows-connector.md) 和 [驱动取消问题](docs/virtual-usb-cancellation.md)。
+
+当前开发电脑使用“官方 filter / CLI ＋本地测试签名修补 UDE”，Secure Boot 关闭、TESTSIGNING 生效、内存完整性保持开启。正式微软驱动签名与分发仍待完成；物理 NRST、HID、Keil / IAR 尚未验收。测试模式状态保留用于后续开发，回退脚本已准备但未实际运行。

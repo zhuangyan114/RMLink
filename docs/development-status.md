@@ -2,7 +2,7 @@
 
 更新日期：2026-10-14。当前固件 0.1.5，连接服务 0.1.1。USB / TCP 三线 SWD 的既有验收保持为独立记录；Windows 虚拟 USB 经 Wi-Fi 的 64 KiB 烧录、回读、调试与异常恢复验收已通过，原 Flash 已恢复。NRST 缺线，直接 OpenOCD TCP 仍有旧版主机限制；虚拟 Bulk 路径的 OpenOCD 日志无 Error，详见 [实板验收](stm32-acceptance.md) 与 [Windows 组件](windows-connector.md)。
 
-本轮新增：修复 pyOCD 在 Connect 前设置时钟的兼容性，固件 / 服务均从有效时钟配置开始保留整段会话；无效配置不占用目标，其他客户端不能抢占。直连 USB 的 pyOCD 0.45.1 暂停 / 读取 PC / 继续运行通过；USB / TCP 及真实 API / 虚拟 USB 的连接前互斥通过。USB 与 TCP 完整回读 64 KiB 主 Flash 均匹配原备份，未烧录目标。重启后的 pyOCD 虚拟 USB 空读问题仍未通过；已定位 UDE 取消长度、构建并验证本地测试签名包，尚未安装，见 [驱动取消问题](virtual-usb-cancellation.md)。
+本轮新增：修复 pyOCD 在 Connect 前设置时钟的兼容性，固件 / 服务均从有效时钟配置开始保留整段会话；无效配置不占用目标，其他客户端不能抢占。本地测试签名的 UDE 取消长度修补已加载，虚拟 USB 的空读超时、零字节计数、缓冲不变及后续正常查询均通过，pyOCD 0.45.1 经虚拟无线探针完成目标识别、暂停、读 PC 和继续运行。OpenOCD 在固件 0.1.5 / 服务 0.1.1 / 修补驱动组合下完成 64 KiB 烧录与三线调试回归，原 Flash 恢复并独立回读一致；API / 虚拟 USB 互斥、STA 断连自动恢复及重挂载后的 pyOCD 再连接均通过，见 [驱动取消问题](virtual-usb-cancellation.md)。
 
 ## 阶段状态
 
@@ -12,9 +12,11 @@
 | 2：USB / 目标 SWD | Bulk、统一执行器、会话规则、NRST 钩子、边界和主机排队读取已实现 | target profile 已编译并刷写；主机核心通过 | USB / TCP 的 64 KiB 烧录与回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT 和软件复位通过；NRST 缺线 |
 | 3：STA / TCP / USB 配网 | NVS、自动入网、mDNS、分片帧和网络独立恢复已实现 | 主机 TCP client 6 项测试通过 | 配网 / STA / TCP / 无 OTG 复位通过；STA 恢复时 USB 的真实目标读取与 owner 保持通过；完全断电及真正热点掉线待测 |
 | 4：Orbit / 板端采样 | 已核对 Orbit 所有权链；新增本机 API / Node SDK；实际 Orbit 与采样尚未接入 | SDK 经真实服务完成连接、批量查询和释放 | API 读 STM32、与虚拟 USB 双向互斥通过；板端采样未验收 |
-| 5：Windows 自动组件 | mDNS、配对、一个物理 TCP、USB/IP 代理、自动重挂载与 UDE 驱动控制 | 独立 EXE 构建、19 项主机测试通过；官方 usbip-win2 0.9.8.1 已安装；取消长度补丁及测试签名构建通过 | WinUSB / OpenOCD 烧录调试通过；STA 断连约 5 秒恢复；电脑重启 / DHCP 换址自动发现和挂载通过；修补驱动加载 / pyOCD 虚拟路径待验收 |
+| 5：Windows 自动组件 | mDNS、配对、一个物理 TCP、USB/IP 代理、自动重挂载与 UDE 驱动控制 | 独立 EXE 构建、19 项主机测试通过；UDE 补丁构建与测试签名通过，已实际加载 | 空读取消、pyOCD 虚拟调试、OpenOCD 烧录调试及双向互斥通过；本轮 STA 断连约 6.53 秒恢复，重挂载后的空读与 pyOCD 通过；正式驱动签名仍待完成 |
 
 当前 target profile 固件为 0.1.5，SHA256 68640A9B1678F59691F628A9F94587594E75A38F01EFB1807EC67281D0E7061C。0.1.5 修改会话入口，不修改 SWD 位操作内核。最后刷写记录在 artifacts/hardware/rmlink-last-flash.json；[实板验收](stm32-acceptance.md) 分开记录各版本的证据。0.1.4 固件另存 artifacts/hardware/rmlink-0.1.4-target.bin。
+
+本次驱动回归证据统一在 artifacts/logs/test-driver-20261014：虚拟 64 KiB 烧录 / 校验 12845.70 ms，独立完整回读 8120.89 ms；原程序恢复 12288.24 ms，选项字节未变，核心运行、板端与服务 owner 均已释放。用户已完成测试模式重启，当前 Secure Boot 关闭、TESTSIGNING 生效、HVCI 保持开启；安装仅重启虚拟控制器，无额外系统重启要求。空读脚本带进程期限并精确选择虚拟序列号，历史验收日志保留。正式微软签名、物理 NRST 及其他调试软件兼容性另行验证。
 
 新增异步 TransferAbort、TCP 独立收发、断连取消 / 排队清理、传输期限、未实现命令 0xFF 响应和 SWJ 引脚监测 / 等待修正。唯一 SWD 执行器与整段会话所有权保留。
 

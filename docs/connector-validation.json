@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-10-14T15:50:07.426916+08:00",
+  "recordedAt": "2026-10-14T17:10:00.410739+08:00",
   "connectorVersion": "0.1.1",
   "firmwareVersion": "0.1.5",
   "windowsVersion": "10.0.26100.0",
@@ -15,31 +15,49 @@
     "installed": true,
     "installerRequestedRestart": true,
     "computerRestarted": true,
-    "computerBootedAt": "2026-10-14T14:15:25.5000000+08:00",
+    "computerBootedAt": "2026-10-14T16:32:28.5000000+08:00",
     "currentBoot": {
-      "secureBoot": true,
+      "secureBoot": false,
       "memoryIntegrity": true,
-      "testSigningActive": false,
+      "testSigningActive": true,
       "bitLockerCProtection": "Off",
-      "bootedAt": "2026-10-14T14:15:25.5000000+08:00"
+      "bootedAt": "2026-10-14T16:32:28.5000000+08:00"
     },
     "currentController": {
       "instance": "ROOT\\USB\\0000",
-      "inf": "oem122.inf",
-      "version": "12.1.30.403",
+      "inf": "oem123.inf",
+      "version": "15.9.4.119",
       "state": "Running",
-      "binary": "C:\\WINDOWS\\system32\\DriverStore\\FileRepository\\usbip2_ude.inf_amd64_bcfb5e9b79f800fa\\usbip2_ude.sys",
-      "sha256": "ABD4FC43DCE40E027E4ACC884CBFE92433E026206F6565C5EE5284A39441169A"
+      "binary": "C:\\WINDOWS\\system32\\DriverStore\\FileRepository\\usbip2_ude.inf_amd64_97a4d43f6098acc4\\usbip2_ude.sys",
+      "sha256": "E44D55A36843154D22D06E6CE1271EA74676CB3E233FBFA724CC61C3DF717D31",
+      "embeddedSignature": "Valid",
+      "signer": "CN=RMLink Local Driver Test"
     },
     "testPatch": {
       "sourceCommit": "55e1fa7f0c2157017b02dc1f3236e98169a535e4",
       "patchSha256": "E74128296AB50C12D13F5ADF12C63332A83F5ED8D67CB6FB1DC4E8C0CCCCB269",
       "embeddedSignature": "Valid",
       "catalogAndBinaryHashVerified": true,
-      "installed": false,
-      "runtimeAcceptanceComplete": false,
+      "installed": true,
+      "runtimeAcceptanceComplete": true,
       "signedBinarySha256": "E44D55A36843154D22D06E6CE1271EA74676CB3E233FBFA724CC61C3DF717D31",
-      "manifest": "artifacts/driver-test/test-driver.json"
+      "manifest": "artifacts/driver-test/test-driver.json",
+      "runtimeAcceptanceScope": "Windows virtual CMSIS-DAP Bulk over Wi-Fi; STM32F103 64KiB three-wire SWD, software SYSRESETREQ",
+      "installReceipt": "artifacts/driver-test/install.json",
+      "currentStateReceipt": "artifacts/driver-test/current-state.json",
+      "runtimeAcceptanceReceipt": "artifacts/driver-test/runtime-acceptance.json",
+      "signer": "CN=RMLink Local Driver Test",
+      "installReceiptRuntimeAcceptanceComplete": false,
+      "installReceiptRuntimeAcceptanceNote": "Historical installation-time state; latest scoped acceptance is in runtime-acceptance.json"
+    },
+    "catalogSignatureScope": "Retained official 0.9.8.1 package and filter; patched UDE uses local test signature",
+    "currentControllerCapturedAt": "2026-10-14T17:01:54.2248897+08:00",
+    "officialFilterRetained": true,
+    "patchInstallationRestartRequired": false,
+    "rollback": {
+      "prepared": true,
+      "runtimeTested": false,
+      "entryPoint": "scripts/Test-VirtualUsbDriver.ps1 -Action Restore -Elevate"
     }
   },
   "hostTests": {
@@ -47,32 +65,43 @@
     "failed": 0
   },
   "openocd": {
+    "capturedAt": "2026-10-14T16:55:31.137056+08:00",
     "version": "v0.12.0-esp32-20260831",
     "virtualSerial": "RM50787D15A924",
     "complete": true,
-    "programVerify64KiBMs": 11324.08,
+    "programVerify64KiBMs": 12845.7,
+    "independentFlashReadbackMs": 8120.89,
+    "restoreProgramMs": 12288.24,
     "errorLines": [],
     "restored": true,
     "originalFlashSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+    "optionBytesUnchanged": true,
+    "coreHaltedAtEnd": false,
     "physicalNrstTested": false,
-    "testedFirmwareVersion": "0.1.4",
-    "testedConnectorVersion": "0.1.0"
+    "testedFirmwareVersion": "0.1.5",
+    "testedConnectorVersion": "0.1.1",
+    "driver": "Locally test-signed 0.9.8.1 UDE cancellation-length patch",
+    "evidenceFile": "artifacts/logs/test-driver-20261014/accept-virtual-usb.json"
   },
   "reconnect": {
-    "capturedAt": "2026-10-13T21:30:45.416777+08:00",
+    "capturedAt": "2026-10-14T16:57:02.923528+08:00",
     "complete": true,
     "deviceId": "50787d15a924",
     "method": "USB vendor 80/05 disconnects only RMLink STA; PC hotspot stays on",
     "realVirtualExcludesApiOwner": true,
     "realApiExcludesVirtualOwner": true,
-    "oldSessionFailedMs": 3032.88,
-    "automaticVirtualRecoveryMs": 5279.69,
+    "oldSessionFailedMs": 2370.14,
+    "automaticVirtualRecoveryMs": 6528.11,
     "oldLeaseRemainsLost": true,
     "newSessionCpuid": "0x411fc231",
     "remountedVirtualCpuid": "0x411fc231",
     "ownerAtEnd": null,
-    "testedFirmwareVersion": "0.1.4",
-    "testedConnectorVersion": "0.1.0"
+    "testedFirmwareVersion": "0.1.5",
+    "testedConnectorVersion": "0.1.1",
+    "driver": "Locally test-signed UDE cancellation-length patch",
+    "evidenceFile": "artifacts/logs/test-driver-20261014/connector-reconnect.json",
+    "repeatedRunEvidence": "artifacts/logs/test-driver-20261014/connector-reconnect-final.json",
+    "timingNote": "First full acceptance run; recovery time is not a performance guarantee"
   },
   "nodeSdk": {
     "capturedAt": "2026-10-14T07:36:25.192Z",
@@ -83,15 +112,22 @@
     "firmwareVersion": "0.1.5"
   },
   "pyocd": {
-    "capturedAt": "2026-10-14T14:24:25.469266+08:00",
-    "complete": false,
+    "capturedAt": "2026-10-14T16:55:04.358294+08:00",
+    "complete": true,
+    "requestedSerial": "RM50787D15A924",
     "pyocdVersion": "0.45.1",
-    "timeoutSeconds": 20,
-    "failure": "pyOCD test exceeded time limit; inspect the run log for the stage",
+    "probeSerial": "RM50787D15A924",
+    "cpuid": "0x411fc231",
+    "pcWhileHalted": "0x8000d7c",
+    "haltReadRegisterResume": true,
     "path": "virtual USB",
-    "targetOperationsStarted": false,
-    "testedFirmwareVersion": "0.1.4",
-    "driver": "official 0.9.8.1"
+    "targetOperationsStarted": true,
+    "testedFirmwareVersion": "0.1.5",
+    "testedConnectorVersion": "0.1.1",
+    "driver": "Locally test-signed UDE cancellation-length patch",
+    "programTested": false,
+    "evidenceFile": "artifacts/logs/test-driver-20261014/pyocd-patched.json",
+    "afterReconnectEvidence": "artifacts/logs/test-driver-20261014/pyocd-after-reconnect.json"
   },
   "evidenceFiles": [
     "artifacts/logs/accept-virtual-usb.json",
@@ -108,16 +144,33 @@
     "artifacts/logs/post-reboot-20261014/final-target-state.json",
     "artifacts/logs/post-reboot-20261014/idle-native-fresh.json",
     "artifacts/logs/post-reboot-20261014/usbip-ude.txt",
-    "artifacts/logs/post-reboot-20261014/usbip-filter.txt"
+    "artifacts/logs/post-reboot-20261014/usbip-filter.txt",
+    "artifacts/driver-test/install.json",
+    "artifacts/driver-test/current-state.json",
+    "artifacts/driver-test/runtime-acceptance.json",
+    "artifacts/logs/test-driver-20261014/idle-physical.json",
+    "artifacts/logs/test-driver-20261014/idle-patched.json",
+    "artifacts/logs/test-driver-20261014/pyocd-patched.json",
+    "artifacts/logs/test-driver-20261014/accept-virtual-usb.json",
+    "artifacts/logs/test-driver-20261014/connector-preconnect.json",
+    "artifacts/logs/test-driver-20261014/connector-reconnect.json",
+    "artifacts/logs/test-driver-20261014/idle-after-reconnect.json",
+    "artifacts/logs/test-driver-20261014/pyocd-after-reconnect.json",
+    "artifacts/logs/test-driver-20261014/final-target-state.json",
+    "artifacts/logs/test-driver-20261014/connector-preconnect-final.json",
+    "artifacts/logs/test-driver-20261014/connector-reconnect-final.json"
   ],
   "remaining": [
-    "Windows idle Bulk cancellation compatibility",
     "Keil/IAR/HID compatibility",
     "USB/WiFi automatic selection",
     "Orbit backend integration",
     "board-side sampling",
     "product installer/autostart",
-    "actual PC hotspot loss and power-cycle tests"
+    "actual PC hotspot loss and power-cycle tests",
+    "Formal Microsoft driver signing and product distribution",
+    "Physical NRST wiring and acceptance",
+    "Interrupt/chained-MDL cancellation runtime acceptance",
+    "Rollback runtime verification"
   ],
   "physicalPyocd": {
     "capturedAt": "2026-10-14T15:23:50.230816+08:00",
@@ -166,7 +219,7 @@
     "evidence": "Physical STM32 CPUID reads and USB/TCP session arbitration; no target Flash/RAM writes or reset"
   },
   "connectorPreconnect": {
-    "capturedAt": "2026-10-14T15:36:23.893911+08:00",
+    "capturedAt": "2026-10-14T16:56:40.400980+08:00",
     "complete": true,
     "connectorVersion": "0.1.1",
     "firmwareVersion": "0.1.5",
@@ -177,7 +230,9 @@
     "apiAndVirtualCpuid": "0x411fc231",
     "apiCloseBeforeConnectReleases": true,
     "ownerAfterTests": null,
-    "evidence": "Real connector API, installed virtual WinUSB and STM32 SWD; no Flash writes or target reset"
+    "evidence": "Real connector API, installed virtual WinUSB and STM32 SWD; no Flash writes or target reset",
+    "evidenceFile": "artifacts/logs/test-driver-20261014/connector-preconnect.json",
+    "repeatedRunEvidence": "artifacts/logs/test-driver-20261014/connector-preconnect-final.json"
   },
   "flashReadConsistency": {
     "capturedAt": "2026-10-14T15:33:22.451631+08:00",
@@ -202,12 +257,29 @@
     "evidence": "Full main Flash backup read consistency; no erase/program/target halt/reset or backup restoration tested"
   },
   "finalTargetState": {
-    "capturedAt": "2026-10-14T15:47:09.494456+08:00",
+    "capturedAt": "2026-10-14T16:58:46.235423+08:00",
+    "device": {
+      "version": "0.1.5",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 0,
+      "ownerSession": 0,
+      "packetSize": 64
+    },
+    "dhcsr": "0x1010000",
+    "coreHalted": false,
+    "flashBytes": 65536,
+    "flashSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+    "flashMatchesOriginalBackup": true,
+    "boardOwnerAfter": 0,
     "connectorVersion": "0.1.1",
     "firmwareVersion": "0.1.5",
-    "coreHalted": false,
-    "dhcsr": "0x1010000",
-    "owner": null
+    "owner": null,
+    "connected": true,
+    "virtualMounted": true,
+    "deviceAddress": "192.168.137.13",
+    "complete": true,
+    "evidenceFile": "artifacts/logs/test-driver-20261014/final-target-state.json"
   },
   "coldPcRestartDiscovery": {
     "deviceId": "50787d15a924",
@@ -215,5 +287,172 @@
     "newAddress": "192.168.137.243",
     "mdnsIdentityVerified": true,
     "autoMounted": true
-  }
+  },
+  "historicalRuns": {
+    "officialDriverOpenocd": {
+      "version": "v0.12.0-esp32-20260831",
+      "virtualSerial": "RM50787D15A924",
+      "complete": true,
+      "programVerify64KiBMs": 11324.08,
+      "errorLines": [],
+      "restored": true,
+      "originalFlashSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+      "physicalNrstTested": false,
+      "testedFirmwareVersion": "0.1.4",
+      "testedConnectorVersion": "0.1.0"
+    },
+    "officialDriverReconnect": {
+      "capturedAt": "2026-10-13T21:30:45.416777+08:00",
+      "complete": true,
+      "deviceId": "50787d15a924",
+      "method": "USB vendor 80/05 disconnects only RMLink STA; PC hotspot stays on",
+      "realVirtualExcludesApiOwner": true,
+      "realApiExcludesVirtualOwner": true,
+      "oldSessionFailedMs": 3032.88,
+      "automaticVirtualRecoveryMs": 5279.69,
+      "oldLeaseRemainsLost": true,
+      "newSessionCpuid": "0x411fc231",
+      "remountedVirtualCpuid": "0x411fc231",
+      "ownerAtEnd": null,
+      "testedFirmwareVersion": "0.1.4",
+      "testedConnectorVersion": "0.1.0"
+    },
+    "officialDriverPyocdFailure": {
+      "capturedAt": "2026-10-14T14:24:25.469266+08:00",
+      "complete": false,
+      "pyocdVersion": "0.45.1",
+      "timeoutSeconds": 20,
+      "failure": "pyOCD test exceeded time limit; inspect the run log for the stage",
+      "path": "virtual USB",
+      "targetOperationsStarted": false,
+      "testedFirmwareVersion": "0.1.4",
+      "driver": "official 0.9.8.1"
+    },
+    "officialDriverController": {
+      "instance": "ROOT\\USB\\0000",
+      "inf": "oem122.inf",
+      "version": "12.1.30.403",
+      "state": "Running",
+      "binary": "C:\\WINDOWS\\system32\\DriverStore\\FileRepository\\usbip2_ude.inf_amd64_bcfb5e9b79f800fa\\usbip2_ude.sys",
+      "sha256": "ABD4FC43DCE40E027E4ACC884CBFE92433E026206F6565C5EE5284A39441169A"
+    },
+    "officialDriverBoot": {
+      "secureBoot": true,
+      "memoryIntegrity": true,
+      "testSigningActive": false,
+      "bitLockerCProtection": "Off",
+      "bootedAt": "2026-10-14T14:15:25.5000000+08:00"
+    },
+    "prePatchFinalTargetState": {
+      "capturedAt": "2026-10-14T15:47:09.494456+08:00",
+      "connectorVersion": "0.1.1",
+      "firmwareVersion": "0.1.5",
+      "coreHalted": false,
+      "dhcsr": "0x1010000",
+      "owner": null
+    },
+    "prePatchConnectorPreconnect": {
+      "capturedAt": "2026-10-14T15:36:23.893911+08:00",
+      "complete": true,
+      "connectorVersion": "0.1.1",
+      "firmwareVersion": "0.1.5",
+      "apiClockBeforeConnect": true,
+      "invalidClockDoesNotClaim": true,
+      "apiForeignDenied": true,
+      "apiVirtualMutualExclusion": true,
+      "apiAndVirtualCpuid": "0x411fc231",
+      "apiCloseBeforeConnectReleases": true,
+      "ownerAfterTests": null,
+      "evidence": "Real connector API, installed virtual WinUSB and STM32 SWD; no Flash writes or target reset"
+    },
+    "evidenceFiles": [
+      "artifacts/logs/accept-virtual-usb.json",
+      "artifacts/logs/verify-connector-reconnect.json",
+      "artifacts/logs/post-reboot-20261014/pyocd-before-reboot.json",
+      "artifacts/logs/post-reboot-20261014/idle-native-fresh.json",
+      "artifacts/logs/post-reboot-20261014/usbip-ude.txt",
+      "artifacts/logs/post-reboot-20261014/usbip-filter.txt"
+    ]
+  },
+  "idleCancellation": {
+    "scope": "Measured Bulk idle-read cancellation and pyOCD startup; interrupt/chained MDL not independently accepted",
+    "physicalControl": {
+      "capturedAt": "2026-10-14T16:48:34.908920+08:00",
+      "complete": true,
+      "requestedSerial": "50787D15A924",
+      "requestedBcdDevice": 2,
+      "timeoutsMs": [
+        50,
+        100,
+        500
+      ],
+      "idleReadsPassed": 6,
+      "normalQueriesPassed": 3,
+      "allReadsFalseError121ZeroCountUnchanged": true,
+      "elapsedMs": [
+        51.64,
+        61.65,
+        109.89,
+        109.79,
+        509.67,
+        500.17
+      ],
+      "evidenceFile": "artifacts/logs/test-driver-20261014/idle-physical.json"
+    },
+    "patchedVirtual": {
+      "capturedAt": "2026-10-14T16:51:36.248947+08:00",
+      "complete": true,
+      "requestedSerial": "RM50787D15A924",
+      "requestedBcdDevice": 256,
+      "timeoutsMs": [
+        50,
+        100,
+        500
+      ],
+      "idleReadsPassed": 6,
+      "normalQueriesPassed": 3,
+      "allReadsFalseError121ZeroCountUnchanged": true,
+      "elapsedMs": [
+        57.2,
+        57.45,
+        105.95,
+        111.1,
+        509.43,
+        504.96
+      ],
+      "evidenceFile": "artifacts/logs/test-driver-20261014/idle-patched.json"
+    },
+    "afterReconnect": {
+      "capturedAt": "2026-10-14T16:58:05.933032+08:00",
+      "complete": true,
+      "requestedSerial": "RM50787D15A924",
+      "requestedBcdDevice": 256,
+      "timeoutsMs": [
+        50,
+        100,
+        500
+      ],
+      "idleReadsPassed": 6,
+      "normalQueriesPassed": 3,
+      "allReadsFalseError121ZeroCountUnchanged": true,
+      "elapsedMs": [
+        51.34,
+        56.54,
+        104.57,
+        103.0,
+        502.46,
+        513.82
+      ],
+      "evidenceFile": "artifacts/logs/test-driver-20261014/idle-after-reconnect.json"
+    },
+    "bufferContentsLogged": false
+  },
+  "currentRuntimeScope": "Windows virtual CMSIS-DAP Bulk over Wi-Fi; STM32F103 64KiB three-wire SWD, software SYSRESETREQ",
+  "runtimeLimits": [
+    "Physical NRST not wired or accepted",
+    "HID, Keil/IAR and other software not tested",
+    "Only measured Bulk idle-cancellation path accepted; interrupt/chained MDL not independently accepted",
+    "Local test-signing only; Microsoft signing and product distribution pending",
+    "Rollback prepared, not runtime tested"
+  ]
 }

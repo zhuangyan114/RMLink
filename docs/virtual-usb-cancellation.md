@@ -1,6 +1,6 @@
-# 虚拟 USB 空读取消：重启后的定位与修复候选
+# 虚拟 USB 空读取消：定位、修复与实机验收
 
-日期：2026-10-14。电脑本轮启动时间 14:15:25，Windows 11 10.0.26100；当前使用 usbip-win2 0.9.8.1 官方签名驱动。重启未消除 pyOCD 0.45.1 的启动问题。
+日期：2026-10-14，Windows 11 10.0.26100。14:15:25 启动后的官方 usbip-win2 0.9.8.1 仍出现 pyOCD 0.45.1 启动问题；以下先保留定位时的证据。16:32:28 重启进入测试模式后，修补 UDE 已加载；虚拟 Bulk 空读取消、pyOCD 启动、STM32 三线 SWD 烧录 / 调试及断连重连均通过。本机当前 Secure Boot 关闭、TESTSIGNING 生效、内存完整性保持开启；修补驱动仅为本地测试签名，正式分发待办。
 
 ## 复现与驱动日志
 
@@ -20,7 +20,7 @@
 
 已核对实际发行源码：usbip-win2 tag `v.0.9.8.1`，commit `55e1fa7f0c2157017b02dc1f3236e98169a535e4`。这是发行包对应源码，与 reference-versions.json 中用于最初评估的较新提交分开记录。
 
-正常 RET_SUBMIT 路径在 `drivers/ude/wsk_receive.cpp` 的 ret_submit_urb 中设置实际完成字节数。`drivers/ude/request_list.cpp` 的取消完成路径设置状态，但保留了 URB 原始请求长度。结合 WPP 与 WinUSB 的结果，最有力的原因是 WinUSB 将这个长度当作取消前已有的部分数据，并从尚未填充的缓冲区返回数据。此因果解释仍需加载修复驱动进行验证。
+正常 RET_SUBMIT 路径在 `drivers/ude/wsk_receive.cpp` 的 ret_submit_urb 中设置实际完成字节数。`drivers/ude/request_list.cpp` 的取消完成路径设置状态，但保留了 URB 原始请求长度。定位时结合 WPP 与 WinUSB 的结果推断：WinUSB 将这个长度当作取消前已有的部分数据，并从尚未填充的缓冲区返回数据。加载补丁后的前后对照已确认清零取消长度修复了本机实测 Bulk 空读取消与 pyOCD 启动问题；没有独立验收 Interrupt、chained MDL 或其他取消路径。
 
 修复候选在 `host/windows/patches/usbip-win2-cancel-length.patch`，仅修改取消的 Bulk / Interrupt URB：完成前将 TransferBufferLength 清零。保留正常响应、会话仲裁、RET_UNLINK 和已执行写命令的语义。
 
@@ -28,7 +28,7 @@
 
 隔离工作区：`artifacts/build/usbip-win2-cancel`，参考源码没有修改。已用 Visual Studio 2026 / MSVC 14.51、SDK 10.0.28000.2705、WDK NuGet 10.0.28000.2526 构建 x64 Release，生成 SYS、INF、CAT；编译和链接通过，Universal API 校验通过，Inf2Cat 报告 Errors=None、Warnings=None。日志为 build-ude-cancel.log。
 
-源码补丁已经实际编译；这不等于修复后的 Windows 运行验收。无签名构建产物保留在 build 目录，另制作了本地测试签名包；当前未替换电脑上的官方驱动。本地构建为实验版，关闭了 Spectre 库选项，不作为正式发行包。
+源码补丁已经实际编译，无签名构建产物保留在 build 目录，另制作了本地测试签名包。构建与签名本身不等于运行验收；后续实际加载结果见下文。本地构建为实验版，关闭了 Spectre 库选项，不作为正式发行包。
 
 ## 已选定当前电脑测试
 
@@ -57,9 +57,35 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\STM32\RMLink\scripts
 
 Install 回执核对当前控制器的 INF / SYS 文件哈希；这仍需接下来的真实数据测试确认运行行为。如果 PnP 报告需要系统重启，先处理回执中的 restartRequired，再进行验收。
 
+## 16:32 重启后的实际加载与运行结果
+
+用户完成 Secure Boot 关闭与测试模式重启。16:35:27 的 artifacts/driver-test/install.json 记录本次启动为 16:32:28，Secure Boot=false、TESTSIGNING=true、HVCI=true、C 盘 BitLocker 保护 Off；安装回执 restartRequired=false，脚本没有发起电脑重启。控制器 ROOT\\USB\\0000 使用 oem123.inf、版本 15.9.4.119，状态 Running，SYS SHA256 为上述 `E44D55A36843154D22D06E6CE1271EA74676CB3E233FBFA724CC61C3DF717D31`。17:01:54 的 current-state.json 再次核对相同文件哈希，嵌入签名 Valid，签名者 `CN=RMLink Local Driver Test`；官方 filter 与 CLI 保留。
+
+电脑热点在本次启动后恢复，服务 0.1.1 自动发现固件 0.1.5 的同一完整 MAC，地址变为 192.168.137.13，并自动挂载虚拟探针。实板验收报告均在 artifacts/logs/test-driver-20261014：
+
+- idle-physical.json：直连 USB 对照在 50 / 100 / 500 ms 各两次空读，全部返回 FALSE、error=121、count=0、缓冲未变；每组之后 DAP_Info(FF) 正常返回 64 字节包能力。
+- idle-patched.json：修补虚拟 USB 相同六次空读全部通过；50 ms 实测 57.20 / 57.45 ms，100 ms 为 105.95 / 111.10 ms，500 ms 为 509.43 / 504.96 ms。三次取消后查询均通过，没有输出错误缓冲内容。
+- pyocd-patched.json：pyOCD 0.45.1 按虚拟序列号 `RM50787D15A924` 读取 CPUID `0x411fc231`、暂停、读取 PC `0x08000D7C`、继续运行通过；本轮未用 pyOCD 烧录。
+- accept-virtual-usb.json：OpenOCD 经 Wi-Fi 虚拟 Bulk 完成 64 KiB 烧录 / 校验 / 软件复位，12845.70 ms、无 Error 行；独立完整回读 8120.89 ms。暂停 / 继续、寄存器、3072 字节 RAM、FPB / 软件断点、单步、DWT、FAULT 恢复、SWD_Sequence、异步 Abort、执行期限与部分块传输通过。恢复原 Flash 用时 12288.24 ms，完整哈希匹配原备份，选项字节未变，核心继续运行。
+- connector-preconnect.json：真实 API / 虚拟 USB 双向互斥、Connect 前时钟配置、非法时钟不占会话及释放通过。
+- connector-reconnect.json：仅断开 RMLink STA、电脑热点保持开启；旧会话 2370.14 ms 报失联，6528.11 ms 自动恢复并重新挂载。旧租约保持失效，新 API 会话与虚拟 USB 都读取到 CPUID，结束 owner 为空。独立复测保存为 connector-preconnect-final.json / connector-reconnect-final.json；恢复耗时不是性能保证。
+- idle-after-reconnect.json / pyocd-after-reconnect.json：重挂载后六次空读及三次正常查询再次通过，pyOCD 再次暂停 / 读 PC / 继续运行通过。
+- final-target-state.json：物理 USB 独立完整回读 64 KiB 与原备份一致，板端 owner=0、服务 owner=null、核心未暂停，无线已连接、虚拟探针已挂载。
+
+artifacts/driver-test/runtime-acceptance.json 汇总上述 11 份通过报告，runtimeAcceptanceComplete=true，范围限定 Windows Wi-Fi 虚拟 CMSIS-DAP Bulk、STM32F103 64 KiB 三线 SWD 和软件 SYSRESETREQ。安装时回执内的 runtimeAcceptanceComplete=false 是安装当时的历史状态，当前验收结论以该汇总与原始报告为准。物理 NRST 缺线、HID、Keil / IAR、其他取消路径与正式微软签名仍未验收或完成。
+
+复测使用新的日志目录，避免覆盖已有验收记录。下例 `newrun` 应替换为本次独立目录名；父进程默认限时 20 秒并记录子进程日志，驱动回执支持带 BOM 的 UTF-8。
+
+```powershell
+python.exe -B scripts/test_virtual_idle.py --output artifacts/logs/newrun/idle.json --driver-metadata artifacts/driver-test/install.json
+python.exe -B scripts/test_virtual_idle.py --serial 50787D15A924 --bcd-device 0x0002 --output artifacts/logs/newrun/idle-physical.json
+```
+
 ## 回退入口
 
 恢复脚本只移除本次测试包对应的 INF，重新选择已核验的官方包，再关闭 TESTSIGNING，移除本次测试证书与私钥。没有自动重启，完成后用户手动重启并在 UEFI 恢复 Secure Boot。
+
+回退入口与官方包备份已准备，本轮没有执行回退，不能标记为已完成运行验证。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\STM32\RMLink\scripts\Test-VirtualUsbDriver.ps1" -Action Restore -Elevate
@@ -80,6 +106,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\STM32\RMLink\scripts
 - USB / TCP 分别完整回读 64 KiB Flash，SHA256 均为 `75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff`，匹配原备份。
 - Node SDK 经新服务完成批量查询与释放，固件版本返回 0.1.5。
 
-本轮证据在 artifacts/logs/post-reboot-20261014。当前待完成的是修补驱动的实际加载，以及虚拟路径的空读取消与 pyOCD 验收。
+上述连接前时钟的独立修复证据在 artifacts/logs/post-reboot-20261014；修补驱动实际加载后的虚拟路径验收另见 artifacts/logs/test-driver-20261014，不与此前官方驱动结果混用。
 
-实际加载后先验收空读、取消、缓冲计数和 pyOCD 启动，再复测正常 DAP、OpenOCD 烧录 / 调试、目标互斥与断连重连。验证成功后还需处理正式签名；本地测试签名不能替代面向用户分发的微软签名。
+当前实测 Bulk 空读取消、pyOCD 启动、正常 DAP、OpenOCD 三线烧录 / 调试、目标互斥与 STA 断连重连已通过。正式签名与产品分发仍待完成；本地测试签名不能替代面向用户分发的微软签名。

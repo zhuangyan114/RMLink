@@ -1,5 +1,9 @@
 # STM32 烧录与调试验收
 
+最新补充（2026-10-14）：固件 0.1.5 / 连接服务 0.1.1 / 本地测试签名修补 UDE，通过虚拟 USB 经 Wi-Fi 重新完成三线 SWD 全部验收。64 KiB OpenOCD 烧录 / 校验 12845.70 ms，正常日志无 Error 行，独立完整回读 8120.89 ms；暂停 / 继续、寄存器、RAM、FPB / 软件断点、单步、DWT、软件复位、FAULT 恢复、SWD_Sequence、异步 Abort 与执行期限均通过。原程序恢复 12288.24 ms，虚拟 USB 与后续直连 USB 完整回读均匹配原备份，选项字节未变、核心运行，未遗留 owner。报告在 artifacts/logs/test-driver-20261014/accept-virtual-usb.json，最终状态在同目录 final-target-state.json。
+
+pyOCD 0.45.1 在同一虚拟无线探针上完成 CPUID、暂停、PC 读取和继续运行；STA 断连重挂载后再次通过。本轮 pyOCD 未用于烧录。物理 NRST 仍缺线；正式驱动签名、HID 与 Keil / IAR 兼容尚未验收，详见 [Windows 组件](windows-connector.md)。下面保留固件 0.1.3 的双通道历史验收，计时与限制按各自版本阅读。
+
 日期：2026-10-13。固件 RMLink 0.1.3，用户本轮将目标标为 STM32F103C8T6；读取到 DEV_ID=0x410、CPUID=0x411FC231、64 KiB 主 Flash。早期记录为 C8T8，寄存器不能区分完整封装 / 温度后缀。本轮按用户允许的目标烧录权限执行。
 
 USB Bulk 与 Wi-Fi TCP 的**三线 SWD 常规烧录、调试及软件复位验收通过**。NRST 实体复位未通过：GPIO6 自身可拉低 / 释放，但目标未复位；用户说明没有多余杜邦线，故明确采用 SWDIO / SWCLK / GND，并使用 Cortex-M SYSRESETREQ 软件复位。接上线后需要单独重新验收 NRST，不以 ESP32 引脚读回或命令返回成功代替目标复位证据。

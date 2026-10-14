@@ -1,6 +1,6 @@
 # RMLink Windows 连接组件
 
-2026-10-14，连接服务原型 0.1.1，配套固件 0.1.5。已完成服务构建、官方签名驱动安装、WinUSB 枚举、OpenOCD 经 Wi-Fi 的 STM32 烧录 / 调试、真实 API 互斥与自动重连验收。直连 USB 的 pyOCD 0.45.1 读目标 / 暂停 / 继续运行通过；虚拟 USB 的启动空读取消未通过，修补驱动已构建并完成测试签名，尚未安装，见 [取消问题与测试模式操作](virtual-usb-cancellation.md)。暂不作为通用兼容发布版。
+2026-10-14，连接服务原型 0.1.1，配套固件 0.1.5。修补 UDE 已实际加载，虚拟 Bulk 空读取消、pyOCD 0.45.1 读目标 / 暂停 / 继续运行、OpenOCD 经 Wi-Fi 的 STM32 三线烧录 / 调试、真实 API 互斥与 STA 断连重连均通过。当前使用本地测试签名驱动，Secure Boot 关闭、TESTSIGNING 生效、内存完整性开启；正式微软签名与其他软件兼容性待办，暂不作为通用兼容发布版。完整证据见 [取消修复与实机验收](virtual-usb-cancellation.md)。
 
 ## 实现路径
 
@@ -8,7 +8,7 @@
 
 Orbit 的后续专用后端通过本机 HTTP API（127.0.0.1:3243）使用同一个会话执行器。每块探针仅建立一个物理 TCP 连接；USB/IP 客户端与 API 客户端通过 DAP_Connect 或有效的 DAP_SWJ_Clock 取得整个目标会话的所有权，允许 Connect 前设置时钟；外来时钟、连接和 Disconnect 被拒绝。控制、watch、timeline、background 请求按优先级调度，已执行的单批命令不会被拆散。断连使原会话失效，写请求不自动重放。
 
-首版复用 usbip-win2 的签名驱动，并封装其公开 CLI 的 attach / detach；控制 CLI 不承担 USB 数据转发，数据由内核 WSK socket 经本机 USB/IP 端点传输。RMLink 自有服务实现 USB 描述符、控制请求、Bulk URB、取消、发现、配对与目标会话管理。驱动源码保留在忽略的 reference/ 下，没有并入本仓库。
+首版基于 usbip-win2 0.9.8.1，并封装其公开 CLI 的 attach / detach；本次实验保留官方 filter / CLI，UDE 使用本地测试签名的取消长度补丁。控制 CLI 不承担 USB 数据转发，数据由内核 WSK socket 经本机 USB/IP 端点传输。RMLink 自有服务实现 USB 描述符、控制请求、Bulk URB、取消、发现、配对与目标会话管理。驱动参考源码保留在忽略的 reference/ 下，本仓库仅管理补丁与构建入口。
 
 ## 构建与操作
 
@@ -30,7 +30,7 @@ $connector = '.\artifacts\build\connector\dist\RMLinkConnector.exe'
 
 设备通过热点接口上的 mDNS 自动发现，使用固件厂商命令 80/09 获取完整 MAC 作为 device_id，首次配对需要明确选择设备。此身份校验用于避免误连，不是加密认证。配对和本机 API token 保存在 `%USERPROFILE%\.rmlink\connector.json`，启动脚本设置用户 / SYSTEM / Administrators 文件权限；不要复制该文件到代码库。HTTP API 要求 Bearer token，拒绝浏览器 Origin 请求。标准 USB/IP 环回端点没有 token 认证，适用于受信任本机客户端。
 
-挂载成功后记录 auto_mount，服务在线时负责发现、重连和再次挂载。目标原会话在断连后失效，客户端必须新建会话；恢复网络不恢复之前的写命令。STA 断连后的自动重挂载已验收；本轮电脑重启、DHCP 换址后也自动发现并挂载成功。
+挂载成功后记录 auto_mount，服务在线时负责发现、重连和再次挂载。目标原会话在断连后失效，客户端必须新建会话；恢复网络不恢复之前的写命令。STA 断连后的自动重挂载已验收；电脑重启、热点恢复与 DHCP 换址后也自动发现并挂载成功，本次设备地址为 192.168.137.13。
 
 ## 驱动安装包
 
@@ -47,7 +47,7 @@ $connector = '.\artifacts\build\connector\dist\RMLinkConnector.exe'
 
 引用源码版本记录在 reference-versions.json；实际发行包独立固定为 0.9.8.1。上游公告该版本存在覆盖序列号的已知问题；本轮未使用覆盖参数，WinUSB 实际读到 `RM50787D15A924`，OpenOCD 用该序列号选择虚拟探针。usbip CLI 的 port 输出仍显示空 serial，不能与 USB 描述符序列号混淆。usbip-win2 使用 BSD-2-Clause，构建目录保留 LICENSE；打包同时保留 PyInstaller 的许可证及 bootloader exception。
 
-本机 `usbip2_ude` 与 `usbip2_filter` 均已加载，官方两个 CAT 的 Authenticode 状态 Valid，签名者为 Microsoft Windows Hardware Compatibility Publisher。2026-10-13 的实板验收在安装后、电脑重启前完成；2026-10-14 用户已重启电脑，但 pyOCD 空读取消问题仍复现。
+官方包的两个 CAT 具有 Valid 的 Microsoft Windows Hardware Compatibility Publisher 签名。2026-10-13 的完整验收使用固件 0.1.4 / 服务 0.1.0 / 官方驱动；2026-10-14 14:15 的重启未消除虚拟 pyOCD 空读问题。随后用户开启测试模式，16:35 实际加载修补 UDE：oem123.inf、版本 15.9.4.119、Running，SYS SHA256 `E44D55A36843154D22D06E6CE1271EA74676CB3E233FBFA724CC61C3DF717D31`，嵌入签名 Valid，签名者 `CN=RMLink Local Driver Test`；官方 filter / CLI 保留。install.json 的 restartRequired=false；17:01 的 current-state.json 再次核对加载状态，完整运行结果见 runtime-acceptance.json。回退脚本和官方包备份已准备，本轮未实际运行回退。
 
 ## 本地 API 与 Orbit 接入
 
@@ -69,19 +69,20 @@ SDK 是后续 Orbit transport 的基础；实际 Orbit 后端尚未修改，板�
 - 主机测试：19 项通过，涵盖所有权、连接前时钟配置、优先级、Abort、关闭时取消待执行请求、描述符、DNS 边界、USB/IP 控制 / Bulk / unlink、Windows 普通 URB 的 -1 标记 / 512 字节 IN 与 API 认证。
 - 实板数据通路：自动发现 `50787d15a924`；API 与独立 USB/IP 协议客户端均经 Wi-Fi 读到 STM32 CPUID `0x411fc231`；双向互斥通过；连续 200 个响应核对通过；结束时服务目标 owner 为空。证据 artifacts/logs/verify-connector-device.json。
 - 固件 0.1.5：修正连接前时钟的会话入口，已构建、刷写；直连 USB 的 pyOCD 暂停、读 PC、继续运行通过。USB / TCP 的连接前互斥与关闭释放，以及真实 API / 虚拟 USB 的双向互斥通过。两条物理路径完整回读主 Flash 均匹配原备份。
-- Windows 虚拟 USB：标准 GUID 可被 WinUSB 打开，bcdDevice=0x0100 与直连设备的 0x0002 区分；正常 DAP 短响应核对通过。当前运行官方 usbip-win2 0.9.8.1 签名驱动；本地取消长度修补已构建和测试签名，未加载。
-- OpenOCD：经 usb_bulk 选择虚拟序列号，64 KiB 烧录 / 校验 / 软件复位 11324.08 ms、无 Error 行；独立完整回读 8627.22 ms；暂停 / 继续、寄存器、3072 字节 RAM、FPB / 软件断点、单步、DWT、FAULT 恢复、SWD_Sequence、异步 Abort 与 1 秒执行期限通过。原 Flash 恢复及完整 SHA256 对比通过，选项字节未变、核心继续运行。证据 accept-virtual-usb.json。
-- 实际 WinUSB / API：两个方向的占用互斥均通过。通过 USB 厂商命令让单块 RMLink STA 断开，PC 热点保持开启；旧 API 会话 3032.88 ms 报告失联，5279.69 ms 自动恢复连接 / 虚拟挂载，旧租约保持失效，新租约与重挂载后的虚拟探针均读到 CPUID。证据 verify-connector-reconnect.json；这不代替电脑热点实际关闭、DHCP 换址或完全断电测试。
+- Windows 虚拟 USB：标准 GUID 可被 WinUSB 打开，bcdDevice=0x0100 与直连设备的 0x0002 区分。修补 UDE 的 50 / 100 / 500 ms 各两次原生空读全部返回 FALSE / error121 / 零字节 / 缓冲未变，三次取消后正常 DAP_Info(FF) 查询通过；直连 USB 同类对照及断连重挂载后的复测也通过。范围限定实测 Bulk 空读取消，未独立验收 Interrupt / chained MDL。
+- OpenOCD：本次固件 0.1.5 / 服务 0.1.1 / 修补 UDE 经 usb_bulk 选择虚拟序列号，64 KiB 烧录 / 校验 / 软件复位 12845.70 ms、无 Error 行；独立完整回读 8120.89 ms；暂停 / 继续、寄存器、3072 字节 RAM、FPB / 软件断点、单步、DWT、FAULT 恢复、SWD_Sequence、异步 Abort 与 1 秒执行期限通过。原 Flash 恢复耗时 12288.24 ms，完整 SHA256 对比通过，选项字节未变、核心继续运行。证据 artifacts/logs/test-driver-20261014/accept-virtual-usb.json。此前官方驱动的 11324.08 / 8627.22 ms 数据保留为固件 0.1.4 / 服务 0.1.0 历史记录。
+- 实际 WinUSB / API：新组合的两个方向占用互斥通过。通过 USB 厂商命令让单块 RMLink STA 断开，PC 热点保持开启；旧 API 会话 2370.14 ms 报告失联，6528.11 ms 自动恢复连接 / 虚拟挂载，旧租约保持失效，新租约与重挂载后的虚拟探针均读到 CPUID。证据 artifacts/logs/test-driver-20261014/connector-reconnect.json；独立复测也通过并另存 *-final.json，耗时不是性能保证。STA 注入断连不代替调试期间电脑热点实际关闭或完全断电测试。
+- 最终状态：物理 USB 独立完整回读 64 KiB 与原 Flash 备份一致，板端 owner=0、服务 owner=null、核心继续运行，无线在线且虚拟探针已挂载；证据 artifacts/logs/test-driver-20261014/final-target-state.json。
 - Node SDK：本轮再次通过真实服务连接、8 包查询与释放，协议版本查询为 CMSIS-DAP 2.1.2，RMLink 固件版本独立为 0.1.5。实际 Orbit 后端尚未接入。
 
 | 调试软件 / 路径 | 当前结果 |
 | --- | --- |
-| OpenOCD v0.12.0-esp32-20260831，虚拟 USB Bulk | STM32 三线完整验收通过 |
+| OpenOCD v0.12.0-esp32-20260831，虚拟 USB Bulk，固件 0.1.5 / 服务 0.1.1 / 修补 UDE | STM32 三线完整验收通过，原 Flash 恢复及独立完整回读一致 |
 | pyOCD 0.45.1，直连 USB Bulk，固件 0.1.5 | 读 CPUID、暂停、读 PC、继续运行通过；本轮未用 pyOCD 烧录 |
-| pyOCD 0.45.1，虚拟 USB Bulk | 未通过：启动 start_rx 的空 Bulk 读取 / 取消后仍被主机报告成功，导致清空循环持续运行；受限时测试已终止，未开始目标操作 |
+| pyOCD 0.45.1，虚拟 USB Bulk，修补 UDE | 空读启动、读 CPUID、暂停、读 PC、继续运行及重挂载后复测通过；本轮未用 pyOCD 烧录 |
 | Keil / IAR 等，Bulk 或 HID | 尚未测试；HID 尚未实现 |
 
-重启后的 WPP 跟踪证实 UDE 与上层过滤驱动均完成取消，但 WinUSB 空读仍报告成功 / 非零长度；发行源码的取消路径未清零原始请求长度，这是当前最有力的原因，仍需加载补丁验证因果关系。zero-copy 与 low-latency 模式均未让 pyOCD 启动通过。不能以正常数据和模拟 unlink 测试替代 Windows 空读取消验收。用户已选择当前电脑的测试模式路径，测试签名包、官方包备份及安装 / 回退脚本已准备；状态、来源、哈希和操作步骤见 [专门记录](virtual-usb-cancellation.md)。
+官方驱动的历史 WPP 跟踪证实 UDE 与上层过滤驱动均完成取消，但 WinUSB 空读仍报告成功 / 非零长度；发行源码的取消路径保留原始请求长度。zero-copy 与 low-latency 模式也未让 pyOCD 启动通过。实际加载清零长度补丁后，本机原生 Bulk 空读与 pyOCD 启动的前后对照通过，确认修复了这些已测路径；不能扩大为所有 URB 取消类型均已验证。状态、来源、哈希、原始失败与新运行证据见 [专门记录](virtual-usb-cancellation.md)；当前仍为本地 TESTSIGNING 验证，面向用户分发需要正式微软签名。
 
 服务目前只代理 Wi-Fi TCP。直连 USB 仍由标准调试软件直接使用，自动 USB / Wi-Fi 选路尚未实现。`owner` 是服务客户端所有权，板端外部 USB 占用仍由固件拒绝 Connect；服务状态没有实时展示外部 USB owner。虚拟导入连接保持期间无法识别每个 Windows 调试软件的句柄退出，正常退出应发送 DAP_Disconnect；遗留虚拟占用可用 unmount / mount 清理。
 

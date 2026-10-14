@@ -1,16 +1,18 @@
 """Real WinUSB/API ownership and one-device STA disconnect/reconnect test."""
+import argparse
 from datetime import datetime
 import json
 from pathlib import Path
+import sys
 import time
 from urllib.error import HTTPError
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'host'))
 
 from rmlink_connector.client import ApiClient
 from rmlink_swd import SwdSession
 from rmlink_usb import UsbClient
-
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def virtual():
     deadline = time.perf_counter() + 10
@@ -22,15 +24,19 @@ def virtual():
 
 
 def main():
-    api = ApiClient()
-    devices = api.request('GET', '/v1/devices')
-    online = [d for d in devices if d['paired'] and d['connected']]
-    assert len(online) == 1, 'Select exactly one connected development probe'
-    key = online[0]['device_id']
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/logs/verify-connector-reconnect.json')
+    args = parser.parse_args()
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False,
-                  deviceId=key, method='USB vendor 80/05 disconnects only RMLink STA; PC hotspot stays on')
-    output = ROOT / 'artifacts/logs/verify-connector-reconnect.json'
+                  method='USB vendor 80/05 disconnects only RMLink STA; PC hotspot stays on')
+    api = None
     try:
+        api = ApiClient()
+        devices = api.request('GET', '/v1/devices')
+        online = [d for d in devices if d['paired'] and d['connected']]
+        assert len(online) == 1, 'Select exactly one connected development probe'
+        key = report['deviceId'] = online[0]['device_id']
         with api.open(key), SwdSession(api, 2000000) as swd:
             assert swd.read32(0xe000ed00) == 0x411fc231
             with virtual() as c:
@@ -91,8 +97,18 @@ def main():
         report['failure'] = f'{type(exc).__name__}: {exc}'
         raise
     finally:
-        output.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+        cleanup_error = None
+        if api is not None:
+            try:
+                api.close()
+            except BaseException as exc:
+                cleanup_error = exc
+                report['cleanupFailure'] = f'{type(exc).__name__}: {exc}'
+                report['complete'] = False
+        args.output.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
         print(json.dumps(report, indent=2), flush=True)
+        if cleanup_error is not None and 'failure' not in report:
+            raise RuntimeError('API session cleanup failed; inspect the saved report') from cleanup_error
 
 
 if __name__ == '__main__': main()

@@ -19,7 +19,7 @@ from rmlink_usb import UsbClient
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def program(openocd, serial, image, label):
+def program(openocd, serial, image, label, log_directory):
     command = [str(openocd), '-c', 'adapter driver cmsis-dap', '-c', 'cmsis-dap backend usb_bulk',
                '-c', 'adapter usb vid_pid 0x303a 0x1002', '-c', f'adapter serial {serial}',
                '-c', 'transport select swd', '-f', 'target/stm32f1x.cfg', '-c', 'adapter speed 2000',
@@ -27,7 +27,7 @@ def program(openocd, serial, image, label):
     begin = time.perf_counter()
     done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
     text = done.stdout.decode('utf-8', errors='replace')
-    log = ROOT / 'artifacts/logs' / f'accept-virtual-openocd-{label}.log'
+    log = log_directory / f'accept-virtual-openocd-{label}.log'
     log.write_text(text, encoding='utf-8')
     result = dict(exitCode=done.returncode, elapsedMs=round((time.perf_counter()-begin)*1000, 2),
                   verified='** Verified OK **' in text, log=str(log),
@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/logs/accept-virtual-usb.json')
     args = parser.parse_args()
     if not args.allow_target_write: parser.error('--allow-target-write required for target Flash acceptance')
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     backup_path = ROOT / 'artifacts/hardware/stm32f103c8-before-rmlink.bin'
     fixture_path = ROOT / 'artifacts/build/stm32-fixture/fixture-64k.bin'
     backup, fixture = backup_path.read_bytes(), fixture_path.read_bytes()
@@ -63,7 +64,7 @@ def main():
             report['optionBytesBefore'] = s.read_words(0x1ffff800, 4)
         print('Virtual USB: OpenOCD erase/program/verify/reset 64 KiB', flush=True)
         modified = True
-        report['openocdProgram'] = program(args.openocd, serial, fixture_path, 'fixture')
+        report['openocdProgram'] = program(args.openocd, serial, fixture_path, 'fixture', args.output.parent)
         print('Virtual USB: independent Flash readback, debugging and abort checks', flush=True)
         report['debug'] = {}
         with UsbClient(bcd_device=0x0100, serial=serial) as c:
@@ -76,7 +77,7 @@ def main():
         if modified:
             try:
                 print('Restoring original target Flash through virtual USB', flush=True)
-                report['restoreProgram'] = program(args.openocd, serial, backup_path, 'restore')
+                report['restoreProgram'] = program(args.openocd, serial, backup_path, 'restore', args.output.parent)
                 with UsbClient(bcd_device=0x0100, serial=serial) as c, SwdSession(c, 2000000) as s:
                     data = main_flash(s)
                     require(data == backup, 'Virtual USB restore differs from original')
