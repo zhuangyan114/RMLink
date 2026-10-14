@@ -22,7 +22,8 @@ static HINTERNET request(rm_client *c,const char *method,const char *path,const 
     if(!*connection)return NULL;
     HINTERNET r=WinHttpOpenRequest(*connection,wm,wp,NULL,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,0);
     if(!r)return NULL;
-    WinHttpSetTimeouts(r,3000,3000,3000,strstr(path,"/flash")?180000:3000);
+    int receive_timeout=strstr(path,"/flash")?180000:(strstr(path,"/time-sync") || !strcmp(path,"/v1/transport"))?30000:3000;
+    WinHttpSetTimeouts(r,3000,3000,3000,receive_timeout);
     WinHttpAddRequestHeaders(r,c->auth,(DWORD)-1,WINHTTP_ADDREQ_FLAG_ADD);
     WinHttpAddRequestHeaders(r,L"Content-Type: application/json",(DWORD)-1,WINHTTP_ADDREQ_FLAG_ADD);
     size_t n=body?strlen(body):0;
@@ -98,6 +99,11 @@ int rm_time_sync(rm_client *c,const char *device,unsigned samples,char *out,size
     char path[128],body[64];snprintf(path,sizeof(path),"/v1/devices/%s/time-sync",device);
     snprintf(body,sizeof(body),"{\"samples\":%u}",samples);
     return call_path(c,"POST",path,body,out,capacity,required);
+}
+int rm_set_transport(rm_client *c,const char *device,int native_usb,char *out,size_t capacity,size_t *required) {
+    if(!c || !device || strlen(device)!=12 || strspn(device,"0123456789abcdefABCDEF")!=12 || (native_usb!=0 && native_usb!=1))return -87;
+    char body[128];snprintf(body,sizeof(body),"{\"device_id\":\"%s\",\"transport\":\"%s\"}",device,native_usb?"usb":"wifi");
+    return call_path(c,"POST","/v1/transport",body,out,capacity,required);
 }
 int rm_target_connect(rm_client *c,uint32_t clock,char *out,size_t size) {
     char body[128];snprintf(body,sizeof(body),"{\"command\":\"connect\",\"clock_hz\":%lu}",(unsigned long)(clock?clock:4000000));

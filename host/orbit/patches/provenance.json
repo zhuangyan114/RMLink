@@ -1,10 +1,10 @@
 {
   "repository": "https://github.com/zhuangyan114/Orbit",
   "base_commit": "3928bbb6f4990ff336dfbe71f745f5f593b12e48",
-  "implementation_commit": "fa2919c74ce7ad1617be8088211566fe1de07d34",
+  "implementation_commit": "01316ccd57f66b2ed16ab4562c02eba2b7fad9e7",
   "branch": "rmlink/subscriptions-20261014",
   "patch": "orbit-rmlink-subscriptions.patch.gz",
-  "sha256": "523c7063023378b02383f750ac390d2d775e3fd547665c081297243402a34f87",
+  "sha256": "8c98fca41ba7a82e835d55bf32e806f1d973a833424b3dc91e4a6192efc1acc5",
   "validation": {
     "typecheck": true,
     "build": true,

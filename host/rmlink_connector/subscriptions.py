@@ -3,6 +3,7 @@ import asyncio
 import struct
 from collections import deque
 from .capture_protocol import FrameDecoder, KINDS, decode_record
+from .usb_capture import UsbCaptureReader
 
 
 def compile_config(body):
@@ -66,8 +67,30 @@ class Subscriptions:
             self.error=f'{type(exc).__name__}: {exc}'
             async with self.condition: self.condition.notify_all()
 
+    async def _usb_stream(self):
+        reader=UsbCaptureReader();decoder=FrameDecoder()
+        async def exchange(packet):
+            async with self.target.lock:return await self.target.packet(packet,'background')
+        try:
+            while True:
+                data=await reader.read(exchange)
+                if data is None:await asyncio.sleep(.001);continue
+                frames=decoder.feed(data)
+                async with self.condition:
+                    for frame in frames:
+                        if len(self.records)==self.records.maxlen:self.host_dropped+=1
+                        self.records.append((self.next_sequence,frame));self.next_sequence+=1
+                    self.condition.notify_all()
+        except asyncio.CancelledError:pass
+        except Exception as exc:
+            self.error=f'{type(exc).__name__}: {exc}'
+            async with self.condition:self.condition.notify_all()
+
     async def ensure_stream(self):
         if self.task and not self.task.done(): return
+        if self.error:raise ConnectionError('Capture stream failed; close the owner session before reconnecting')
+        if getattr(self.target.broker.transport,'native_usb',False):
+            self.error=None;self.task=asyncio.create_task(self._usb_stream());return
         ticket=await self.target.vendor(11)
         if len(ticket)!=16: raise ValueError('Stream ticket size')
         host=self.target.broker.transport.host
@@ -103,6 +126,7 @@ class Subscriptions:
         if sid not in self.configs: raise ValueError('Unknown subscription')
         commands={'stop':4,'pause':5,'resume':6,'status':7}
         if action not in commands: raise ValueError('Unsupported subscription action')
+        if action=='resume' and self.error:raise ConnectionError('Capture stream failed; create a new owner session')
         async with self.target.lock: data=await self.target.vendor(commands[action],bytes([sid]))
         if action=='status':
             state,kind,count,capture,seq,frames,missed,dropped,failures,overrun,reason=struct.unpack('<BBBIIQQQQIB',data)

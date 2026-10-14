@@ -92,4 +92,6 @@ SDK 是后续 Orbit transport 的基础；实际 Orbit 后端尚未修改，板�
 
 服务目前只代理 Wi-Fi TCP。直连 USB 仍由标准调试软件直接使用，自动 USB / Wi-Fi 选路尚未实现。`owner` 是服务客户端所有权，板端外部 USB 占用仍由固件拒绝 Connect；服务状态没有实时展示外部 USB owner。虚拟导入连接保持期间无法识别每个 Windows 调试软件的句柄退出，正常退出应发送 DAP_Disconnect；遗留虚拟占用可用 unmount / mount 清理。
 
+以上为0.1.x限制。0.2.2增加原生WinUSB服务承载及显式transport选择，同一设备只有一个选定Broker，有线使用64字节与USB_PULL，无线使用512字节与TCP数据流；API与虚拟USB均复用该承载。自动无缝切换尚未实现，活动owner／租约期间不能改变传输；具体调用和实测范围见api-v1.md及subscriptions-implementation.md。
+
 当前只提供 CMSIS-DAP v2 Bulk 虚拟接口；HID、JTAG、SWO 等尚未支持，不能宣称所有 CMSIS-DAP 软件都兼容。物理 NRST 缺线的限制仍存在。

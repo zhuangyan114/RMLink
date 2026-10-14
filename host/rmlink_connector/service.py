@@ -13,6 +13,7 @@ from .discovery import Device, discover
 from .driver import Driver
 from .state import State
 from .transport import TcpTransport
+from .usb_transport import UsbTransport
 from .usbip import UsbIpServer
 from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
@@ -36,6 +37,7 @@ class Connector:
         self.connection_errors = {}
         self.refresh_lock = asyncio.Lock()
         self.clock_sync=ClockSync()
+        self.switching=set()
 
     async def refresh(self):
         async with self.refresh_lock: await self._refresh()
@@ -63,7 +65,8 @@ class Connector:
                 broker = None
             if broker is None:
                 device = self.devices[key]
-                fresh = Broker(TcpTransport(device.address, device.port), key)
+                transport=UsbTransport(key.upper()) if saved.get('transport')=='usb' else TcpTransport(device.address,device.port)
+                fresh = Broker(transport, key)
                 try:
                     await fresh.start()
                     replies = await fresh.submit('identity', [b'\x80\x09'], 'background')
@@ -115,6 +118,7 @@ class Connector:
                 'devices': [dict(d.as_dict(), paired=key in self.state.data['paired'],
                             connected=key in self.brokers and not self.brokers[key].failed,
                             packet_size=self.brokers[key].packet_size if key in self.brokers else None,
+                            transport='usb' if key in self.brokers and getattr(self.brokers[key].transport,'native_usb',False) else 'wifi',
                             owner=self.brokers[key].owner if key in self.brokers else None)
                             for key, d in self.devices.items()]}
 
@@ -129,6 +133,22 @@ class Connector:
                 'validation':'development; target throughput and full 4 MHz acceptance pending'}
         if method == 'GET' and path == '/v1/status': return self.snapshot()
         if method == 'GET' and path == '/v1/devices': return self.snapshot()['devices']
+        if method=='POST' and path=='/v1/transport':
+            key,mode=body.get('device_id'),body.get('transport')
+            if mode not in ('usb','wifi') or key not in self.state.data['paired']:raise ValueError('Paired device and usb/wifi transport required')
+            async with self.refresh_lock:
+                broker=self.brokers.get(key)
+                if broker and broker.owner or any(s['device_id']==key for s in self.sessions.values()):
+                    raise ValueError('Close all target sessions before changing transport')
+                self.switching.add(key)
+                try:
+                    if key in self.driver.ports:await self.driver.detach(key)
+                    if broker:await broker.close();self.brokers.pop(key,None)
+                    self.state.data['paired'][key]['transport']=mode;self.state.save()
+                    await self._refresh()
+                finally:self.switching.discard(key)
+            return {'device_id':key,'transport':mode,'connected':key in self.brokers,
+                'connection_error':self.connection_errors.get(key)}
         if method=='POST' and path.startswith('/v1/devices/') and path.endswith('/time-sync'):
             parts=path.split('/')
             if len(parts)!=5:raise ValueError('Clock sync route invalid')
@@ -156,6 +176,7 @@ class Connector:
         if method == 'POST' and path == '/v1/sessions':
             if len(self.sessions)>=64:raise asyncio.QueueFull()
             key = body.get('device_id')
+            if key in self.switching:raise ConnectionError('Device transport is changing')
             if key not in self.brokers or self.brokers[key].failed: raise ConnectionError('Device offline')
             sid = 'api-' + uuid.uuid4().hex
             self.sessions[sid] = {'device_id': key, 'seen': time.monotonic(), 'lost': False}

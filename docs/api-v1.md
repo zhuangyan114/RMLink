@@ -1,6 +1,6 @@
 # RMLink 公开连接组件 API v1.1（开发版）
 
-适用于固件/服务 0.2.1。三订阅、高层控制和烧录已实现源码与主机模型；真实 ESP32 的流绑定/错误路径与时间同步已验证。当前 STM32 无应答，4 MHz 全流程、新采样率和新烧录引擎尚未通过实板验收。标准虚拟 USB 的历史验收不等同于本版增强能力验收。
+适用于固件/服务 0.2.2。三订阅、高层控制和烧录已实现源码与主机模型；真实 ESP32 的流绑定/错误路径、时间同步及有线分片回传已验证。当前 STM32 无应答，4 MHz 全流程、新采样率和新烧录引擎尚未通过实板验收。标准虚拟 USB 的历史验收不等同于本版增强能力验收。
 
 ## 接入与能力
 
@@ -9,6 +9,8 @@
 `GET /v1/capabilities` 提供 API 版本、支持的目标命令、订阅类型、字段/指针/周期等限制。该接口报告软件实现范围；物理设备须在线且成功取得 owner。增强目标当前限定 F103 medium-density Cortex-M3，采样允许的 RAM 为 20 KiB、Flash 为前 64 KiB；烧录进一步检查实际容量为 64 KiB。其他芯片先使用标准虚拟 USB，不能将本版增强 profile 泛化。
 
 `POST /v1/sessions`：`{"device_id":"50787d15a924"}`，返回 session_id、heartbeat_seconds=5、expiry_seconds=30 和 packet_size。SDK 自动续期；最多 64 个本地租约，每块物理目标仅一个控制 owner。`DELETE /v1/sessions/{id}` 停止订阅、尝试清理本会话断点并释放 owner，未知写不重放。
+
+`POST /v1/transport`：`{"device_id":"50787d15a924","transport":"usb"}`或wifi，只允许在该设备无owner且全部本地租约已关闭时执行。USB用原生WinUSB独占句柄，Wi-Fi用原有TCP；同一设备只保留一个Broker，虚拟USB重新挂载并协商实际64／512字节。偏好保存并用于后续重连；离线时返回connected=false及connection_error，不自动改选其他传输。首版尚未自动发现／配对未配置热点的全新USB设备，应先完成已有配对。已配对设备的有线采集不需要TCP数据socket。
 
 ## 高层目标操作
 
@@ -59,6 +61,8 @@ Watch 静态 32-bit 重合字段复用正在运行的 Timeline；Timeline 停止
 `GET /v1/sessions/{id}/stream` 使用相同 Authorization，返回 HTTP chunked 的 `application/vnd.rmlink.stream`。每个本地记录是 cursor(uint64 LE) + frame_length(uint32 LE) + frame；length=0 是保活，不是样本。帧最大 384 B，慢消费者可从 cursor 跳变识别服务缓存缺口。
 
 板端独立数据连接为 TCP3244，RMS1 + 一次性随机票据绑定控制会话；公开 SDK 由服务代为处理，前端无需直接连接。错误票据、重复绑定和 owner 释放后的连接被拒绝/关闭。
+
+有线数据走0x81/16 USB_PULL：请求frame_id(uint32 LE，初始1)、offset(uint16 LE)。回应为command/sub/status、frame_id32、total16、offset16、chunk_len8和最多52 B数据。total=0为空轮询，不推进frame_id；每帧最多384 B，重复读取相同id/offset稳定，下一帧id递增并跳过0，旧id／跳号拒绝。USB_PULL与TCP数据绑定互斥。服务组帧后使用同样CRC／schema和本地stream接口；分片格式不是标准CMSIS-DAP命令，标准软件仍使用虚拟USB。
 
 帧头为 32 B：RML1、version、kind、subscription_id、flags、capture_id、revision、sequence、payload_len、record_count、header_len、payload CRC32。内存样本头为 24 B：seq32、timestamp_us64、duration_us32、valid_bitmap32、sample_flags16、data_len16，之后是每字段 uint32 原始值。sample_flags：bit0 partial、bit1 执行预算超限、bit2 Watch 复用。RTT 数据部分为 channel32 + byte_sequence64 + length32 + bytes。
 

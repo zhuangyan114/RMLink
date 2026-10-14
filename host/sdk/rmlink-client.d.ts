@@ -22,5 +22,6 @@ export class RMLinkClient {
   stream(options?:{signal?:AbortSignal}):AsyncGenerator<{cursor:bigint;frame:Uint8Array;sample:CaptureSample}>;
   abort():Promise<unknown>;
   timeSync(deviceId:string,samples?:number):Promise<Record<string,unknown>>;
+  setTransport(deviceId:string,transport:'usb'|'wifi'):Promise<Record<string,unknown>>;
   close():Promise<void>;
 }

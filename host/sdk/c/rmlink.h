@@ -22,6 +22,7 @@ RM_API void rm_close(rm_client *client);
 RM_API int rm_devices(rm_client *client,char *out,size_t capacity,size_t *required);
 RM_API int rm_capabilities(rm_client *client,char *out,size_t capacity,size_t *required);
 RM_API int rm_time_sync(rm_client *client,const char *device_id,unsigned samples,char *out,size_t capacity,size_t *required);
+RM_API int rm_set_transport(rm_client *client,const char *device_id,int native_usb,char *out,size_t capacity,size_t *required);
 /* Generic authenticated public API. Return HTTP status, or negative Win32 error.
  * required includes the trailing NUL. A short buffer returns -122 without replay.
  * one instance supports a control thread and a stream thread; no concurrent close.

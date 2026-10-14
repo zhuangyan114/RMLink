@@ -28,6 +28,11 @@ class ProbeModel:
                 if p[1]==13:
                     now=time.perf_counter_ns()//1000
                     out.append(b'\x81\x0d\x00'+p[2:10]+struct.pack('<QQ',now,now))
+                elif p[1]==16:
+                    fid,offset=struct.unpack('<IH',p[2:])
+                    data=record(fid-1) if self.started.is_set() and 1<=fid<=5 else b''
+                    chunk=data[offset:offset+52]
+                    out.append(b'\x81\x10\x00'+struct.pack('<IHHB',fid,len(data),offset,len(chunk))+chunk)
                 elif p[1]==11: out.append(b'\x81\x0b\x00'+b'X'*16)
                 elif p[1]==7: out.append(bytes([0x81,7,0])+struct.pack('<BBBIIQQQQIB',2,1,2,7,5,5,0,0,0,0,0))
                 else:
@@ -93,6 +98,23 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body[12:16],b'RML1')
         writer.close();await writer.wait_closed()
         self.assertEqual((await self.http('DELETE',root+'/subscriptions/1'))[0],200)
+        self.assertEqual((await self.http('DELETE',root))[0],200)
+        self.assertIsNone(self.broker.owner)
+
+    async def test_native_usb_subscriptions_use_the_same_api_and_never_open_a_tcp_data_peer(self):
+        self.probe.native_usb=True
+        code,r=await self.http('POST','/v1/sessions',{'device_id':'model'});self.assertEqual(code,200)
+        root='/v1/sessions/'+r['session_id']
+        self.assertEqual((await self.http('POST',root+'/target',{'command':'connect'}))[0],200)
+        self.assertEqual((await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]}))[0],200)
+        code,events=await self.http('POST',root+'/events',{'wait_ms':1000})
+        self.assertEqual(code,200);received=events['records']
+        while len(received)<5:
+            code,events=await self.http('POST',root+'/events',{'after':events['cursor'],'wait_ms':1000})
+            self.assertEqual(code,200);self.assertTrue(events['records']);received.extend(events['records'])
+        self.assertEqual(len(received),5)
+        self.assertFalse(any(p[:2]==b'\x81\x0b' for p in self.probe.requests))
+        self.assertTrue(any(p[:2]==b'\x81\x10' for p in self.probe.requests))
         self.assertEqual((await self.http('DELETE',root))[0],200)
         self.assertIsNone(self.broker.owner)
 

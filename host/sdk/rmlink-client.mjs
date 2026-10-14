@@ -101,6 +101,9 @@ export class RMLinkClient {
   async timeSync(deviceId, samples = 8) {
     return this.request('POST', `/devices/${deviceId}/time-sync`, {samples});
   }
+  async setTransport(deviceId, transport) {
+    return this.request('POST', '/transport', {device_id:deviceId,transport});
+  }
   async target(command, parameters = {}) {
     return this.request('POST', `/sessions/${this.session}/target`, {command, ...parameters});
   }

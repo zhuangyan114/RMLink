@@ -125,6 +125,8 @@ class Broker:
                 if not job.future.done(): job.future.set_result(replies)
                 self.active = None
         except asyncio.CancelledError:
+            if self.active and not self.active.future.done():
+                self.active.future.set_exception(ConnectionError('Physical connection closed; completion may be unknown'))
             pass
         except Exception as exc:
             self.failed = f'{type(exc).__name__}: {exc}'

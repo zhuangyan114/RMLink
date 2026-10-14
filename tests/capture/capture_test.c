@@ -27,6 +27,7 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
 static rmlink_owner_t owner={.transport=2,.session=7};
 static uint8_t out[512];
 static size_t command(uint8_t *r,size_t n) { return rmlink_capture_command(2,7,r,n,out,&owner); }
+static size_t usb_command(uint8_t *r,size_t n) {return rmlink_capture_command(1,7,r,n,out,&owner);}
 static void action(unsigned sub,unsigned sid) { uint8_t r[]={0x81,sub,sid}; command(r,3); assert(out[2]==0); }
 static void prepare(unsigned sid,unsigned kind,unsigned count) {
     uint8_t r[17]={0x81,1,sid,kind,count}; uint32_t period=1000; memcpy(r+5,&period,4);
@@ -105,6 +106,21 @@ int main(void) {
     assert(retained && retained<2000 && last_value==1999);
     action(7,1);uint64_t drops;memcpy(&drops,out+30,8);assert(drops==2000-retained);
     rmlink_capture_closed(2,7);
+    owner.transport=1;
+    uint8_t usb_prepare[17]={0x81,1,1,1,1};uint32_t usb_period=1000;memcpy(usb_prepare+5,&usb_period,4);
+    assert(usb_command(usb_prepare,sizeof(usb_prepare))==3 && out[2]==0);
+    uint8_t usb_address[]={0x81,2,1,0,1,0,0,0,0x20};assert(usb_command(usb_address,sizeof(usb_address))==3 && out[2]==0);
+    uint8_t usb_start[]={0x81,3,1};assert(usb_command(usb_start,sizeof(usb_start))==3 && out[2]==0);
+    assert(rmlink_capture_run());uint8_t usb_pull[]={0x81,16,1,0,0,0,0,0};
+    uint8_t usb_copy[60];assert(usb_command(usb_pull,sizeof(usb_pull))==64 && out[11]==52);
+    memcpy(usb_copy,out+12,52);uint8_t first_copy[64];memcpy(first_copy,out,64);
+    assert(usb_command(usb_pull,sizeof(usb_pull))==64 && memcmp(out,first_copy,64)==0);
+    usb_pull[6]=52;assert(usb_command(usb_pull,sizeof(usb_pull))==20 && out[11]==8);memcpy(usb_copy+52,out+12,8);
+    assert(memcmp(usb_copy,"RML1",4)==0);
+    uint8_t usb_ticket[]={0x81,11};usb_command(usb_ticket,2);assert(out[2]==3);
+    usb_pull[2]=2;usb_pull[6]=0;assert(usb_command(usb_pull,sizeof(usb_pull))==12 && out[11]==0);
+    usb_pull[2]=3;assert(usb_command(usb_pull,sizeof(usb_pull))==3 && out[2]==1);
+    rmlink_capture_closed(1,7);owner.transport=2;
     uint32_t seed=0x718293a4;uint8_t fuzz[512];
     for(unsigned iteration=0;iteration<20000;iteration++) {
         seed=seed*1664525u+1013904223u;unsigned length=seed%sizeof(fuzz);
@@ -113,6 +129,6 @@ int main(void) {
         size_t reply=command(fuzz,length);assert(reply>=3 && reply<=64);
     }
     rmlink_capture_closed(2,7);
-    printf("Capture state machine: configuration, samples, barriers, Watch reuse/takeover, pointers, faults, RTT wrap, tickets, ownership, TIME_SYNC, realtime overflow passed\n");
+    printf("Capture state machine: configuration, samples, barriers, Watch reuse/takeover, pointers, faults, RTT wrap, tickets, ownership, TIME_SYNC, realtime overflow, USB_PULL passed\n");
     return 0;
 }

@@ -52,6 +52,10 @@ static portMUX_TYPE s_stream_mux = portMUX_INITIALIZER_UNLOCKED;
 static uint8_t s_ticket[16];
 static uint32_t s_generation;
 static bool s_ticket_valid, s_bound;
+static bool s_usb_pull;
+static uint8_t s_usb_frame[RECORD_MAX];
+static size_t s_usb_length;
+static uint32_t s_usb_frame_id;
 static uint64_t s_last_stream;
 static atomic_bool s_stream_failed;
 
@@ -148,9 +152,10 @@ esp_err_t rmlink_capture_init(void (*wake)(void)) {
 }
 static void stream_reset(void) {
     portENTER_CRITICAL(&s_stream_mux);
-    ++s_generation; s_ticket_valid=false; s_bound=false;
+    ++s_generation; s_ticket_valid=false; s_bound=false;s_usb_pull=false;
     portEXIT_CRITICAL(&s_stream_mux);
     atomic_store(&s_stream_failed,false);
+    s_usb_length=0;s_usb_frame_id=0;
     size_t n; void *p;
     for(unsigned i=0;i<SLOTS;i++)
         while((p=xRingbufferReceive(s_records[i],&n,0))) vRingbufferReturnItem(s_records[i],p);
@@ -344,7 +349,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
-        w32(out+20,3); /* bit0 TIME_SYNC, bit1 realtime memory drop-old */
+        w32(out+20,7); /* bit0 TIME_SYNC, bit1 realtime drop-old, bit2 USB pull */
         return 24;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
@@ -353,6 +358,25 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(!rmlink_owner_matches(owner,transport,session)) { out[2]=2; return 3; }
     if(s_session && (s_session!=session || s_transport!=transport)) { out[2]=2; return 3; }
     s_session=session; s_transport=transport; s_lease=esp_timer_get_time()+LEASE_US;
+    if(r[1]==16) { /* USB_PULL: frame_id32, offset16; duplicate reads are stable. */
+        if(transport!=RMLINK_USB || len<8) {out[2]=2;return 3;}
+        uint32_t id=u32(r+2);unsigned offset=r[6]|(unsigned)r[7]<<8;
+        uint32_t next=s_usb_frame_id+1;if(!next)next=1;
+        if(!id || (id!=s_usb_frame_id && (id!=next || offset)))return 3;
+        portENTER_CRITICAL(&s_stream_mux);
+        if(s_bound && !s_usb_pull) {portEXIT_CRITICAL(&s_stream_mux);out[2]=3;return 3;}
+        s_bound=true;s_usb_pull=true;s_ticket_valid=false;
+        portEXIT_CRITICAL(&s_stream_mux);
+        if(id!=s_usb_frame_id) {
+            size_t n=rmlink_capture_take(s_usb_frame,sizeof(s_usb_frame),0);
+            if(!n) {out[2]=0;w32(out+3,id);memset(out+7,0,5);return 12;}
+            s_usb_frame_id=id;s_usb_length=n;
+        }
+        if(offset>s_usb_length)return 3;
+        size_t chunk=s_usb_length-offset;if(chunk>RMLINK_USB_PACKET_SIZE-12)chunk=RMLINK_USB_PACKET_SIZE-12;
+        out[2]=0;w32(out+3,id);w16(out+7,s_usb_length);w16(out+9,offset);out[11]=chunk;
+        memcpy(out+12,s_usb_frame+offset,chunk);return 12+chunk;
+    }
     if(r[1]==12) { out[2]=0; return 3; }
     if(r[1]==11) {
         uint8_t ticket[16]; esp_fill_random(ticket,16);
@@ -445,7 +469,7 @@ bool rmlink_capture_bind(const uint8_t ticket[16],uint32_t *generation) {
     portEXIT_CRITICAL(&s_stream_mux); return ok;
 }
 bool rmlink_capture_stream_live(uint32_t generation) {
-    portENTER_CRITICAL(&s_stream_mux); bool live=s_bound && generation==s_generation;
+    portENTER_CRITICAL(&s_stream_mux); bool live=s_bound && !s_usb_pull && generation==s_generation;
     portEXIT_CRITICAL(&s_stream_mux); return live;
 }
 size_t rmlink_capture_take(uint8_t *out,size_t capacity,unsigned timeout_ms) {
