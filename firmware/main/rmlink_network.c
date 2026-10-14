@@ -221,12 +221,13 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         esp_efuse_mac_get_default(out + 3);
         return 9;
     }
-    if (r[1] == 7) { /* 64-byte deterministic reply; no target access. */
+    if (r[1] == 7) { /* Transport-capacity deterministic reply; no target access. */
         if (len < 6) return 3;
         out[2] = 0; memcpy(out + 3, r + 2, 4);
-        for (unsigned i = 7; i < RMLINK_PACKET_SIZE; ++i)
+        size_t capacity = transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
+        for (unsigned i = 7; i < capacity; ++i)
             out[i] = (uint8_t)(r[2] + (i - 7) * 31u);
-        return RMLINK_PACKET_SIZE;
+        return capacity;
     }
     if (r[1] == 6) {
         out[2] = 0;

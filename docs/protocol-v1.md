@@ -1,17 +1,17 @@
 # RMLink 开发协议 v1
 
-固件 0.1.5，更新：2026-10-14。当前为开发接口，采样 / 批量内存 API 尚未实现。
+固件 0.1.6，更新：2026-10-14。当前为开发接口，采样 / 离散地址批量 API 尚未实现。
 
 ## 标准 DAP 与传输
 
-USB Bulk OUT 0x03、IN 0x83，最大 DAP 包 64 字节，DAP_Info 0xFF 声明 64，0xFE 声明排队容量 8。开发工具发送填充到 64 字节的 OUT 包；IN 返回该命令的实际响应长度。HID、SWO、Atomic Commands 未在首版实现 / 启用。
+原生 USB Bulk OUT 0x03、IN 0x83，最大 DAP 逻辑包仍为 64 字节。TCP 可构建为 64 / 128 / 256 / 512 字节，虚拟 USB 使用对应 TCP 容量；两种传输进入同一个 SWD 内核。DAP_Info 0xFF 及定制状态返回当前传输的真实容量，0xFE 声明排队容量 8。主机先查询容量，再据此组织命令、接收缓冲和边界检查；开发 WinUSB 工具的首次查询使用短 OUT，后续 OUT 填充至协商容量，IN 返回实际响应长度。虚拟 Full-Speed USB 端点物理包为 64 字节，UDE URB 可承载较大的逻辑包；尚未实现原生 USB 的多包组装。HID、SWO、Atomic Commands 未实现 / 启用。
 
 TCP 默认端口 3241，8 字节头如下。所有长度为当前帧 DAP 数据长度，不包括头。
 
 | 偏移 | 长度 | 内容 |
 | --- | --- | --- |
 | 0 | 4 | 44 41 50 00，即 DAP + NUL |
-| 4 | 2 | little-endian 长度，1..64 |
+| 4 | 2 | little-endian 长度，1..当前 TCP 容量，最高 512 |
 | 6 | 1 | 1 = 请求，2 = 响应 |
 | 7 | 1 | reserved = 0 |
 | 8 | length | 原始 DAP 请求 / 响应 |
@@ -40,7 +40,7 @@ DAP_ResetTarget 为 GPIO6 的 10 ms 开漏脉冲，实现返回值不证明目�
 | 4 | 80 04 | 10 字节：[80,4,0,configured,connected,rssi,ip0,ip1,ip2,ip3]，RSSI 是 int8，IP 是网络顺序四字节 |
 | 5 | 80 05 | 断开 STA，随后管理任务自动重连；USB 专用，用于网络恢复验证 |
 | 6 | 80 06 | 15 字节：前三字节 + uint64 little-endian 启动以来微秒数 + uint32 little-endian ESP-IDF reset reason |
-| 7 | 80 07 sequenceLE32 | 64 字节诊断响应：[80,7,0] + 原序号 4 字节 + 57 字节确定性数据，不访问目标 |
+| 7 | 80 07 sequenceLE32 | 当前传输容量字节的诊断响应：[80,7,0] + 原序号 4 字节 + 容量减 7 字节确定性数据，不访问目标 |
 | 8 | 80 08 secondsLE16 | USB 专用、无目标 owner 时允许；0 关闭测试服务，1..300 临时开启 TCP 3242；不访问目标 |
 | 9 | 80 09 | 9 字节：[80,9,0] + STA MAC 的 6 个字节；USB / TCP 均允许，只读身份查询 |
 
@@ -50,12 +50,12 @@ DAP_ResetTarget 为 GPIO6 的 10 ms 开漏脉冲，实现返回值不证明目�
 | --- | --- | --- |
 | 0 | 3 | 80 00 00 |
 | 3 | 1 | 协议版本，当前 1 |
-| 4 | 3 | 固件 major / minor / patch，当前 0 / 1 / 5 |
+| 4 | 3 | 固件 major / minor / patch，当前 0 / 1 / 6 |
 | 7 | 2 | little-endian 能力；bit0 USB、bit1 TCP、bit2 USB 配网；当前 0x0007 |
 | 9 | 1 | 编译配置是否允许目标 GPIO |
 | 10 | 1 | 当前目标 owner：0 无、1 USB、2 TCP |
 | 11 | 4 | little-endian owner session，0 无 |
-| 15 | 2 | little-endian DAP 包大小，64 |
+| 15 | 2 | little-endian 当前传输的 DAP 包容量 |
 
 配网请求的 field、offset、total、chunkLength 各为一个 uint8 字节，分别位于请求偏移 2 / 3 / 4 / 5；片段从偏移 6 开始，chunkLength 表示随后有效数据的字节数，填充不计入。最大单片段 58 字节，当前主机工具使用最多 48 字节。
 
@@ -69,7 +69,9 @@ DAP_Info、HostStatus 和设备 / 网络信息查询不占用目标。目标 GPI
 
 当前标准 USB 会话由 USB 总线代次区分；固件无法从相同端点判断两个主机进程身份。本机开发工具以独占句柄打开设备。新连接服务独占一条物理 TCP，通过租约与 USB/IP 导入会话管理客户端；板端继续独立约束 USB / TCP 目标所有权。服务不能感知直接有线调试软件的句柄退出，调试软件应发送 DAP_Disconnect；遗留占用可在确认接口未被使用后清理。板端采样调度尚未实现。
 
-主机工具 exchange_many 可连续提交 1..8 个标准 DAP 包，再按序接收相同数量的响应；TCP 将多个独立帧合入一次发送，USB 连续提交多个 OUT。连续内存读写每次调用从起始地址重设 TAR，之后仅在 MEM-AP 的 1 KiB 地址递增边界重设；每批最多 8 条命令，单个 read block 最多 15 个 word、write block 最多 14 个 word，不跨越边界。64 KiB 连续回读为 1216 条命令，旧工具逐块重设 TAR 为 2304 条。这里使用标准命令与主机排队，不增加 Atomic Commands 或板端采样能力；调用间不缓存地址，批次失败不重放未知完成状态的写入。
+主机工具 exchange_many 可连续提交 1..8 个标准 DAP 包，再按序接收相同数量的响应；TCP 将多个独立帧合入一次发送，USB 连续提交多个 OUT。逐请求内存访问在调用起点和 MEM-AP 1 KiB 边界设置 TAR，检查当前块完整成功后才沿用地址递增。流水线每个包使用一条独立的标准 DAP_Transfer，将 TAR 设置和读写组合在同一个包中；前一个包部分完成或被取消后，后续包仍携带自己的正确地址。两条路径均不跨越 1 KiB 边界。
+
+容量 P 下，流水线每包最多 floor((P-3)/4) 个 read word 或 floor((P-8)/5) 个 write word；逐请求 TransferBlock 为 floor((P-4)/4) 个 read word 或 floor((P-5)/4) 个 write word。64 KiB 连续流水线回读的命令数在 64 / 128 / 256 / 512 档分别为 1152 / 576 / 320 / 192；逐块单独 TAR + 15-word block 的旧路径为 2304 条。调用间不缓存地址，响应数量 / ACK / 完成数量均检查，批次失败不重放未知完成状态的写入。此前跨流水线包缓存 TAR 的检查点已替换，不能在异常路径中依赖它。这里仍使用标准命令与主机排队，不增加 Atomic Commands 或板端采样能力。
 
 采样能力未在能力位中声明。后续新增命令必须定义地址宽度、访问粒度、时基、序号、丢样 / 缓存溢出、断连和控制优先级，完成独立测试后再声明能力。
 

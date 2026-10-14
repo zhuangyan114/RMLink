@@ -49,8 +49,10 @@ def usb_pipeline(usb):
 
 def tcp_framing(host, port, usb):
     golden = b'DAP\0\x02\0\x01\0\x00\xff'
-    expected = b'\x00\x02\x40\x00'
+    usb_expected = b'\x00\x02' + usb.packet_size.to_bytes(2, 'little')
     with TcpClient(host, port) as peer:
+        expected = b'\x00\x02' + peer.packet_size.to_bytes(2, 'little')
+        maximum = peer.packet_size
         for value in golden:
             peer.sock.sendall(bytes([value]))
             time.sleep(0.001)
@@ -65,7 +67,7 @@ def tcp_framing(host, port, usb):
         pipeline_ms = (time.perf_counter() - begin) * 1000
         if peer.exchange(b'\x80\x02\x00\x00\x01\x01x') != b'\x80\x02\x02':
             raise AssertionError('TCP unexpectedly accepted USB provisioning')
-    bad_headers = [b'BAD\0\x02\0\x01\0', b'DAP\0\x41\0\x01\0',
+    bad_headers = [b'BAD\0\x02\0\x01\0', b'DAP\0' + (maximum + 1).to_bytes(2, 'little') + b'\x01\0',
                    b'DAP\0\x02\0\x02\0', b'DAP\0\x02\0\x01\x01']
     for header in bad_headers:
         with socket.create_connection((host, port), timeout=3) as sock:
@@ -76,7 +78,7 @@ def tcp_framing(host, port, usb):
                 data = b''
             if data:
                 raise AssertionError('Invalid TCP header was processed')
-        if usb.exchange(b'\x00\xff') != expected:
+        if usb.exchange(b'\x00\xff') != usb_expected:
             raise AssertionError('Malformed TCP disrupted USB')
     with socket.create_connection((host, port), timeout=4) as sock:
         sock.sendall(golden[:5])  # Incomplete header must time out without a reboot.
@@ -103,7 +105,7 @@ def radio_recovery(host, port, usb):
             raise AssertionError('Radio test requires initial Wi-Fi connection')
         old = TcpClient(host, port)
         try:
-            if old.exchange(b'\x00\xff') != b'\x00\x02\x40\x00':
+            if old.exchange(b'\x00\xff') != b'\x00\x02' + old.packet_size.to_bytes(2, 'little'):
                 raise AssertionError('Initial TCP query failed')
             started = time.perf_counter()
             if usb.exchange(b'\x80\x05') != b'\x80\x05\x00':
@@ -113,7 +115,7 @@ def radio_recovery(host, port, usb):
             max_query_ms = 0.0
             while time.perf_counter() - started < 20:
                 begin = time.perf_counter()
-                if usb.exchange(b'\x00\xff') != b'\x00\x02\x40\x00':
+                if usb.exchange(b'\x00\xff') != b'\x00\x02' + usb.packet_size.to_bytes(2, 'little'):
                     raise AssertionError('USB query failed during radio recovery')
                 max_query_ms = max(max_query_ms, (time.perf_counter() - begin) * 1000)
                 queries += 1
@@ -139,7 +141,7 @@ def radio_recovery(host, port, usb):
         finally:
             old.close()
         with TcpClient(host, port) as new:
-            if new.exchange(b'\x00\xff') != b'\x00\x02\x40\x00':
+            if new.exchange(b'\x00\xff') != b'\x00\x02' + new.packet_size.to_bytes(2, 'little'):
                 raise AssertionError('New TCP stream did not recover')
         now, now_reason = uptime(usb)
         if now <= previous or now_reason != reason:

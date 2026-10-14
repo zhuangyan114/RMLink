@@ -85,7 +85,7 @@ async def verify_probe(hostname, address, port):
     try:
         await transport.connect()
         info, identity = await transport.exchange_many([b'\x80\x00', b'\x80\x09'])
-        if len(info) != 17 or info[:4] != b'\x80\x00\x00\x01' or int.from_bytes(info[15:17], 'little') != 64:
+        if len(info) != 17 or info[:4] != b'\x80\x00\x00\x01' or int.from_bytes(info[15:17], 'little') != transport.packet_size:
             raise ValueError('Not a compatible RMLink probe')
         if len(identity) != 9 or identity[:3] != b'\x80\x09\x00':
             raise ValueError('Upgrade RMLink firmware to 0.1.4 for stable device identity')

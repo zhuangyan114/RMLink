@@ -25,6 +25,9 @@ class CountedClient:
     def reset(self):
         self.packets = self.batches = self.request_bytes = self.response_bytes = 0
 
+    @property
+    def packet_size(self): return getattr(self.client, 'packet_size', 64)
+
     def exchange(self, packet):
         return self.exchange_many([packet])[0]
 
@@ -69,8 +72,14 @@ def main():
     parser.add_argument('--samples', type=int, default=5)
     parser.add_argument('--clock', type=int, default=2000000)
     parser.add_argument('--pipeline-only', action='store_true')
+    parser.add_argument('--optimized-only', action='store_true', help='Capacity sweep with the same safe addressed algorithm')
+    parser.add_argument('--compare-capacity', type=int, choices=[64,128,256],
+                        help='Interleave a smaller memory packet budget on the same negotiated transport')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    if args.optimized_only and args.compare_capacity: parser.error('Choose one comparison mode')
+    algorithms = (('limited', 'optimized') if args.compare_capacity else
+                  ('optimized',) if args.optimized_only else ('legacy', 'optimized'))
     if args.bytes <= 0 or args.bytes % 4 or args.offset < 0 or args.offset % 4 or args.offset + args.bytes > 65536:
         parser.error('Aligned Flash slice must fit the confirmed 64 KiB target')
     if args.samples < 3: parser.error('At least 3 interleaved repetitions required')
@@ -95,25 +104,31 @@ def main():
                                  bcd_device=2 if args.transport == 'USB' else 0x100)
         with client as raw:
             report['device'] = status(raw)
+            report['packetSize'] = raw.packet_size
             if report['device']['ownerTransport']: raise RuntimeError('Board target is occupied')
             counted = CountedClient(raw)
+            if args.compare_capacity and args.compare_capacity >= raw.packet_size:
+                raise ValueError('Comparison budget must be smaller than negotiated capacity')
             with SwdSession(counted, args.clock) as target:
                 if target.read32(0xe000ed00) != 0x411fc231: raise RuntimeError('Expected Cortex-M3')
                 report['coreHaltedBefore'] = bool(target.read32(0xe000edf0) & 0x20000)
+                def read(name, pipelined):
+                    if name == 'legacy': return legacy_read(counted, 0x08000000 + args.offset, args.bytes//4, pipelined)
+                    target.packet_size = args.compare_capacity if name == 'limited' else raw.packet_size
+                    return target.read_words(0x08000000 + args.offset, args.bytes//4, pipelined)
                 for pipelined in ([True] if args.pipeline_only else [False, True]):
                     # Warm up outside timed samples, then alternate the execution order.
-                    for name in ('legacy', 'optimized'):
-                        values = (legacy_read(counted, 0x08000000 + args.offset, args.bytes//4, pipelined)
-                                  if name == 'legacy' else target.read_words(0x08000000 + args.offset, args.bytes//4, pipelined))
+                    for name in algorithms:
+                        values = read(name, pipelined)
                         if struct.pack('<' + 'I'*len(values), *values) != expected: raise AssertionError('Warm-up data mismatch')
-                    rows = {name:dict(algorithm=name, mode='pipeline' if pipelined else 'sequential',
-                                      elapsedMs=[], dapPackets=[], batches=[], requestBytes=[], responseBytes=[]) for name in ('legacy', 'optimized')}
+                    rows = {name:dict(algorithm=name, memoryPacketBudget=args.compare_capacity if name == 'limited' else raw.packet_size,
+                                      mode='pipeline' if pipelined else 'sequential',
+                                      elapsedMs=[], dapPackets=[], batches=[], requestBytes=[], responseBytes=[]) for name in algorithms}
                     for iteration in range(args.samples):
-                        for name in (('legacy', 'optimized') if iteration % 2 == 0 else ('optimized', 'legacy')):
+                        for name in (algorithms if iteration % 2 == 0 else reversed(algorithms)):
                             counted.reset()
                             begin = time.perf_counter()
-                            values = (legacy_read(counted, 0x08000000 + args.offset, args.bytes//4, pipelined)
-                                      if name == 'legacy' else target.read_words(0x08000000 + args.offset, args.bytes//4, pipelined))
+                            values = read(name, pipelined)
                             data = struct.pack('<' + 'I'*len(values), *values)
                             elapsed = (time.perf_counter() - begin)*1000
                             if data != expected: raise AssertionError('Measured read mismatch')

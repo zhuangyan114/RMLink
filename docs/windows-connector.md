@@ -1,6 +1,8 @@
 # RMLink Windows 连接组件
 
-最新提速检查点：2026-10-14，服务 0.1.2、固件 0.1.5。29 项主机测试、WinUSB 取消、pyOCD、完整 OpenOCD 烧录 / 调试 / 原 Flash 恢复、会话互斥、重连及 SDK 回归通过。主机连续访问已减少地址配置；RMLINK_USBIP_BATCH_US 为 0..2000 us 的候选聚合开关，默认 0，收益仍需继续分离验证。数据与限制见 [提速计划](performance-plan.md)。下面保留服务 0.1.1 驱动修复验收的独立记录。
+最新提速实现：2026-10-14，服务 0.1.4、固件 0.1.6。服务按 DAP_Info 协商 64 / 128 / 256 / 512 容量，虚拟 USB / API / SDK 共用该容量；原生 USB 保留 64。已知 DAP 命令按实际结构去除零填充后发送 Wi-Fi，保留真实写入零值和未知命令。39 项主机测试通过；各档实板结果与后续阶段见 [提速计划](performance-plan.md)。RMLINK_USBIP_BATCH_US 为 0..2000 us 的候选聚合开关，默认 0。下面保留服务 0.1.1 驱动修复验收的独立记录。
+
+最终服务 0.1.4 / 512 档的完整 OpenOCD 烧录 / 校验 / 调试、原 Flash 恢复、WinUSB 空读取消、pyOCD、SDK、大包与短包、互斥和 STA 自动重挂载通过；重挂载后再次验证取消及 pyOCD。原始日志在 artifacts/logs/speed-packets-20261014/，数据与限制见 [提速结果](performance-results.md)。
 
 2026-10-14，连接服务原型 0.1.1，配套固件 0.1.5。修补 UDE 已实际加载，虚拟 Bulk 空读取消、pyOCD 0.45.1 读目标 / 暂停 / 继续运行、OpenOCD 经 Wi-Fi 的 STM32 三线烧录 / 调试、真实 API 互斥与 STA 断连重连均通过。当前使用本地测试签名驱动，Secure Boot 关闭、TESTSIGNING 生效、内存完整性开启；正式微软签名与其他软件兼容性待办，暂不作为通用兼容发布版。完整证据见 [取消修复与实机验收](virtual-usb-cancellation.md)。
 
@@ -53,7 +55,7 @@ $connector = '.\artifacts\build\connector\dist\RMLinkConnector.exe'
 
 ## 本地 API 与 Orbit 接入
 
-Node SDK 在 `host/sdk/rmlink-client.mjs`。`init()` 读取本机 token；`open(device_id)` 新建租约并每 5 秒续期；`exchange(packets, priority)` 每批 1–8 个、每个最多 64 字节的 CMSIS-DAP 命令；`abort()` 单独发送无响应的 TransferAbort；`close()` 释放目标。租约 30 秒过期。失联通过 onLost 通知调用方，并要求重新取得会话。
+Node SDK 在 `host/sdk/rmlink-client.mjs`。`init()` 读取本机 token；`open(device_id)` 新建租约、取得 packetSize 并每 5 秒续期；`exchange(packets, priority)` 每批 1–8 个、每个最多协商容量的 CMSIS-DAP 命令，最高 512 字节；`abort()` 单独发送无响应的 TransferAbort；`close()` 释放目标。租约 30 秒过期。失联通过 onLost 通知调用方，并要求重新取得会话。HTTP 请求上限包含 8 个完整 512 字节包的 hex 编码及 JSON 开销，服务仍逐包检查容量。
 
 | 接口 | 用途 |
 | --- | --- |

@@ -32,7 +32,7 @@ typedef struct {
     void *context;
 } request_t;
 /* DWC2 DMA requires a word-aligned payload, not just an aligned allocation. */
-typedef struct { uint32_t session; uint32_t len; uint8_t data[RMLINK_PACKET_SIZE]; } usb_reply_t;
+typedef struct { uint32_t session; uint32_t len; uint8_t data[RMLINK_USB_PACKET_SIZE]; } usb_reply_t;
 _Static_assert(offsetof(usb_reply_t, data) % 4 == 0, "USB DMA payload must be word aligned");
 static QueueHandle_t s_requests;
 static RingbufHandle_t s_usb_replies;
@@ -65,11 +65,12 @@ __attribute__((weak)) size_t rmlink_vendor_command(uint8_t transport, const uint
 static size_t process(const request_t *job, uint8_t *out)
 {
     const uint8_t *r = job->request;
+    size_t capacity = job->transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
     if (r[0] == 0x80) {
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 1; out[6] = 5; /* firmware 0.1.5 */
+            out[5] = 1; out[6] = 6; /* firmware 0.1.6 */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */
@@ -79,14 +80,18 @@ static size_t process(const request_t *job, uint8_t *out)
 #endif
             out[10] = s_owner.transport;
             for (unsigned i = 0; i < 4; ++i) out[11 + i] = (uint8_t)(s_owner.session >> (i * 8));
-            out[15] = RMLINK_PACKET_SIZE;
+            out[15] = (uint8_t)capacity; out[16] = (uint8_t)(capacity >> 8);
             return 17;
         }
         return rmlink_vendor_command(job->transport, r, job->len, out, &s_owner);
     }
     /* Unsupported commands must return DAP_Invalid, including disabled modes. */
     if (!rmlink_dap_supported(r[0])) { out[0] = 0xff; return 1; }
-    if (!rmlink_dap_validate(r, job->len)) return rmlink_dap_error(r[0], out);
+    if (!rmlink_dap_validate_for_size(r, job->len, capacity)) return rmlink_dap_error(r[0], out);
+    if (r[0] == 0 && r[1] == 0xff) {
+        out[0] = 0; out[1] = 2; out[2] = (uint8_t)capacity; out[3] = (uint8_t)(capacity >> 8);
+        return 4;
+    }
     if (r[0] == 0x00 || r[0] == 0x01) return DAP_ProcessCommand(r, out) & 0xffff;
     if (r[0] == 0x03) {
         if (!s_owner.session) { out[0] = 3; out[1] = 0; return 2; }
@@ -149,7 +154,8 @@ static void swd_task(void *arg)
             memset(&s_active, 0, sizeof(s_active));
             portEXIT_CRITICAL(&s_active_mux);
         }
-        if (!n || n > sizeof(out)) n = rmlink_dap_error(job.request[0], out);
+        size_t capacity = job.transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
+        if (!n || n > capacity) n = rmlink_dap_error(job.request[0], out);
         if (job.done) {
             memcpy(job.response, out, n); *job.response_len = n;
             xSemaphoreGive(job.done);
@@ -166,8 +172,8 @@ static void swd_task(void *arg)
 esp_err_t debug_probe_init(void)
 {
     if (s_executor) return ESP_OK;
-    _Static_assert(DEBUG_PROBE_PACKET_SIZE == RMLINK_PACKET_SIZE && DAP_PACKET_SIZE == RMLINK_PACKET_SIZE,
-                   "All DAP buffers must use the same packet size");
+    _Static_assert(DEBUG_PROBE_PACKET_SIZE == RMLINK_USB_PACKET_SIZE && DAP_PACKET_SIZE == RMLINK_PACKET_SIZE,
+                   "Native USB and shared core capacities must match their declarations");
     s_requests = xQueueCreate(DAP_PACKET_COUNT, sizeof(request_t));
     s_usb_replies = xRingbufferCreate(1024, RINGBUF_TYPE_NOSPLIT);
     if (!s_requests || !s_usb_replies) return ESP_ERR_NO_MEM;
@@ -177,7 +183,7 @@ esp_err_t debug_probe_init(void)
 }
 esp_err_t debug_probe_process_data(const uint8_t *data, size_t len)
 {
-    if (!s_requests || !data || !len || len > RMLINK_PACKET_SIZE) return ESP_ERR_INVALID_ARG;
+    if (!s_requests || !data || !len || len > RMLINK_USB_PACKET_SIZE) return ESP_ERR_INVALID_ARG;
     request_t job = { .transport = RMLINK_USB, .session = atomic_load(&s_usb_session), .len = len };
     if (data[0] == 7) { rmlink_abort(RMLINK_USB, job.session); return ESP_OK; }
     memcpy(job.request, data, len);
@@ -187,7 +193,8 @@ esp_err_t rmlink_execute(uint8_t transport, uint32_t session, const uint8_t *dat
         size_t len, uint8_t *response, size_t *response_len)
 {
     if (!s_requests || (transport != RMLINK_USB && transport != RMLINK_TCP) || !session
-        || !data || !len || len > RMLINK_PACKET_SIZE || !response || !response_len)
+        || !data || !len || len > (transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE)
+        || !response || !response_len)
         return ESP_ERR_INVALID_ARG;
     if (data[0] == 7) { rmlink_abort(transport, session); *response_len = 0; return ESP_OK; }
     SemaphoreHandle_t done = xSemaphoreCreateBinary();

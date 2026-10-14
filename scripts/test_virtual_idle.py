@@ -23,13 +23,13 @@ def set_timeout(client, endpoint, milliseconds):
 
 
 def idle_read(client, timeout_ms, index):
-    sentinel = b'\xa5' * 64
-    buffer = C.create_string_buffer(sentinel, 64)
+    sentinel = b'\xa5' * client.packet_size
+    buffer = C.create_string_buffer(sentinel, client.packet_size)
     count = C.c_uint32(0)
     C.set_last_error(0)
     start = time.perf_counter()
     ok = bool(client.usb.WinUsb_ReadPipe(
-        client.handle, client.ep_in, buffer, 64, C.byref(count), None))
+        client.handle, client.ep_in, buffer, client.packet_size, C.byref(count), None))
     error = C.get_last_error()
     elapsed_ms = (time.perf_counter() - start) * 1000
     lower_ms = timeout_ms * 0.5
@@ -53,7 +53,7 @@ def query_packet_size(client, after_timeout_ms):
         valid_header = len(response) >= 4 and response[:2] == b'\x00\x02'
         packet_size = int.from_bytes(response[2:4], 'little') if valid_header else None
         result.update(responseLength=len(response), packetSize=packet_size,
-                      passed=valid_header and packet_size == 64)
+                      passed=valid_header and packet_size == client.packet_size)
     except Exception as exc:
         result.update(passed=False, error=f'{type(exc).__name__}: {exc}')
     return result
@@ -74,7 +74,7 @@ def run(args):
         if args.driver_metadata is not None:
             report['driverMetadata'] = json.loads(args.driver_metadata.read_text(encoding='utf-8-sig'))
         client = UsbClient(serial=args.serial, bcd_device=args.bcd_device)
-        report.update(serial=client.serial, bcdDevice=client.bcd_device)
+        report.update(serial=client.serial, bcdDevice=client.bcd_device, packetSize=client.packet_size)
         for timeout_ms in (50, 100, 500):
             print(f'Idle reads at {timeout_ms} ms', flush=True)
             set_timeout(client, client.ep_in, timeout_ms)

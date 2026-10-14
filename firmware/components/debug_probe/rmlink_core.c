@@ -25,7 +25,12 @@ bool rmlink_dap_supported(uint8_t command)
 }
 bool rmlink_dap_validate(const uint8_t *r, size_t len)
 {
-    if (!r || !len || len > RMLINK_PACKET_SIZE) return false;
+    return rmlink_dap_validate_for_size(r, len, RMLINK_PACKET_SIZE);
+}
+bool rmlink_dap_validate_for_size(const uint8_t *r, size_t len, size_t packet_size)
+{
+    if (packet_size < RMLINK_USB_PACKET_SIZE || packet_size > RMLINK_PACKET_SIZE
+        || !r || !len || len > packet_size) return false;
     size_t p = 0, output = 0;
     switch (r[0]) {
     case 0x00: case 0x02: return len >= 2;
@@ -52,14 +57,14 @@ bool rmlink_dap_validate(const uint8_t *r, size_t len)
             if (!(flags & 2) || (flags & 0x10)) { if (!take(&p, 4, len)) return false; }
             if ((flags & 2) && !(flags & 0x10)) output += 4;
             if (flags & 0x80) output += 4;
-            if (output > RMLINK_PACKET_SIZE) return false;
+            if (output > packet_size) return false;
         }
         return true;
     case 0x06: {
         if (len < 5) return false;
         size_t count = (size_t)r[2] | ((size_t)r[3] << 8);
         if (r[4] & 0xf0) return false; /* TransferBlock only defines bits 0..3. */
-        if (r[4] & 2) return count <= (RMLINK_PACKET_SIZE - 4) / 4;
+        if (r[4] & 2) return count <= (packet_size - 4) / 4;
         return count <= (len - 5) / 4;
     }
     case 0x1d:
@@ -72,7 +77,7 @@ bool rmlink_dap_validate(const uint8_t *r, size_t len)
             if (flags & 0x40) return false;
             if (flags & 0x80) output += bytes;
             else if (!take(&p, bytes, len)) return false;
-            if (output > RMLINK_PACKET_SIZE) return false;
+            if (output > packet_size) return false;
         }
         return true;
     case 0x7e: case 0x7f: return false; /* don't advertise unsupported atomic commands */

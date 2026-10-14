@@ -2,6 +2,10 @@
 import ctypes as C
 from ctypes import wintypes as W
 import uuid
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
+from rmlink_protocol import MAX_PACKET_SIZE, packet_size_from_info
 
 
 class GUID(C.Structure):
@@ -25,6 +29,7 @@ class UsbClient:
     GUID_TEXT = '{CDB3B5AD-293B-4663-AA36-1AAE46463776}'
 
     def __init__(self, *, bcd_device=None, serial=None):
+        self.packet_size = 64
         self.file = self.handle = None
         self.kernel = C.WinDLL('kernel32', use_last_error=True)
         self.setup = C.WinDLL('setupapi', use_last_error=True)
@@ -87,6 +92,9 @@ class UsbClient:
                 timeout = C.c_uint32(3000)
                 for ep in (self.ep_in, self.ep_out):
                     self._check(self.usb.WinUsb_SetPipePolicy(handle, ep, 3, C.sizeof(timeout), C.byref(timeout)))
+                # Short bootstrap OUT works with any supported logical size.
+                self._send(b'\x00\xff', pad=False)
+                self.packet_size = packet_size_from_info(self._receive(MAX_PACKET_SIZE))
                 return
             raise RuntimeError('No available RMLink WinUSB interface; check OTG cable, firmware and device occupancy')
         except BaseException:
@@ -136,8 +144,8 @@ class UsbClient:
         requests = [bytes(request) for request in requests]
         if not 1 <= len(requests) <= 8:
             raise ValueError('DAP pipeline must contain 1..8 packets')
-        if any(not 0 < len(request) <= 64 for request in requests):
-            raise ValueError('DAP packet must be 1..64 bytes')
+        if any(not 0 < len(request) <= self.packet_size for request in requests):
+            raise ValueError('DAP packet exceeds negotiated capacity')
         if any(request[0] == 7 for request in requests):
             raise ValueError('TransferAbort has no response; use abort_transfer()')
         for request in requests:
@@ -145,16 +153,23 @@ class UsbClient:
         return [self.receive() for _ in requests]
 
     def send(self, request):
-        if not 0 < len(request) <= 64: raise ValueError('DAP packet must be 1..64 bytes')
-        packet = C.create_string_buffer(bytes(request).ljust(64, b'\0'), 64)
+        self._send(request)
+
+    def _send(self, request, *, pad=True):
+        if not 0 < len(request) <= self.packet_size: raise ValueError('DAP packet exceeds negotiated capacity')
+        length = self.packet_size if pad else len(request)
+        packet = C.create_string_buffer(bytes(request).ljust(length, b'\0'), length)
         count = C.c_uint32()
-        self._check(self.usb.WinUsb_WritePipe(self.handle, self.ep_out, packet, 64, C.byref(count), None))
-        if count.value != 64: raise RuntimeError('Short USB write; completion state unknown, do not retry')
+        self._check(self.usb.WinUsb_WritePipe(self.handle, self.ep_out, packet, length, C.byref(count), None))
+        if count.value != length: raise RuntimeError('Short USB write; completion state unknown, do not retry')
 
     def receive(self):
-        response = C.create_string_buffer(64)
+        return self._receive(self.packet_size)
+
+    def _receive(self, length):
+        response = C.create_string_buffer(length)
         count = C.c_uint32()
-        self._check(self.usb.WinUsb_ReadPipe(self.handle, self.ep_in, response, 64, C.byref(count), None))
+        self._check(self.usb.WinUsb_ReadPipe(self.handle, self.ep_in, response, length, C.byref(count), None))
         if not count.value: raise RuntimeError('Empty USB response')
         return response.raw[:count.value]
 

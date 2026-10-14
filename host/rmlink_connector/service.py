@@ -13,6 +13,7 @@ from .driver import Driver
 from .state import State
 from .transport import TcpTransport
 from .usbip import UsbIpServer
+from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
 
 class Connector:
@@ -96,6 +97,7 @@ class Connector:
                 'connection_errors': self.connection_errors,
                 'devices': [dict(d.as_dict(), paired=key in self.state.data['paired'],
                             connected=key in self.brokers and not self.brokers[key].failed,
+                            packet_size=self.brokers[key].packet_size if key in self.brokers else None,
                             owner=self.brokers[key].owner if key in self.brokers else None)
                             for key, d in self.devices.items()]}
 
@@ -125,7 +127,8 @@ class Connector:
             if key not in self.brokers or self.brokers[key].failed: raise ConnectionError('Device offline')
             sid = 'api-' + uuid.uuid4().hex
             self.sessions[sid] = {'device_id': key, 'seen': time.monotonic(), 'lost': False}
-            return {'session_id': sid, 'heartbeat_seconds': 5, 'expiry_seconds': 30}
+            return {'session_id': sid, 'heartbeat_seconds': 5, 'expiry_seconds': 30,
+                    'packet_size': self.brokers[key].packet_size}
         parts = path.split('/')
         if len(parts) in (4, 5) and parts[1:3] == ['v1', 'sessions']:
             sid = parts[3]
@@ -139,8 +142,8 @@ class Connector:
             if method == 'POST' and len(parts) == 5 and parts[4] == 'abort': return {'accepted': await broker.abort(sid)}
             if method == 'POST' and len(parts) == 5 and parts[4] == 'dap':
                 values = body.get('packets')
-                if not isinstance(values, list) or not 1 <= len(values) <= 8 or any(not isinstance(v, str) or len(v) > 128 for v in values):
-                    raise ValueError('packets must be 1..8 hex strings of at most 64 bytes')
+                if not isinstance(values, list) or not 1 <= len(values) <= 8 or any(not isinstance(v, str) or len(v) > broker.packet_size*2 for v in values):
+                    raise ValueError('packets must be 1..8 hex strings within negotiated capacity')
                 responses = await broker.submit(sid, [bytes.fromhex(v) for v in values], body.get('priority', 'control'))
                 return {'responses': [r.hex() for r in responses]}
         if method == 'POST' and path == '/v1/shutdown': self.stopping.set(); return {'stopping': True}
@@ -166,7 +169,7 @@ class Connector:
                 code, response = 401, {'error': 'authentication_required'}
             else:
                 length = int(headers.get('content-length', 0))
-                if not 0 <= length <= 8192: raise ValueError('HTTP body limit')
+                if not 0 <= length <= MAX_PACKET_SIZE * PACKET_COUNT * 2 + 1024: raise ValueError('HTTP body limit')
                 data = await asyncio.wait_for(reader.readexactly(length), 3)
                 body = json.loads(data) if data else {}
                 if not isinstance(body, dict): raise ValueError('Expected JSON object')

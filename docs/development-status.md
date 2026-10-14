@@ -1,8 +1,8 @@
 # 开发与验证进度
 
-更新日期：2026-10-14。当前固件 0.1.5，连接服务 0.1.2。USB / TCP 三线 SWD 的既有验收保持为独立记录；Windows 虚拟 USB 经 Wi-Fi 的 64 KiB 烧录、回读、调试与异常恢复验收已通过，原 Flash 已恢复。NRST 缺线，直接 OpenOCD TCP 仍有旧版主机限制；虚拟 Bulk 路径的 OpenOCD 日志无 Error，详见 [实板验收](stm32-acceptance.md) 与 [Windows 组件](windows-connector.md)。
+更新日期：2026-10-14。当前固件 0.1.6，连接服务 0.1.4，TCP / 无线虚拟 USB 512 字节、原生 USB 64 字节。128 / 256 / 512 三档编译、刷写、启动和实板验收完成；最终原生 USB 和虚拟 USB 的完整烧录 / 校验 / 三线调试通过，原 Flash 恢复。直接 OpenOCD TCP 功能完成但仍有旧版 Windows socket 错误，NRST 缺线。最新性能和范围见 [提速结果](performance-results.md)。
 
-提速阶段的第一个检查点：连续读写只在起始地址及 1 KiB 边界重设 TAR，64 KiB 回读命令数 2304 → 1216。相同会话交替旧 / 新算法，USB 4 KiB 流水线 34.70 → 40.91 KiB/s、TCP 9.32 → 12.56 KiB/s、虚拟 USB 7.25 → 9.96 KiB/s；全 Flash 虚拟回读中位 8.23 → 5.31 秒。29 项主机测试及新服务的完整 OpenOCD / pyOCD / 取消 / 互斥 / 重连回归通过，原 Flash 恢复一致。虚拟聚合窗口作为 0..2000 us 实验开关，默认关闭；完整计划、统计口径及下一阶段见 [提速计划](performance-plan.md)。本阶段尚未改变 OpenOCD 自身烧录策略。
+最新提速检查点：流水线每包独立携带 TAR 和读写，修正首版地址缓存在部分完成时可能错位的问题。相同会话中各五次交替使用 64 / 512 字节内存块预算，64 KiB 回读约 6.29 → 2.45 秒，命令 1152 → 192，批次 144 → 24。39 项主机测试、7 项 TCP peer 测试、四档 C 解析边界 / 随机输入检查通过；服务协商容量并去除已知命令的零填充，SDK 8 个完整 512 请求通过。原生 USB 全流程约 3.35 秒，虚拟 USB 约 7.28 秒，均无 Error 行；这是功能验收计时。聚合等待窗口默认 0。时钟扫描已完成只读检查，默认保留请求 2 MHz；完整计划见 [提速计划](performance-plan.md)。
 
 本轮新增：修复 pyOCD 在 Connect 前设置时钟的兼容性，固件 / 服务均从有效时钟配置开始保留整段会话；无效配置不占用目标，其他客户端不能抢占。本地测试签名的 UDE 取消长度修补已加载，虚拟 USB 的空读超时、零字节计数、缓冲不变及后续正常查询均通过，pyOCD 0.45.1 经虚拟无线探针完成目标识别、暂停、读 PC 和继续运行。OpenOCD 在固件 0.1.5 / 服务 0.1.1 / 修补驱动组合下完成 64 KiB 烧录与三线调试回归，原 Flash 恢复并独立回读一致；API / 虚拟 USB 互斥、STA 断连自动恢复及重挂载后的 pyOCD 再连接均通过，见 [驱动取消问题](virtual-usb-cancellation.md)。
 
@@ -16,7 +16,7 @@
 | 4：Orbit / 板端采样 | 已核对 Orbit 所有权链；新增本机 API / Node SDK；实际 Orbit 与采样尚未接入 | SDK 经真实服务完成连接、批量查询和释放 | API 读 STM32、与虚拟 USB 双向互斥通过；板端采样未验收 |
 | 5：Windows 自动组件 | mDNS、配对、一个物理 TCP、USB/IP 代理、自动重挂载与 UDE 驱动控制 | 独立 EXE 构建、19 项主机测试通过；UDE 补丁构建与测试签名通过，已实际加载 | 空读取消、pyOCD 虚拟调试、OpenOCD 烧录调试及双向互斥通过；本轮 STA 断连约 6.53 秒恢复，重挂载后的空读与 pyOCD 通过；正式驱动签名仍待完成 |
 
-当前 target profile 固件为 0.1.5，SHA256 68640A9B1678F59691F628A9F94587594E75A38F01EFB1807EC67281D0E7061C。0.1.5 修改会话入口，不修改 SWD 位操作内核。最后刷写记录在 artifacts/hardware/rmlink-last-flash.json；[实板验收](stm32-acceptance.md) 分开记录各版本的证据。0.1.4 固件另存 artifacts/hardware/rmlink-0.1.4-target.bin。
+当前 target profile 为 firmware-target-tcp512，固件 SHA256 D8EBDDD7507C33B830AE8A0AC0188788F61DD752871CECBAA36E6BB66809831F。0.1.6 扩大 TCP / 共享核心容量，保留原生 USB64 和 SWD 位操作内核；最后刷写记录在 artifacts/hardware/rmlink-last-flash.json。0.1.5 / 64 字节基线保留于 artifacts/hardware/speed64-baseline/；其他历史固件及本轮连接服务旧版也保留。最新证据在 artifacts/logs/speed-packets-20261014/。
 
 本次驱动回归证据统一在 artifacts/logs/test-driver-20261014：虚拟 64 KiB 烧录 / 校验 12845.70 ms，独立完整回读 8120.89 ms；原程序恢复 12288.24 ms，选项字节未变，核心运行、板端与服务 owner 均已释放。用户已完成测试模式重启，当前 Secure Boot 关闭、TESTSIGNING 生效、HVCI 保持开启；安装仅重启虚拟控制器，无额外系统重启要求。空读脚本带进程期限并精确选择虚拟序列号，历史验收日志保留。正式微软签名、物理 NRST 及其他调试软件兼容性另行验证。
 

@@ -1,6 +1,6 @@
 """Physical ESP32-to-PC goodput and RTT; no STM32/DAP target commands.
 
-Measures current 64-byte DAP transport separately from an opt-in bulk TCP socket.
+Measures negotiated DAP transport separately from an opt-in bulk TCP socket.
 All timing uses the PC performance counter; one-way delay is not inferred.
 """
 import argparse
@@ -36,8 +36,9 @@ def bench_request(sequence):
     return b'\x80\x07' + struct.pack('<I', sequence)
 
 
-def bench_response(sequence):
-    return b'\x80\x07\x00' + struct.pack('<I', sequence) + PATTERNS[sequence & 255]
+def bench_response(sequence, packet_size=64):
+    return b'\x80\x07\x00' + struct.pack('<I', sequence) + bytes(
+        ((sequence & 255) + i * 31) & 255 for i in range(packet_size - 7))
 
 
 def measure_dap_latency(client, samples, seed):
@@ -45,7 +46,7 @@ def measure_dap_latency(client, samples, seed):
     for index in range(samples + 30):
         sequence = seed + index
         request = bench_request(sequence)
-        expected = bench_response(sequence)
+        expected = bench_response(sequence, client.packet_size)
         begin = time.perf_counter_ns()
         actual = client.exchange(request)
         elapsed = (time.perf_counter_ns() - begin) / 1e6
@@ -62,15 +63,15 @@ def measure_dap_goodput(client, seconds, seed):
     while time.perf_counter() - begin < seconds:
         sequences = range(seed + count, seed + count + 8)
         actual = client.exchange_many([bench_request(sequence) for sequence in sequences])
-        if actual != [bench_response(sequence) for sequence in sequences]:
+        if actual != [bench_response(sequence, client.packet_size) for sequence in sequences]:
             raise AssertionError('Pipelined diagnostic data/order mismatch')
         count += 8
     elapsed = time.perf_counter() - begin
-    payload = count * 57
+    payload = count * (client.packet_size - 7)
     return dict(seconds=round(elapsed, 4), packets=count, payloadBytes=payload,
-                responseBytes=count * 64, payloadKiBPerSecond=round(payload / elapsed / 1024, 2),
+                responseBytes=count * client.packet_size, payloadKiBPerSecond=round(payload / elapsed / 1024, 2),
                 payloadMbps=round(payload * 8 / elapsed / 1e6, 3),
-                responseKiBPerSecond=round(count * 64 / elapsed / 1024, 2),
+                responseKiBPerSecond=round(count * client.packet_size / elapsed / 1024, 2),
                 requestsPerSecond=round(count / elapsed, 2), dataMismatchCount=0)
 
 
@@ -84,7 +85,7 @@ def measure_dap(client, samples, seconds):
         print(f'DAP trial {trial + 1}: RTT median={latency["medianMs"]} ms, payload={throughput["payloadKiBPerSecond"]} KiB/s', flush=True)
     return dict(rounds=rounds, combinedRtt=latency_stats(all_samples),
                 medianPayloadKiBPerSecond=round(statistics.median(row['goodput']['payloadKiBPerSecond'] for row in rounds), 2),
-                payloadBytesPerReply=57, dapReplyBytes=64, pipelineDepth=8,
+                payloadBytesPerReply=client.packet_size - 7, dapReplyBytes=client.packet_size, pipelineDepth=8,
                 sampleRttMs=all_samples, timeoutCount=0, dataMismatchCount=0)
 
 

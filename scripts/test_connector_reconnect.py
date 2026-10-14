@@ -72,7 +72,7 @@ def main():
             ready = any(d['device_id'] == key and d['connected'] for d in snapshot['devices'])
             if ready and key in snapshot['driver']['managed_ports'] and not snapshot['mount_errors']:
                 try:
-                    with virtual() as c: assert c.exchange(b'\x00\xff') == b'\x00\x02\x40\x00'
+                    with virtual() as c: assert c.exchange(b'\x00\xff') == b'\x00\x02' + c.packet_size.to_bytes(2, 'little')
                     break
                 except (RuntimeError, OSError): pass
             if time.perf_counter() > deadline: raise TimeoutError('Automatic connection/virtual mount did not recover')

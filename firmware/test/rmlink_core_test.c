@@ -22,14 +22,17 @@ int main(void)
     const uint8_t golden_header[] = {0x44,0x41,0x50,0,0x40,0,1,0};
     size_t n = 0; assert(rmlink_tcp_header_decode(golden_header, &n) && n == 64);
     uint8_t h[8]; memcpy(h, golden_header, 8);
-    h[4] = 65; assert(!rmlink_tcp_header_decode(h, &n));
-    h[4] = 0; assert(!rmlink_tcp_header_decode(h, &n));
+    h[4] = (uint8_t)(RMLINK_PACKET_SIZE + 1); h[5] = (uint8_t)((RMLINK_PACKET_SIZE + 1) >> 8);
+    assert(!rmlink_tcp_header_decode(h, &n));
+    h[4] = h[5] = 0; assert(!rmlink_tcp_header_decode(h, &n));
     h[4] = 2; h[6] = 2; assert(!rmlink_tcp_header_decode(h, &n));
     rmlink_tcp_header_encode(h, 17);
     const uint8_t expected[] = {'D','A','P',0,17,0,2,0}; assert(memcmp(h, expected, 8) == 0);
 
-    uint8_t r[64] = {0};
-    assert(!rmlink_dap_validate(r, 0)); assert(!rmlink_dap_validate(r, 65));
+    uint8_t r[RMLINK_PACKET_SIZE] = {0};
+    assert(!rmlink_dap_validate(r, 0)); assert(!rmlink_dap_validate(r, RMLINK_PACKET_SIZE + 1));
+    assert(!rmlink_dap_validate_for_size(r, 1, 63));
+    assert(!rmlink_dap_validate_for_size(r, 1, RMLINK_PACKET_SIZE + 1));
     r[0] = 0x11; assert(!rmlink_dap_validate(r, 5)); r[1] = 0xe8; r[2] = 3; assert(rmlink_dap_validate(r, 5));
     memset(r, 0, 64); r[0] = 0x05; r[2] = 1; r[3] = 2;
     assert(!rmlink_dap_validate(r, 3)); assert(rmlink_dap_validate(r, 4));
@@ -40,13 +43,18 @@ int main(void)
     r[3] = 0x92; assert(!rmlink_dap_validate(r, 8)); /* timestamp cannot accompany match */
     r[3] = 0x12; assert(rmlink_dap_validate(r, 8));
     r[3] = 0x20; assert(rmlink_dap_validate(r, 8));
-    memset(r, 0, 64); r[0] = 0x05; r[2] = 16; memset(r + 3, 2, 16);
-    assert(!rmlink_dap_validate(r, 19)); /* 16 reads can't fit in a 64-byte response */
-    r[2] = 15; assert(rmlink_dap_validate(r, 18));
-    memset(r, 0, 64); r[0] = 0x06; r[2] = 15; r[4] = 2; assert(rmlink_dap_validate(r, 5));
+    memset(r, 0, sizeof(r)); r[0] = 0x05; r[2] = (RMLINK_PACKET_SIZE - 3) / 4 + 1;
+    memset(r + 3, 2, r[2]);
+    assert(!rmlink_dap_validate(r, 3u + r[2])); /* one read beyond the output budget */
+    --r[2]; assert(rmlink_dap_validate(r, 3u + r[2]));
+    r[2] = 16; assert(!rmlink_dap_validate_for_size(r, 19, RMLINK_USB_PACKET_SIZE));
+    r[2] = 15; assert(rmlink_dap_validate_for_size(r, 18, RMLINK_USB_PACKET_SIZE));
+    memset(r, 0, sizeof(r)); r[0] = 0x06; r[2] = (RMLINK_PACKET_SIZE - 4) / 4;
+    r[4] = 2; assert(rmlink_dap_validate(r, 5));
     r[4] = 0x82; assert(!rmlink_dap_validate(r, 5)); r[4] = 2;
-    r[2] = 16; assert(!rmlink_dap_validate(r, 5)); r[2] = 0xff; r[3] = 0xff;
-    assert(!rmlink_dap_validate(r, 64));
+    ++r[2]; assert(!rmlink_dap_validate(r, 5));
+    r[2] = 16; assert(!rmlink_dap_validate_for_size(r, 5, RMLINK_USB_PACKET_SIZE));
+    r[2] = 0xff; r[3] = 0xff; assert(!rmlink_dap_validate(r, sizeof(r)));
     memset(r, 0, 64); r[0] = 0x1d; r[1] = 1; r[2] = 0;
     assert(!rmlink_dap_validate(r, 10)); assert(rmlink_dap_validate(r, 11));
     r[2] = 0x80; assert(rmlink_dap_validate(r, 3));
@@ -60,15 +68,16 @@ int main(void)
     assert(!rmlink_dap_validate(r, 7)); /* bounded pin wait */
     r[3] = 0x40; assert(rmlink_dap_validate(r, 7));
     r[2] = 4; assert(!rmlink_dap_validate(r, 7)); /* unavailable JTAG pin */
-    uint8_t out[64]; assert(rmlink_dap_error(6, out) == 4);
+    uint8_t out[RMLINK_PACKET_SIZE]; assert(rmlink_dap_error(6, out) == 4);
     const uint8_t block_error[] = {6,0,0,8}; assert(!memcmp(out, block_error, 4));
 
     /* Arbitrary bounded packets exercise all parser branches, not an echo implementation. */
     uint32_t random = 0x23456789;
     for (unsigned i = 0; i < 20000; ++i) {
-        for (unsigned j = 0; j < 64; ++j) { random = random * 1664525u + 1013904223u; r[j] = random >> 24; }
-        (void)rmlink_dap_validate(r, i % 65);
+        for (unsigned j = 0; j < sizeof(r); ++j) { random = random * 1664525u + 1013904223u; r[j] = random >> 24; }
+        (void)rmlink_dap_validate(r, i % (RMLINK_PACKET_SIZE + 1));
+        (void)rmlink_dap_validate_for_size(r, i % 65, RMLINK_USB_PACKET_SIZE);
     }
-    puts("PASS: exclusive owner, TCP golden bytes, DAP bounds, 20000 parser cases");
+    printf("PASS: exclusive owner, TCP golden bytes, DAP bounds (%u/USB64), 20000 parser cases\n", RMLINK_PACKET_SIZE);
     return 0;
 }

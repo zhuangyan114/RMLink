@@ -30,6 +30,7 @@ class ImportSession:
         self.reader, self.writer, self.broker = reader, writer, broker
         self.source = 'usbip-' + uuid.uuid4().hex
         self.descriptors = Descriptors(broker.device_id)
+        self.packet_size = getattr(broker, 'packet_size', 64)
         self.send_lock = asyncio.Lock()
         self.in_urbs = deque()
         self.responses = deque()
@@ -131,7 +132,7 @@ class ImportSession:
                         await self.send_submit(seq, direction, ep, 0, response, len(response) if direction else length)
                     except ValueError: await self.send_submit(seq, direction, ep, -32)
                 elif direction == 0:
-                    if not 1 <= length <= 64:
+                    if not 1 <= length <= self.packet_size:
                         await self.send_submit(seq, direction, ep, -32); continue
                     if data[0] == 7:
                         await self.broker.abort(self.source)
@@ -145,8 +146,8 @@ class ImportSession:
                     # ACK means accepted USB data, not successful target execution.
                     await self.send_submit(seq, 0, ep, 0, actual=length)
                 else:
-                    # WinUSB can round a 64-byte application read up to a 512-byte
-                    # URB. Return one short DAP response; keep URB allocation bounded.
+                    # USB physical packets remain 64; a logical DAP transfer may
+                    # span several. WinUSB can also round its read allocation up.
                     if not 1 <= length <= 4096 or len(self.in_urbs) >= 8:
                         raise ValueError(f'Bulk IN length={length}, pending={len(self.in_urbs)}, seq={seq}')
                     self.in_sequences.add(seq)

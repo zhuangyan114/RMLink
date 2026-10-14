@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import itertools
 
 from .transport import TcpTransport
+from rmlink_protocol import without_usb_padding
 
 PRIORITIES = {'control': 0, 'watch': 1, 'timeline': 2, 'background': 3}
 
@@ -46,11 +47,16 @@ class Broker:
         await self.transport.connect()
         self.task = asyncio.create_task(self._worker())
 
+    @property
+    def packet_size(self):
+        return getattr(self.transport, 'packet_size', 64)
+
     async def submit(self, source, packets, priority='control'):
         packets = [bytes(p) for p in packets]
-        if priority not in PRIORITIES or not 1 <= len(packets) <= 8 or any(not 1 <= len(p) <= 64 or p[0] == 7 for p in packets):
-            raise ValueError('Expected 1..8 packets of 1..64 bytes; Abort uses its own path')
+        if priority not in PRIORITIES or not 1 <= len(packets) <= 8 or any(not 1 <= len(p) <= self.packet_size or p[0] == 7 for p in packets):
+            raise ValueError('Expected 1..8 packets within negotiated capacity; Abort uses its own path')
         if self.failed or source in self.closed_sources: raise ConnectionError('Session/transport is closed')
+        packets = [without_usb_padding(p) for p in packets]
         future = asyncio.get_running_loop().create_future()
         self.queue.put_nowait((PRIORITIES[priority], next(self.ids), Job(source, packets, future)))
         # Client cancellation cannot abandon an in-flight write or shift responses.

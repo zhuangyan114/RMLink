@@ -1,0 +1,508 @@
+{
+  "capturedAt": "2026-10-14T21:03:53.580932+08:00",
+  "firmwareVersion": "0.1.6",
+  "connectorVersion": "0.1.4",
+  "nativeUsbPacketSize": 64,
+  "tcpAndVirtualPacketSize": 512,
+  "packetCount": 8,
+  "batchWindowUs": 0,
+  "clockDefaultHz": 2000000,
+  "actualClockMeasured": false,
+  "hostTestsPassed": 39,
+  "tcpPeerTestsPassed": 7,
+  "cParserCapacitiesPassed": [
+    64,
+    128,
+    256,
+    512
+  ],
+  "cFuzzCasesPerCapacity": 20000,
+  "binaries": {
+    "firmwareSha256": "d8ebddd7507c33b830ae8a0ac0188788f61dd752871cecbaa36e6bb66809831f",
+    "connectorSha256": "9e148e32a25a19dc8fd1570cc5def02ca609a5b721ff9adfe1fe407502d84367"
+  },
+  "controlledComparison": {
+    "evidence": "512/virtual-interleaved-64-512.json",
+    "scope": "Same firmware, transport, session, clock; memory packet budget interleaved",
+    "bytes": 65536,
+    "clockRequestedHz": 2000000,
+    "limited64": {
+      "samples": 5,
+      "elapsedMs": [
+        6470.95,
+        6293.2,
+        6318.859,
+        6041.937,
+        6062.444
+      ],
+      "medianMs": 6293.2,
+      "medianKiBPerSecond": 10.17,
+      "dapPackets": 1152,
+      "batches": 144,
+      "contentMatchesBackup": true
+    },
+    "full512": {
+      "samples": 5,
+      "elapsedMs": [
+        2549.257,
+        2443.216,
+        2450.654,
+        2452.918,
+        2430.19
+      ],
+      "medianMs": 2450.654,
+      "medianKiBPerSecond": 26.115,
+      "dapPackets": 192,
+      "batches": 24,
+      "contentMatchesBackup": true
+    },
+    "speedRatio": 2.568
+  },
+  "capacitySweep": [
+    {
+      "packetSize": 64,
+      "firmwareVersion": "0.1.5",
+      "connectorVersion": "0.1.3",
+      "evidence": "baseline64-virtual-64k.json",
+      "samples": 5,
+      "elapsedMs": [
+        6589.196,
+        6970.129,
+        11163.241,
+        9135.529,
+        12660.009
+      ],
+      "medianMs": 9135.529,
+      "medianKiBPerSecond": 7.006,
+      "dapPackets": 1152,
+      "batches": 144,
+      "contentMatchesBackup": true
+    },
+    {
+      "packetSize": 128,
+      "firmwareVersion": "0.1.6",
+      "connectorVersion": "0.1.3",
+      "evidence": "128/virtual-64k.json",
+      "samples": 5,
+      "elapsedMs": [
+        5399.049,
+        5751.206,
+        6036.357,
+        5659.106,
+        5333.463
+      ],
+      "medianMs": 5659.106,
+      "medianKiBPerSecond": 11.309,
+      "dapPackets": 576,
+      "batches": 72,
+      "contentMatchesBackup": true
+    },
+    {
+      "packetSize": 256,
+      "firmwareVersion": "0.1.6",
+      "connectorVersion": "0.1.3",
+      "evidence": "256/virtual-64k.json",
+      "samples": 5,
+      "elapsedMs": [
+        3453.144,
+        3568.615,
+        2908.02,
+        3551.735,
+        3721.185
+      ],
+      "medianMs": 3551.735,
+      "medianKiBPerSecond": 18.019,
+      "dapPackets": 320,
+      "batches": 40,
+      "contentMatchesBackup": true
+    },
+    {
+      "packetSize": 512,
+      "firmwareVersion": "0.1.6",
+      "connectorVersion": "0.1.3",
+      "evidence": "512/virtual-64k-padded.json",
+      "samples": 5,
+      "elapsedMs": [
+        3256.497,
+        2663.089,
+        2550.673,
+        2459.923,
+        2463.522
+      ],
+      "medianMs": 2550.673,
+      "medianKiBPerSecond": 25.091,
+      "dapPackets": 192,
+      "batches": 24,
+      "contentMatchesBackup": true
+    }
+  ],
+  "capacitySweepScope": "Different time windows; wireless variation and concurrent build load may affect early baseline",
+  "virtualProgramAcceptance": [
+    {
+      "packetSize": 128,
+      "connectorVersion": "0.1.3",
+      "evidence": "128/accept-virtual.json",
+      "elapsedMs": 11065.67,
+      "errorLines": 0,
+      "independentReadMs": 5664.43,
+      "restoredSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+      "optionBytesUnchanged": true
+    },
+    {
+      "packetSize": 256,
+      "connectorVersion": "0.1.3",
+      "evidence": "256/accept-virtual.json",
+      "elapsedMs": 10628.52,
+      "errorLines": 0,
+      "independentReadMs": 3622.27,
+      "restoredSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+      "optionBytesUnchanged": true
+    },
+    {
+      "packetSize": 512,
+      "connectorVersion": "0.1.3",
+      "evidence": "512/accept-virtual.json",
+      "elapsedMs": 7203.31,
+      "errorLines": 0,
+      "independentReadMs": 2542.26,
+      "restoredSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+      "optionBytesUnchanged": true
+    },
+    {
+      "packetSize": 512,
+      "connectorVersion": "0.1.4",
+      "evidence": "512-compact/accept-virtual.json",
+      "elapsedMs": 7276.59,
+      "errorLines": 0,
+      "independentReadMs": 2759.54,
+      "restoredSha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+      "optionBytesUnchanged": true
+    }
+  ],
+  "programTimingScope": "Single functional acceptance timing per condition; not repeated performance median",
+  "directAcceptance": {
+    "USB": {
+      "elapsedMs": 3354.58,
+      "verified": true,
+      "tcpQuirkEnabled": false,
+      "errorLines": 0,
+      "restoration": {
+        "sha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+        "optionBytesUnchanged": true,
+        "coreHalted": false
+      }
+    },
+    "WiFi": {
+      "elapsedMs": 39914.81,
+      "verified": true,
+      "tcpQuirkEnabled": true,
+      "errorLines": 128,
+      "restoration": {
+        "sha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+        "optionBytesUnchanged": true,
+        "coreHalted": false
+      }
+    }
+  },
+  "directTcpLimit": "Windows OpenOCD TCP backend still reports peek_socket/header errors; virtual Bulk has no Error lines",
+  "padding": {
+    "packets": 192,
+    "paddedRequestBodyBytes": 98304,
+    "trimmedRequestBodyBytes": 17920,
+    "evidenceType": "Lengths inferred from submitted USB payload and format decoder; not a radio capture",
+    "before": {
+      "samples": 5,
+      "elapsedMs": [
+        3256.497,
+        2663.089,
+        2550.673,
+        2459.923,
+        2463.522
+      ],
+      "medianMs": 2550.673,
+      "medianKiBPerSecond": 25.091,
+      "dapPackets": 192,
+      "batches": 24,
+      "contentMatchesBackup": true
+    },
+    "after": {
+      "samples": 5,
+      "elapsedMs": [
+        2453.837,
+        2563.001,
+        2574.069,
+        2657.169,
+        2459.005
+      ],
+      "medianMs": 2563.001,
+      "medianKiBPerSecond": 24.971,
+      "dapPackets": 192,
+      "batches": 24,
+      "contentMatchesBackup": true
+    },
+    "throughputBenefitEstablished": false
+  },
+  "clockSweep": {
+    "usb": {
+      "capturedAt": "2026-10-14T20:45:13.574361+08:00",
+      "complete": true,
+      "transport": "USB",
+      "actualClockMeasured": false,
+      "clockRestoredHz": 2000000,
+      "rows": [
+        {
+          "clockRequestedHz": 1000000,
+          "complete": true,
+          "elapsedMs": [
+            188.864,
+            187.548,
+            187.732,
+            187.609,
+            187.711
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 21.309
+        },
+        {
+          "clockRequestedHz": 2000000,
+          "complete": true,
+          "elapsedMs": [
+            103.428,
+            102.573,
+            104.122,
+            103.395,
+            103.307
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 38.687
+        },
+        {
+          "clockRequestedHz": 4000000,
+          "complete": true,
+          "elapsedMs": [
+            60.616,
+            59.993,
+            60.223,
+            60.462,
+            60.213
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 66.42
+        },
+        {
+          "clockRequestedHz": 6000000,
+          "complete": true,
+          "elapsedMs": [
+            47.622,
+            47.035,
+            47.414,
+            47.489,
+            47.927
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 84.23
+        },
+        {
+          "clockRequestedHz": 8000000,
+          "complete": true,
+          "elapsedMs": [
+            38.699,
+            38.873,
+            40.041,
+            39.317,
+            40.4
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 101.737
+        },
+        {
+          "clockRequestedHz": 10000000,
+          "complete": true,
+          "elapsedMs": [
+            34.598,
+            35.258,
+            35.266,
+            36.76,
+            34.62
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 113.449
+        }
+      ],
+      "packetSize": 64,
+      "defaultChanged": false
+    },
+    "virtual": {
+      "capturedAt": "2026-10-14T20:45:24.082730+08:00",
+      "complete": true,
+      "transport": "VirtualUSB",
+      "actualClockMeasured": false,
+      "clockRestoredHz": 2000000,
+      "rows": [
+        {
+          "clockRequestedHz": 1000000,
+          "complete": true,
+          "elapsedMs": [
+            467.741,
+            315.925,
+            241.509,
+            265.19,
+            205.298
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 15.084
+        },
+        {
+          "clockRequestedHz": 2000000,
+          "complete": true,
+          "elapsedMs": [
+            205.61,
+            211.32,
+            258.344,
+            153.666,
+            196.713
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 19.454
+        },
+        {
+          "clockRequestedHz": 4000000,
+          "complete": true,
+          "elapsedMs": [
+            166.43,
+            222.36,
+            225.972,
+            289.455,
+            108.065
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 17.989
+        },
+        {
+          "clockRequestedHz": 6000000,
+          "complete": true,
+          "elapsedMs": [
+            108.58,
+            211.176,
+            165.247,
+            127.176,
+            102.588
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 31.452
+        },
+        {
+          "clockRequestedHz": 8000000,
+          "complete": true,
+          "elapsedMs": [
+            92.363,
+            99.817,
+            202.468,
+            97.986,
+            102.144
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 40.073
+        },
+        {
+          "clockRequestedHz": 10000000,
+          "complete": true,
+          "elapsedMs": [
+            85.538,
+            105.731,
+            97.514,
+            98.742,
+            108.141
+          ],
+          "fullFlashMatchesBackup": true,
+          "medianKiBPerSecond": 40.51
+        }
+      ],
+      "packetSize": 512,
+      "defaultChanged": false
+    }
+  },
+  "transport": {
+    "rssiDbm": -9,
+    "usb64Rtt": {
+      "samples": 300,
+      "meanMs": 0.2031,
+      "medianMs": 0.1929,
+      "p95Ms": 0.2525,
+      "p99Ms": 0.3049,
+      "minMs": 0.1813,
+      "maxMs": 0.3672
+    },
+    "tcp512Rtt": {
+      "samples": 300,
+      "meanMs": 11.499,
+      "medianMs": 5.0636,
+      "p95Ms": 55.7075,
+      "p99Ms": 69.9393,
+      "minMs": 1.7591,
+      "maxMs": 87.5122
+    },
+    "rawTcp64Rtt": {
+      "samples": 300,
+      "meanMs": 8.0527,
+      "medianMs": 3.2086,
+      "p95Ms": 48.4701,
+      "p99Ms": 64.5056,
+      "minMs": 1.3058,
+      "maxMs": 65.411
+    },
+    "diagnosticTcp512KiBPerSecond": 154.47,
+    "rawDownloadMbps": 2.853,
+    "directTarget64k": {
+      "samples": 5,
+      "elapsedMs": [
+        2464.474,
+        2574.766,
+        2458.377,
+        2431.179,
+        2458.421
+      ],
+      "medianMs": 2458.421,
+      "medianKiBPerSecond": 26.033,
+      "dapPackets": 192,
+      "batches": 24,
+      "contentMatchesBackup": true
+    }
+  },
+  "finalRegression": {
+    "capacities": {
+      "complete": true,
+      "evidence": "capacity-512-compact.json"
+    },
+    "preconnect": {
+      "complete": true,
+      "evidence": "preconnect-512-compact.json"
+    },
+    "sdk": {
+      "complete": true,
+      "evidence": "sdk-512-compact.json"
+    },
+    "reconnect": {
+      "complete": true,
+      "evidence": "reconnect-512-compact.json"
+    },
+    "idleAfterReconnect": {
+      "complete": true,
+      "evidence": "idle-512-after-reconnect.json"
+    },
+    "pyocdAfterReconnect": {
+      "complete": true,
+      "evidence": "pyocd-512-after-reconnect.json"
+    },
+    "automaticVirtualRecoveryMs": 4781.61
+  },
+  "pending": [
+    "native USB multi-packet assembly",
+    "actual SWCLK waveform",
+    "higher-clock program/debug acceptance",
+    "Orbit backend and board sampling",
+    "Keil/IAR/HID compatibility",
+    "formal driver signing",
+    "real hotspot-off, full power cycle, physical NRST and long stress acceptance"
+  ]
+}

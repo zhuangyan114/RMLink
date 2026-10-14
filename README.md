@@ -2,6 +2,8 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
+2026-10-14 最新：固件 0.1.6 / 服务 0.1.4，TCP / 无线虚拟 USB 扩至 512 字节，原生 USB 保留 64。相同会话交替比较，64 KiB 回读约 6.29 → 2.45 秒；最终虚拟 OpenOCD 全流程烧录 / 校验约 7.28 秒，原程序恢复。范围与原始证据见 [提速结果](docs/performance-results.md)。
+
 ## 目录
 
 | 目录 | 用途 |
@@ -31,9 +33,10 @@
 - [虚拟 USB 取消问题与测试驱动](docs/virtual-usb-cancellation.md)
 - [ESP32 / 电脑传输速率与延迟](docs/transport-benchmark.md)
 - [完整提速计划与阶段验收](docs/performance-plan.md)
+- [提速实现与实板结果](docs/performance-results.md)
 
 当前硬件：普通双 USB-C ESP32-S3 开发板；COM13 为 CH343 下载/日志口。
-已通过芯片工具读取确认 16 MB Flash、8 MB 内置 PSRAM；用户已按 GPIO4 / 5 / 6 接上 STM32F103C8 的 SWDIO / SWCLK 与 GND；GPIO6 预留 NRST，当前缺线 / 未验收。
+已通过芯片工具读取确认 16 MB Flash、8 MB 内置 PSRAM；GPIO4 / GPIO5 接 STM32F103C8 的 SWDIO / SWCLK，并共地；GPIO6 预留 NRST，当前缺线 / 未验收。
 
 当前开发按阶段推进，构建或主机测试通过不代表目标 STM32 已通过实板调试、烧录或性能验收。
 

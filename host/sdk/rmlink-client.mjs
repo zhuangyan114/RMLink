@@ -12,6 +12,7 @@ export class RMLinkClient {
     this.onLost = onLost;
     this.session = null;
     this.timer = null;
+    this.packetSize = 64;
   }
   async request(method, path, body) {
     const response = await fetch(this.base + path, {
@@ -34,6 +35,10 @@ export class RMLinkClient {
     if (this.session) throw new Error('RMLink session already open');
     const result = await this.request('POST', '/sessions', { device_id: deviceId });
     this.session = result.session_id;
+    this.packetSize = result.packet_size ?? 64;
+    if (![64,128,256,512].includes(this.packetSize)) {
+      await this.close(); throw new Error('Invalid negotiated RMLink packet size');
+    }
     const session = this.session;
     this.timer = setInterval(() => {
       this.request('POST', `/sessions/${this.session}/heartbeat`).catch(error => {
@@ -47,7 +52,7 @@ export class RMLinkClient {
   async exchange(packets, priority = 'control') {
     if (!this.session) throw new Error('RMLink owner lost or session closed');
     if (!Array.isArray(packets) || packets.length < 1 || packets.length > 8 ||
-        packets.some(p => p.length < 1 || p.length > 64 || p[0] === 7)) throw new Error('Invalid DAP batch');
+        packets.some(p => p.length < 1 || p.length > this.packetSize || p[0] === 7)) throw new Error('Invalid DAP batch');
     let result;
     const session = this.session;
     try {
@@ -61,7 +66,7 @@ export class RMLinkClient {
       throw error;
     }
     if (!Array.isArray(result.responses) || result.responses.length !== packets.length ||
-        result.responses.some(r => !/^(?:[0-9a-f]{2}){1,64}$/.test(r))) throw new Error('Malformed RMLink response');
+        result.responses.some(r => !new RegExp(`^(?:[0-9a-f]{2}){1,${this.packetSize}}$`).test(r))) throw new Error('Malformed RMLink response');
     return result.responses.map(r => Buffer.from(r, 'hex'));
   }
   async abort() { return this.request('POST', `/sessions/${this.session}/abort`); }

@@ -21,7 +21,7 @@
 // Maximum packet size for the debug probe command and response data.
 // Typical vales are 64 for Full-speed USB HID or WinUSB,
 // 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-// In case of SWD, the value needs to be the same as DAP_PACKET_SIZE in DAP_config.h
+// Native USB logical capacity; the shared SWD core/TCP may allow larger packets.
 #define DEBUG_PROBE_PACKET_SIZE 64
 
 #define DEBUG_PROBE_TASK_PRI        5

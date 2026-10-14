@@ -2,6 +2,7 @@
 import asyncio
 import socket
 import struct
+from rmlink_protocol import packet_size_from_info
 
 
 class TcpTransport:
@@ -9,12 +10,16 @@ class TcpTransport:
         self.host, self.port = host, port
         self.reader = self.writer = None
         self.write_lock = asyncio.Lock()
+        self.packet_size = 64
 
     async def connect(self):
         self.reader, self.writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), 3)
         self.writer.get_extra_info('socket').setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.packet_size = packet_size_from_info((await self.exchange_many([b'\x00\xff']))[0])
 
     async def send(self, packets):
+        if not 1 <= len(packets) <= 8 or any(not 1 <= len(p) <= self.packet_size for p in packets):
+            raise ValueError('TCP DAP batch exceeds negotiated capacity')
         frames = b''.join(struct.pack('<4sHBB', b'DAP\0', len(p), 1, 0) + p for p in packets)
         async with self.write_lock:
             self.writer.write(frames)
@@ -23,7 +28,7 @@ class TcpTransport:
     async def receive(self):
         header = await asyncio.wait_for(self.reader.readexactly(8), 3)
         magic, size, kind, reserved = struct.unpack('<4sHBB', header)
-        if magic != b'DAP\0' or kind != 2 or reserved or not 1 <= size <= 64:
+        if magic != b'DAP\0' or kind != 2 or reserved or not 1 <= size <= self.packet_size:
             raise ConnectionError('Invalid TCP DAP response; transport completion is unknown')
         return await asyncio.wait_for(self.reader.readexactly(size), 3)
 

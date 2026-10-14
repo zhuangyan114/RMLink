@@ -79,7 +79,7 @@ def openocd(args, transport, image, label):
     begin = time.perf_counter()
     done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
     text = done.stdout.decode('utf-8', errors='replace')
-    log = ROOT / 'artifacts' / 'logs' / f'accept-openocd-{label}.log'
+    log = args.output.parent / f'accept-openocd-{label}.log'
     log.write_text(text, encoding='utf-8')
     result = dict(exitCode=done.returncode, elapsedMs=round((time.perf_counter() - begin) * 1000, 2),
                   log=str(log), verified='** Verified OK **' in text,
@@ -207,7 +207,7 @@ def debug_checks(client, image, label, result, without_nrst=False):
             require(client.exchange(bytes([unsupported])) == b'\xff', 'Unsupported response is not DAP_Invalid')
         # No-transfer abort must be silent; subsequent query is the only reply.
         client.abort_transfer()
-        require(client.exchange(b'\x00\xff') == b'\x00\x02\x40\x00', 'Idle abort produced a reply')
+        require(client.exchange(b'\x00\xff') == b'\x00\x02' + client.packet_size.to_bytes(2, 'little'), 'Idle abort produced a reply')
         # Impossible physical DP value-match demonstrates concurrent cancellation.
         s.command(b'\x11' + struct.pack('<I', 100000), b'\x11\x00')
         s.command(b'\x04\x02\x64\x00\xff\xff', b'\x04\x00')
@@ -216,7 +216,7 @@ def debug_checks(client, image, label, result, without_nrst=False):
         begin = time.perf_counter(); client.send(match); time.sleep(.08); client.abort_transfer()
         reply = client.receive(); elapsed = (time.perf_counter() - begin) * 1000
         require(reply == b'\x05\x00\x11' and elapsed < 700, f'Async abort failed: {reply.hex()} {elapsed} ms')
-        require(client.exchange(b'\x00\xff') == b'\x00\x02\x40\x00', 'Abort shifted response ordering')
+        require(client.exchange(b'\x00\xff') == b'\x00\x02' + client.packet_size.to_bytes(2, 'little'), 'Abort shifted response ordering')
         result['asynchronousAbort'] = dict(actualResponse=reply.hex(), elapsedMs=round(elapsed, 2), hostDelayMs=80)
         begin = time.perf_counter(); reply = client.exchange(match); elapsed = (time.perf_counter() - begin) * 1000
         require(reply == b'\x05\x00\x11' and 900 < elapsed < 1800, f'Transfer deadline failed {elapsed} ms')
@@ -248,6 +248,7 @@ def main():
     parser.add_argument('--openocd', type=Path, default=ROOT / 'artifacts/tools/openocd-20260831/openocd-esp32/bin/openocd.exe')
     parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/logs/accept-stm32.json')
     args = parser.parse_args()
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     if not args.allow_target_write: parser.error('Explicit --allow-target-write required; erases/programs target main Flash')
     image_path = ROOT / 'artifacts/build/stm32-fixture/fixture-64k.bin'
     backup_path = ROOT / 'artifacts/hardware/stm32f103c8-before-rmlink.bin'
@@ -260,7 +261,7 @@ def main():
                   resetScope='three-wire SWD, software SYSRESETREQ; physical NRST excluded' if args.without_nrst else 'software and physical NRST')
     modified = False
     try:
-        with UsbClient() as c, SwdSession(c, 2000000) as s:
+        with UsbClient(serial='50787D15A924') as c, SwdSession(c, 2000000) as s:
             require(s.read32(0x1ffff7e0) & 0xffff == 64, 'Expected 64 KiB target')
             report['optionBytesBefore'] = s.read_words(0x1ffff800, 4)
             report['uniqueId'] = s.read_words(0x1ffff7e8, 3)
@@ -270,7 +271,7 @@ def main():
             modified = True  # Set before programming; uncertain failures also require recovery.
             result['openocdProgram'] = openocd(args, backend, image_path, label.lower())
             print(f'{label}: full readback and debug checks', flush=True)
-            with (UsbClient() if label == 'USB' else TcpClient(args.host, 3241)) as c:
+            with (UsbClient(serial='50787D15A924') if label == 'USB' else TcpClient(args.host, 3241)) as c:
                 result['device'] = status(c)
                 debug_checks(c, image, label, result, args.without_nrst)
             print(f'{label}: PASS', flush=True)
@@ -286,7 +287,7 @@ def main():
                 report['restoreOpenocd'] = openocd(args, 'usb_bulk', backup_path, 'restore')
                 report['restoreChecks'] = {}
                 for label in ('USB', 'WiFi'):
-                    with (UsbClient() if label == 'USB' else TcpClient(args.host, 3241)) as c, SwdSession(c, 2000000) as s:
+                    with (UsbClient(serial='50787D15A924') if label == 'USB' else TcpClient(args.host, 3241)) as c, SwdSession(c, 2000000) as s:
                         restored = main_flash(s)
                         require(restored == backup, f'{label}: original Flash restore mismatch')
                         options = s.read_words(0x1ffff800, 4)

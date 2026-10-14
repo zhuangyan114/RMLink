@@ -1,7 +1,9 @@
-param([string]$Port = 'COM13', [switch]$TargetProfile, [switch]$TargetWiringConfirmed)
+param([string]$Port = 'COM13', [switch]$TargetProfile, [switch]$TargetWiringConfirmed,
+      [ValidateSet(64,128,256,512)][int]$TcpPacketSize = 64)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $buildName = if ($TargetProfile) { 'firmware-target' } else { 'firmware' }
+if ($TcpPacketSize -ne 64) { $buildName += "-tcp$TcpPacketSize" }
 $build = Join-Path $root "artifacts\build\$buildName"
 $config = Get-Content -LiteralPath (Join-Path $build 'sdkconfig') -Raw
 if ($config -match '(?m)^CONFIG_RMLINK_TARGET_PINS_CONFIRMED=y' -and -not $TargetWiringConfirmed) {
@@ -17,6 +19,7 @@ if ($flashExit -eq 0) {
         binarySha256 = (Get-FileHash -LiteralPath (Join-Path $build 'rmlink.bin')).Hash
         sdkconfigSha256 = (Get-FileHash -LiteralPath (Join-Path $build 'sdkconfig')).Hash
         targetGpioEnabled = [bool]($config -match '(?m)^CONFIG_RMLINK_TARGET_PINS_CONFIRMED=y')
+        tcpPacketSize = $TcpPacketSize
     }
     $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'artifacts\hardware\rmlink-last-flash.json') -Encoding utf8
 }

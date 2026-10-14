@@ -24,7 +24,8 @@ class FakeTransport:
         for p in packets:
             if self.block and p[0] == 5:
                 self.started.set(); await self.block.wait()
-            if p[:2] == b'\x00\xff': result.append(b'\x00\x02\x40\x00')
+            if p[:2] == b'\x00\xff': result.append(b'\x00\x02' + getattr(self, 'packet_size', 64).to_bytes(2, 'little'))
+            elif p[:2] == b'\x80\x07': result.append(bytes(range(256)) * (getattr(self, 'packet_size', 64)//256))
             elif p[:2] == b'\x00\xfe': result.append(b'\x00\x01\x08')
             elif p == b'\x80\x09': result.append(b'\x80\x09\x00' + bytes.fromhex(ID))
             elif p[0] == 2: result.append(b'\x02\x01')
@@ -109,6 +110,16 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError): await self.broker.submit('a', [b'\x07'])
         self.assertEqual(self.transport.requests, [])
 
+    async def test_trim_only_after_capacity_check_and_keep_write_values(self):
+        self.transport.packet_size = 512
+        packet = b'\x05\x00\x01\x0d' + bytes(4)
+        await self.broker.submit('a', [b'\x02\x01'])
+        await self.broker.submit('a', [packet + bytes(504)])
+        self.assertEqual(self.transport.requests[-1], packet)
+        before = len(self.transport.requests)
+        with self.assertRaises(ValueError): await self.broker.submit('a', [b'\x00\xff' + bytes(511)])
+        self.assertEqual(len(self.transport.requests), before)
+
     async def test_priority_between_batches(self):
         await self.broker.submit('a', [b'\x02\x01'])
         self.transport.block = asyncio.Event()
@@ -138,6 +149,25 @@ class DescriptorDnsTests(unittest.TestCase):
 
 
 class UsbIpTests(unittest.IsolatedAsyncioTestCase):
+    async def test_512_byte_urb_short_response_and_oversized_out(self):
+        self.broker.transport.packet_size = 512
+        r, w = await self.connect()
+        # The endpoint's physical max remains 64; one URB carries a 512-byte DAP.
+        await self.submit(w, 1, 1, 3, 512)
+        await self.submit(w, 2, 0, 3, 512, data=b'\x80\x07' + bytes(510))
+        h, _ = await self.response(r); self.assertEqual((h[1], h[5], h[6]), (2, 0, 512))
+        h, data = await self.response(r, True)
+        self.assertEqual((h[1], h[6]), (1, 512)); self.assertEqual(data, bytes(range(256))*2)
+        await self.submit(w, 3, 1, 3, 512)
+        await self.submit(w, 4, 0, 3, 2, data=b'\x00\xff')
+        await self.response(r)
+        h, data = await self.response(r, True)
+        self.assertEqual((h[1], h[6], data), (3, 4, b'\x00\x02\x00\x02'))
+        before = len(self.broker.transport.requests)
+        await self.submit(w, 5, 0, 3, 513, data=bytes(513))
+        h, _ = await self.response(r); self.assertEqual(h[5], -32)
+        self.assertEqual(len(self.broker.transport.requests), before)
+
     async def asyncSetUp(self):
         self.broker = Broker(FakeTransport(), ID); await self.broker.start()
         self.server = UsbIpServer({ID: self.broker}); self.port = await self.server.start(0)
@@ -203,6 +233,26 @@ class UsbIpTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_full_eight_packet_512_batch_fits_http_body_limit(self):
+        transport = FakeTransport(); transport.packet_size = 512
+        broker = Broker(transport, ID); await broker.start()
+        self.connector.brokers[ID] = broker
+        opened = await self.connector.route('POST', '/v1/sessions', {'device_id': ID})
+        self.assertEqual(opened['packet_size'], 512)
+        body = json.dumps({'packets': [(b'\x00\xff' + bytes(510)).hex()]*8}).encode()
+        self.assertGreater(len(body), 8192)
+        r, w = await asyncio.open_connection('127.0.0.1', self.port)
+        headers = (f"POST /v1/sessions/{opened['session_id']}/dap HTTP/1.1\r\nHost: localhost\r\n"
+                   f"Authorization: Bearer {self.connector.state.data['token']}\r\nContent-Length: {len(body)}\r\n\r\n").encode()
+        w.write(headers + body); await w.drain()
+        reply = await r.read(); w.close(); await w.wait_closed()
+        self.assertIn(b'HTTP/1.1 200', reply)
+        self.assertEqual(json.loads(reply.split(b'\r\n\r\n', 1)[1])['responses'], ['00020002']*8)
+        before = len(transport.requests)
+        with self.assertRaises(ValueError):
+            await self.connector.route('POST', f"/v1/sessions/{opened['session_id']}/dap", {'packets': ['00'*513]})
+        self.assertEqual(len(transport.requests), before)
+
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.connector = Connector(State(self.temp.name))

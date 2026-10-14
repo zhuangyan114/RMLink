@@ -17,6 +17,7 @@ class SwdSession:
     def __init__(self, client, clock=100000):
         self.client = client
         self.clock = clock
+        self.packet_size = getattr(client, 'packet_size', 64)
         self.connected = False
 
     def command(self, request, expected):
@@ -33,8 +34,8 @@ class SwdSession:
                 reads += 1
             else:
                 request.extend(struct.pack('<I', value))
-        if len(request) > 64 or 3 + 4 * reads > 64:
-            raise ValueError('Transfer exceeds 64-byte DAP packet')
+        if len(request) > self.packet_size or 3 + 4 * reads > self.packet_size:
+            raise ValueError('Transfer exceeds negotiated DAP packet')
         reply = self.client.exchange(request)
         if len(reply) < 3 or reply[0] != 5 or reply[1] != len(operations) or reply[2] != 1:
             raise RuntimeError(f'SWD transfer failed: {reply.hex()} (ACK 1=OK, 2=WAIT, 4=FAULT, 7=NO_ACK, 8=protocol error)')
@@ -97,12 +98,18 @@ class SwdSession:
         def request(offset, size):
             return bytes([6, 0]) + struct.pack('<H', size) + b'\x0d' + struct.pack(
                 '<' + 'I' * size, *words[offset:offset + size])
-        for requests, sizes in self._memory_batches(address, len(words), 14, pipelined, request):
+        def addressed(position, offset, size):
+            return bytes([5, 0, size + 1, 5]) + struct.pack('<I', position) + b''.join(
+                b'\x0d' + struct.pack('<I', v) for v in words[offset:offset + size])
+        batches = (self._addressed_batches(address, len(words), (self.packet_size - 8)//5, addressed) if pipelined
+                   else self._memory_batches(address, len(words), (self.packet_size - 5)//4, request))
+        for requests, sizes in batches:
             replies = self.client.exchange_many(requests) if pipelined else [self.client.exchange(r) for r in requests]
             if len(replies) != len(requests):
                 raise RuntimeError('SWD write batch returned an unexpected response count')
             for size, reply in zip(sizes, replies):
-                expected = b'\x05\x01\x01' if size is None else bytes([6, size, 0, 1])
+                expected = (b'\x05\x01\x01' if size is None else
+                            bytes([5, size + 1, 1]) if pipelined else bytes([6, size, 0, 1]))
                 if reply != expected:
                     raise RuntimeError(f'SWD block write failed: {reply.hex()}')
 
@@ -112,7 +119,11 @@ class SwdSession:
         words = []
         def request(offset, size):
             return bytes([6, 0]) + struct.pack('<H', size) + b'\x0f'
-        for requests, sizes in self._memory_batches(address, count, 15, pipelined, request):
+        def addressed(position, offset, size):
+            return bytes([5, 0, size + 1, 5]) + struct.pack('<I', position) + b'\x0f' * size
+        batches = (self._addressed_batches(address, count, (self.packet_size - 3)//4, addressed) if pipelined
+                   else self._memory_batches(address, count, (self.packet_size - 4)//4, request))
+        for requests, sizes in batches:
             if pipelined:
                 replies = self.client.exchange_many(requests)
             else:
@@ -124,17 +135,34 @@ class SwdSession:
                     if reply != b'\x05\x01\x01':
                         raise RuntimeError(f'SWD TAR setup failed: {reply.hex()}')
                     continue
-                if len(reply) != 4 + size * 4 or reply[:4] != bytes([6, size, 0, 1]):
+                prefix = bytes([5, size + 1, 1]) if pipelined else bytes([6, size, 0, 1])
+                if len(reply) != len(prefix) + size * 4 or reply[:len(prefix)] != prefix:
                     raise RuntimeError(f'SWD TransferBlock failed: {reply.hex()}')
-                words.extend(struct.unpack('<' + 'I' * size, reply[4:]))
+                words.extend(struct.unpack('<' + 'I' * size, reply[len(prefix):]))
         return words
 
     @staticmethod
-    def _memory_batches(address, count, block_words, pipelined, block_request):
+    def _addressed_batches(address, count, block_words, request):
+        # Queued packets must not assume an earlier packet completed in full.
+        # TAR and data in one DAP_Transfer keep every packet independently addressed.
+        offset = 0
+        while offset < count:
+            requests, sizes = [], []
+            while offset < count and len(requests) < 8:
+                size = min(count - offset, block_words, (0x400 - (address & 0x3ff)) // 4)
+                requests.append(request(address, offset, size))
+                sizes.append(size)
+                offset += size
+                address += size * 4
+            yield requests, sizes
+
+    @staticmethod
+    def _memory_batches(address, count, block_words, block_request):
         # Only this call owns the planned TAR state. Reinitialize each new call;
         # the MEM-AP wraps its lower 10 bits at a Cortex-M3 1 KiB boundary.
         offset, tar_needed = 0, True
-        limit = 8 if pipelined else 1
+        # Sequential completion is checked before planning the next packet.
+        limit = 1
         while offset < count:
             requests, sizes = [], []
             while offset < count and len(requests) < limit:

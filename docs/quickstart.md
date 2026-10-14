@@ -1,6 +1,6 @@
 # 构建、连接与接线
 
-更新：2026-10-13。用户已接 STM32F103C8T8，已烧入 target profile、启用 GPIO4 / 5 / 6；热点参数已保存。USB / TCP 目标只读访问通过，目标暂停、复位、RAM 写入及 Flash 烧录尚待验证。
+更新：2026-10-14。当前 target profile 固件 0.1.6，GPIO4 / 5 / 6 已配置；热点参数已保存。STM32F103 三线 SWD 烧录 / 校验、RAM、暂停 / 继续和调试通过；GPIO6 尚未接目标 NRST，复位使用 SYSRESETREQ。TCP / 虚拟 USB 可扩至 512，原生 USB 保留 64。
 
 ## 两个 USB 口
 
@@ -33,6 +33,16 @@ PowerShell：
 & 'D:\STM32\RMLink\scripts\Build-Firmware.ps1' -TargetProfile
 & 'D:\STM32\RMLink\scripts\Flash-Firmware.ps1' -Port COM13 -TargetProfile -TargetWiringConfirmed
 ```
+
+当前 512 字节无线扩容版本使用独立目录；原生 USB 仍为 64。默认不传参数时构建 64 字节 TCP 回退档：
+
+```powershell
+& 'D:\STM32\RMLink\scripts\Build-Firmware.ps1' -TargetProfile -TcpPacketSize 512
+& 'D:\STM32\RMLink\scripts\Flash-Firmware.ps1' -Port COM13 -TargetProfile -TargetWiringConfirmed -TcpPacketSize 512
+& 'D:\STM32\RMLink\scripts\Test-Core.ps1' -PacketSize 512
+```
+
+128 / 256 / 512 产物分别位于 artifacts/build/firmware-target-tcp128 / tcp256 / tcp512。连接服务无需按档修改配置，会查询设备容量。直接 TCP 工具只在连接服务释放其唯一 TCP 连接后使用；正常调试软件使用连接服务挂载的虚拟 CMSIS-DAP。结果见 [提速验收](performance-results.md)。
 
 以后运行不带 -TargetProfile 的刷写入口会切回目标 GPIO 关闭版本；profile 选择需与验证目的一致。
 

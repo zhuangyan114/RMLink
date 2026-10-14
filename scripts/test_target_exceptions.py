@@ -65,7 +65,8 @@ def main():
                                                         usbReclaimed=True)
             s.connected = False  # Closed transport; never send to an uncertain old socket.
         bad = []
-        for magic, length, kind, reserved in ((b'BAD\0', 2, 1, 0), (b'DAP\0', 65, 1, 0),
+        with TcpClient(HOST, 3241) as probe: maximum = probe.packet_size
+        for magic, length, kind, reserved in ((b'BAD\0', 2, 1, 0), (b'DAP\0', maximum + 1, 1, 0),
                                             (b'DAP\0', 0, 1, 0), (b'DAP\0', 2, 2, 0),
                                             (b'DAP\0', 2, 1, 1)):
             with TcpClient(HOST, 3241) as c:
@@ -86,7 +87,7 @@ def main():
         for label in ('USB', 'WiFi'):
             with (UsbClient() if label == 'USB' else TcpClient(HOST, 3241)) as c:
                 for _ in range(20):
-                    assert c.exchange_many([b'\x00\xff', b'\x00\xfe'] * 4) == [b'\x00\x02\x40\x00', b'\x00\x01\x08'] * 4
+                    assert c.exchange_many([b'\x00\xff', b'\x00\xfe'] * 4) == [b'\x00\x02' + c.packet_size.to_bytes(2, 'little'), b'\x00\x01\x08'] * 4
                 assert not status(c)['ownerTransport']
         report['pipelineResponsesCheckedPerTransport'] = 160
         report['complete'] = True

@@ -29,20 +29,20 @@ class TcpClientTests(unittest.TestCase):
 
     def test_fragmented_and_repeated(self):
         port, thread, errors = self.peer(b'DAP\0\x04\x00\x02\x00\x00\x02\x40\x00', 2)
-        with TcpClient('127.0.0.1', port) as client:
+        with TcpClient('127.0.0.1', port, negotiate=False) as client:
             for _ in range(2): self.assertEqual(client.exchange(b'\x00\xff'), b'\x00\x02\x40\x00')
         thread.join(timeout=3)
         self.assertFalse(thread.is_alive()); self.assertEqual(errors, [])
 
     def test_invalid_oversize_response(self):
         port, thread, errors = self.peer(b'DAP\0\x41\x00\x02\x00')
-        with TcpClient('127.0.0.1', port) as client:
+        with TcpClient('127.0.0.1', port, negotiate=False) as client:
             with self.assertRaises(ValueError): client.exchange(b'\x00\xff')
         thread.join(timeout=3); self.assertEqual(errors, [])
 
     def test_disconnect_in_header(self):
         port, thread, errors = self.peer(b'DAP\0')
-        with TcpClient('127.0.0.1', port) as client:
+        with TcpClient('127.0.0.1', port, negotiate=False) as client:
             with self.assertRaises(ConnectionError): client.exchange(b'\x00\xff')
         thread.join(timeout=3); self.assertEqual(errors, [])
 
@@ -52,7 +52,7 @@ class TcpClientTests(unittest.TestCase):
 
     def test_pipeline_fragmented_responses(self):
         port, thread, errors = self.peer(b'DAP\0\x04\x00\x02\x00\x00\x02\x40\x00', 2)
-        with TcpClient('127.0.0.1', port) as client:
+        with TcpClient('127.0.0.1', port, negotiate=False) as client:
             self.assertEqual(client.exchange_many([b'\x00\xff', b'\x00\xff']), [b'\x00\x02\x40\x00'] * 2)
         thread.join(timeout=3)
         self.assertFalse(thread.is_alive()); self.assertEqual(errors, [])

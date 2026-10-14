@@ -26,7 +26,9 @@ class ApiClient:
             return json.load(reply)
 
     def open(self, device_id):
-        self.session = self.request('POST', '/v1/sessions', {'device_id': device_id})['session_id']
+        result = self.request('POST', '/v1/sessions', {'device_id': device_id})
+        self.session = result['session_id']
+        self.packet_size = result.get('packet_size', 64)
         return self
 
     def exchange(self, request): return self.exchange_many([request])[0]

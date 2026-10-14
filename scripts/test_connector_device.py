@@ -10,19 +10,26 @@ from pathlib import Path
 import socket
 import struct
 import time
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'host'))
 
 from rmlink_connector.client import ApiClient
 from rmlink_connector.usbip import OP, URB
 from rmlink_swd import SwdSession
+from rmlink_protocol import packet_size_from_info
 
 
 class WireUsbClient:
     def __init__(self, device_id, port=3240):
+        self.packet_size = 64
         self.sock = socket.create_connection(('127.0.0.1', port), timeout=5)
         self.sock.sendall(OP.pack(0x111, 0x8003, 0) + ('rmlink-' + device_id).encode().ljust(32, b'\0'))
         if self.read(8) != OP.pack(0x111, 3, 0): raise ConnectionError('USB/IP import denied')
         self.read(312)
         self.seq, self.pending, self.ins, self.responses = 0, {}, [], {}
+        self.packet_size = packet_size_from_info(self.exchange(b'\x00\xff'))
     def read(self, count):
         result = bytearray()
         while len(result) < count:
@@ -34,10 +41,12 @@ class WireUsbClient:
         self.seq += 1; seq = self.seq
         self.pending[seq] = direction
         if direction: self.ins.append(seq)
-        size = 64
+        size = self.packet_size
         self.sock.sendall(URB.pack(1, seq, 0x10001, direction, 3, 0, size, 0, 0, 0, bytes(8)) +
-                          (data.ljust(64, b'\0') if not direction else b''))
+                          (data.ljust(size, b'\0') if not direction else b''))
     def exchange_many(self, requests):
+        if not 1 <= len(requests) <= 8 or any(not 1 <= len(p) <= self.packet_size for p in requests):
+            raise ValueError('Invalid negotiated DAP batch')
         for request in requests: self.submit(0, request); self.submit(1)
         return [self.receive() for _ in requests]
     def exchange(self, request): return self.exchange_many([request])[0]
@@ -47,7 +56,7 @@ class WireUsbClient:
             h = URB.unpack(self.read(48))
             if h[0] != 3 or h[1] not in self.pending: raise ValueError('Unexpected URB response')
             direction = self.pending.pop(h[1])
-            if h[5] or not 0 <= h[6] <= 64: raise ConnectionError(f'URB status {h[5]}')
+            if h[5] or not 0 <= h[6] <= self.packet_size: raise ConnectionError(f'URB status {h[5]}')
             if direction: self.responses[h[1]] = self.read(h[6])
         self.ins.pop(0); return self.responses.pop(wanted)
     def abort_transfer(self): self.submit(0, b'\x07')
@@ -91,7 +100,7 @@ def main():
                 if other.exchange(b'\x03') != b'\x03\xff': raise AssertionError('Foreign disconnect accepted')
             finally: other.close()
             for _ in range(25):
-                if virtual.exchange_many([b'\x00\xff', b'\x00\xfe'] * 4) != [b'\x00\x02\x40\x00', b'\x00\x01\x08'] * 4:
+                if virtual.exchange_many([b'\x00\xff', b'\x00\xfe'] * 4) != [b'\x00\x02' + virtual.packet_size.to_bytes(2, 'little'), b'\x00\x01\x08'] * 4:
                     raise AssertionError('Virtual USB pipeline ordering/content')
             report['virtualExcludesApi'] = True
             report['pipelineResponsesChecked'] = 200

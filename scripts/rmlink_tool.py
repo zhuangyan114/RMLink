@@ -5,12 +5,21 @@ import json
 import socket
 import struct
 import time
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
+from rmlink_protocol import packet_size_from_info
 
 
 class TcpClient:
-    def __init__(self, host, port):
+    def __init__(self, host, port, *, negotiate=True):
+        self.packet_size = 64
         self.sock = socket.create_connection((host, port), timeout=3)
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if negotiate:
+            try: self.packet_size = packet_size_from_info(self.exchange(b'\x00\xff'))
+            except BaseException:
+                self.close(); raise
     def read(self, count):
         data = bytearray()
         while len(data) < count:
@@ -24,15 +33,15 @@ class TcpClient:
         return self.exchange_many([request])[0]
     def send(self, request):
         request = bytes(request)
-        if not 0 < len(request) <= 64: raise ValueError('DAP packet must be 1..64 bytes')
+        if not 0 < len(request) <= getattr(self, 'packet_size', 64): raise ValueError('DAP packet exceeds negotiated capacity')
         self.sock.sendall(struct.pack('<4sHBB', b'DAP\0', len(request), 1, 0) + request)
     def receive(self): return self._response()
     def abort_transfer(self): self.send(b'\x07')
     def exchange_many(self, requests):
         requests = [bytes(request) for request in requests]
         if not 1 <= len(requests) <= 8: raise ValueError('DAP pipeline must contain 1..8 packets')
-        if any(not 0 < len(request) <= 64 for request in requests):
-            raise ValueError('DAP packet must be 1..64 bytes')
+        if any(not 0 < len(request) <= getattr(self, 'packet_size', 64) for request in requests):
+            raise ValueError('DAP packet exceeds negotiated capacity')
         if any(request[0] == 7 for request in requests):
             raise ValueError('TransferAbort has no response; use abort_transfer()')
         # Validate the whole batch before sending; never replay after an uncertain failure.
@@ -41,7 +50,7 @@ class TcpClient:
         return [self._response() for _ in requests]
     def _response(self):
         magic, size, kind, reserved = struct.unpack('<4sHBB', self.read(8))
-        if magic != b'DAP\0' or kind != 2 or reserved or not 0 < size <= 64:
+        if magic != b'DAP\0' or kind != 2 or reserved or not 0 < size <= getattr(self, 'packet_size', 64):
             raise ValueError('Malformed CMSIS-DAP TCP response')
         return self.read(size)
     def close(self): self.sock.close()
@@ -59,7 +68,7 @@ def status(client):
 
 def verify(client):
     result = status(client)
-    expected = {0xff: b'\x00\x02\x40\x00', 0xfe: b'\x00\x01\x08'}
+    expected = {0xff: b'\x00\x02' + client.packet_size.to_bytes(2, 'little'), 0xfe: b'\x00\x01\x08'}
     for key, value in expected.items():
         actual = client.exchange(bytes([0, key]))
         if actual != value: raise AssertionError(f'DAP_Info {key:#x}: {actual.hex()}')
