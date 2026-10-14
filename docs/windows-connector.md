@@ -1,5 +1,7 @@
 # RMLink Windows 连接组件
 
+最新提速检查点：2026-10-14，服务 0.1.2、固件 0.1.5。29 项主机测试、WinUSB 取消、pyOCD、完整 OpenOCD 烧录 / 调试 / 原 Flash 恢复、会话互斥、重连及 SDK 回归通过。主机连续访问已减少地址配置；RMLINK_USBIP_BATCH_US 为 0..2000 us 的候选聚合开关，默认 0，收益仍需继续分离验证。数据与限制见 [提速计划](performance-plan.md)。下面保留服务 0.1.1 驱动修复验收的独立记录。
+
 2026-10-14，连接服务原型 0.1.1，配套固件 0.1.5。修补 UDE 已实际加载，虚拟 Bulk 空读取消、pyOCD 0.45.1 读目标 / 暂停 / 继续运行、OpenOCD 经 Wi-Fi 的 STM32 三线烧录 / 调试、真实 API 互斥与 STA 断连重连均通过。当前使用本地测试签名驱动，Secure Boot 关闭、TESTSIGNING 生效、内存完整性开启；正式微软签名与其他软件兼容性待办，暂不作为通用兼容发布版。完整证据见 [取消修复与实机验收](virtual-usb-cancellation.md)。
 
 ## 实现路径

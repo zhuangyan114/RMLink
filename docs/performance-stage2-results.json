@@ -1,0 +1,146 @@
+{
+  "recordedAt": "2026-10-14T19:14:18.575040+08:00",
+  "firmwareVersion": "0.1.5",
+  "connectorVersion": "0.1.2",
+  "logicalPacketSize": 64,
+  "memoryAccess": [
+    {
+      "transport": "USB",
+      "bytes": 4096,
+      "repetitions": 5,
+      "mode": "pipeline",
+      "oldKiBPerSecond": 34.7,
+      "newKiBPerSecond": 40.91,
+      "speedup": 1.179,
+      "oldPackets": 144,
+      "newPackets": 76,
+      "oldMedianMs": 115.273,
+      "newMedianMs": 97.776
+    },
+    {
+      "transport": "USB",
+      "bytes": 4096,
+      "repetitions": 5,
+      "mode": "sequential",
+      "oldKiBPerSecond": 30.893,
+      "newKiBPerSecond": 37.746,
+      "speedup": 1.222,
+      "oldPackets": 144,
+      "newPackets": 76,
+      "oldMedianMs": 129.48,
+      "newMedianMs": 105.972
+    },
+    {
+      "transport": "VirtualUSB",
+      "bytes": 4096,
+      "repetitions": 5,
+      "mode": "pipeline",
+      "oldKiBPerSecond": 7.252,
+      "newKiBPerSecond": 9.959,
+      "speedup": 1.373,
+      "oldPackets": 144,
+      "newPackets": 76,
+      "oldMedianMs": 551.577,
+      "newMedianMs": 401.657
+    },
+    {
+      "transport": "VirtualUSB",
+      "bytes": 4096,
+      "repetitions": 5,
+      "mode": "sequential",
+      "oldKiBPerSecond": 2.395,
+      "newKiBPerSecond": 4.458,
+      "speedup": 1.861,
+      "oldPackets": 144,
+      "newPackets": 76,
+      "oldMedianMs": 1670.279,
+      "newMedianMs": 897.183
+    },
+    {
+      "transport": "TCP",
+      "bytes": 4096,
+      "repetitions": 5,
+      "mode": "pipeline",
+      "oldKiBPerSecond": 9.32,
+      "newKiBPerSecond": 12.556,
+      "speedup": 1.347,
+      "oldPackets": 144,
+      "newPackets": 76,
+      "oldMedianMs": 429.193,
+      "newMedianMs": 318.584
+    },
+    {
+      "transport": "TCP",
+      "bytes": 4096,
+      "repetitions": 5,
+      "mode": "sequential",
+      "oldKiBPerSecond": 2.778,
+      "newKiBPerSecond": 4.297,
+      "speedup": 1.547,
+      "oldPackets": 144,
+      "newPackets": 76,
+      "oldMedianMs": 1440.05,
+      "newMedianMs": 930.846
+    },
+    {
+      "transport": "TCP",
+      "bytes": 65536,
+      "repetitions": 3,
+      "mode": "pipeline",
+      "oldKiBPerSecond": 9.599,
+      "newKiBPerSecond": 13.862,
+      "speedup": 1.444,
+      "oldPackets": 2304,
+      "newPackets": 1216,
+      "oldMedianMs": 6667.066,
+      "newMedianMs": 4616.987
+    },
+    {
+      "transport": "VirtualUSB",
+      "bytes": 65536,
+      "repetitions": 3,
+      "mode": "pipeline",
+      "oldKiBPerSecond": 7.781,
+      "newKiBPerSecond": 12.054,
+      "speedup": 1.549,
+      "oldPackets": 2304,
+      "newPackets": 1216,
+      "oldMedianMs": 8225.439,
+      "newMedianMs": 5309.641
+    }
+  ],
+  "aggregationDefaultUs": 0,
+  "aggregationExperimentalRangeUs": [
+    0,
+    2000
+  ],
+  "aggregationDecision": "Opt-in only: first 1ms/0ms comparisons differ between short and long blocks; benefit not isolated from Wi-Fi variation",
+  "hostTests": {
+    "passed": 29,
+    "failed": 0
+  },
+  "acceptance": {
+    "complete": true,
+    "programVerifyMs": 13222.01,
+    "independentFullReadbackMs": 5829.91,
+    "originalFlashRestored": true,
+    "sha256": "75bcca6e52d436f377542beb94629ef101d153e214ef085b6af7893d40b347ff",
+    "optionBytesUnchanged": true,
+    "coreHalted": false,
+    "physicalNrstTested": false
+  },
+  "evidenceFiles": [
+    "artifacts/logs/speed-stage2-20261014/usb-4k.json",
+    "artifacts/logs/speed-stage2-20261014/virtual-4k.json",
+    "artifacts/logs/speed-stage2-20261014/tcp-4k.json",
+    "artifacts/logs/speed-stage2-20261014/tcp-64k.json",
+    "artifacts/logs/speed-stage2-20261014/virtual-64k.json",
+    "artifacts/logs/speed-regression-20261014/accept-virtual-usb.json",
+    "artifacts/logs/speed-regression-20261014/idle-virtual.json",
+    "artifacts/logs/speed-regression-20261014/pyocd-virtual.json",
+    "artifacts/logs/speed-regression-20261014/preconnect.json",
+    "artifacts/logs/speed-regression-20261014/reconnect.json",
+    "artifacts/logs/speed-regression-20261014/sdk.json"
+  ],
+  "scope": "Host memory access and opt-in virtual USB aggregation; no ESP32 firmware change or new Orbit backend yet"
+}

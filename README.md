@@ -30,6 +30,7 @@
 - [Windows 连接组件使用与验收](docs/windows-connector.md)
 - [虚拟 USB 取消问题与测试驱动](docs/virtual-usb-cancellation.md)
 - [ESP32 / 电脑传输速率与延迟](docs/transport-benchmark.md)
+- [完整提速计划与阶段验收](docs/performance-plan.md)
 
 当前硬件：普通双 USB-C ESP32-S3 开发板；COM13 为 CH343 下载/日志口。
 已通过芯片工具读取确认 16 MB Flash、8 MB 内置 PSRAM；用户已按 GPIO4 / 5 / 6 接上 STM32F103C8 的 SWDIO / SWCLK 与 GND；GPIO6 预留 NRST，当前缺线 / 未验收。

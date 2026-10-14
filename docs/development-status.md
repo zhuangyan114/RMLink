@@ -1,6 +1,8 @@
 # 开发与验证进度
 
-更新日期：2026-10-14。当前固件 0.1.5，连接服务 0.1.1。USB / TCP 三线 SWD 的既有验收保持为独立记录；Windows 虚拟 USB 经 Wi-Fi 的 64 KiB 烧录、回读、调试与异常恢复验收已通过，原 Flash 已恢复。NRST 缺线，直接 OpenOCD TCP 仍有旧版主机限制；虚拟 Bulk 路径的 OpenOCD 日志无 Error，详见 [实板验收](stm32-acceptance.md) 与 [Windows 组件](windows-connector.md)。
+更新日期：2026-10-14。当前固件 0.1.5，连接服务 0.1.2。USB / TCP 三线 SWD 的既有验收保持为独立记录；Windows 虚拟 USB 经 Wi-Fi 的 64 KiB 烧录、回读、调试与异常恢复验收已通过，原 Flash 已恢复。NRST 缺线，直接 OpenOCD TCP 仍有旧版主机限制；虚拟 Bulk 路径的 OpenOCD 日志无 Error，详见 [实板验收](stm32-acceptance.md) 与 [Windows 组件](windows-connector.md)。
+
+提速阶段的第一个检查点：连续读写只在起始地址及 1 KiB 边界重设 TAR，64 KiB 回读命令数 2304 → 1216。相同会话交替旧 / 新算法，USB 4 KiB 流水线 34.70 → 40.91 KiB/s、TCP 9.32 → 12.56 KiB/s、虚拟 USB 7.25 → 9.96 KiB/s；全 Flash 虚拟回读中位 8.23 → 5.31 秒。29 项主机测试及新服务的完整 OpenOCD / pyOCD / 取消 / 互斥 / 重连回归通过，原 Flash 恢复一致。虚拟聚合窗口作为 0..2000 us 实验开关，默认关闭；完整计划、统计口径及下一阶段见 [提速计划](performance-plan.md)。本阶段尚未改变 OpenOCD 自身烧录策略。
 
 本轮新增：修复 pyOCD 在 Connect 前设置时钟的兼容性，固件 / 服务均从有效时钟配置开始保留整段会话；无效配置不占用目标，其他客户端不能抢占。本地测试签名的 UDE 取消长度修补已加载，虚拟 USB 的空读超时、零字节计数、缓冲不变及后续正常查询均通过，pyOCD 0.45.1 经虚拟无线探针完成目标识别、暂停、读 PC 和继续运行。OpenOCD 在固件 0.1.5 / 服务 0.1.1 / 修补驱动组合下完成 64 KiB 烧录与三线调试回归，原 Flash 恢复并独立回读一致；API / 虚拟 USB 互斥、STA 断连自动恢复及重挂载后的 pyOCD 再连接均通过，见 [驱动取消问题](virtual-usb-cancellation.md)。
 

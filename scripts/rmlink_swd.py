@@ -94,50 +94,63 @@ class SwdSession:
         if address & 3:
             raise ValueError('32-bit memory address must be aligned')
         words = list(words)
-        offset = 0
-        while offset < len(words):
-            requests, sizes = [], []
-            for _ in range(4 if pipelined else 1):
-                if offset == len(words): break
-                size = min(len(words) - offset, 14, (0x400 - (address & 0x3ff)) // 4)
-                requests.append(b'\x05\x00\x01\x05' + struct.pack('<I', address))
-                requests.append(bytes([6, 0]) + struct.pack('<H', size) + b'\x0d' +
-                                struct.pack('<' + 'I' * size, *words[offset:offset + size]))
-                sizes.append(size)
-                address += size * 4; offset += size
+        def request(offset, size):
+            return bytes([6, 0]) + struct.pack('<H', size) + b'\x0d' + struct.pack(
+                '<' + 'I' * size, *words[offset:offset + size])
+        for requests, sizes in self._memory_batches(address, len(words), 14, pipelined, request):
             replies = self.client.exchange_many(requests) if pipelined else [self.client.exchange(r) for r in requests]
-            for index, size in enumerate(sizes):
-                if replies[2 * index] != b'\x05\x01\x01' or replies[2 * index + 1] != bytes([6, size, 0, 1]):
-                    raise RuntimeError(f'SWD block write failed: {[r.hex() for r in replies]}')
+            if len(replies) != len(requests):
+                raise RuntimeError('SWD write batch returned an unexpected response count')
+            for size, reply in zip(sizes, replies):
+                expected = b'\x05\x01\x01' if size is None else bytes([6, size, 0, 1])
+                if reply != expected:
+                    raise RuntimeError(f'SWD block write failed: {reply.hex()}')
 
     def read_words(self, address, count, pipelined=False):
         if address & 3 or count < 0:
             raise ValueError('Invalid memory read')
         words = []
-        while count:
-            requests, sizes = [], []
-            for _ in range(4 if pipelined else 1):
-                if not count:
-                    break
-                # MEM-AP auto-increment wraps at a 1 KiB boundary on Cortex-M3.
-                size = min(count, 15, (0x400 - (address & 0x3ff)) // 4)
-                requests.append(b'\x05\x00\x01\x05' + struct.pack('<I', address))
-                requests.append(bytes([6, 0]) + struct.pack('<H', size) + b'\x0f')
-                sizes.append(size)
-                count -= size
-                address += size * 4
+        def request(offset, size):
+            return bytes([6, 0]) + struct.pack('<H', size) + b'\x0f'
+        for requests, sizes in self._memory_batches(address, count, 15, pipelined, request):
             if pipelined:
                 replies = self.client.exchange_many(requests)
             else:
                 replies = [self.client.exchange(request) for request in requests]
-            for index, size in enumerate(sizes):
-                write_reply, reply = replies[2 * index:2 * index + 2]
-                if write_reply != b'\x05\x01\x01':
-                    raise RuntimeError(f'SWD TAR setup failed: {write_reply.hex()}')
+            if len(replies) != len(requests):
+                raise RuntimeError('SWD read batch returned an unexpected response count')
+            for size, reply in zip(sizes, replies):
+                if size is None:
+                    if reply != b'\x05\x01\x01':
+                        raise RuntimeError(f'SWD TAR setup failed: {reply.hex()}')
+                    continue
                 if len(reply) != 4 + size * 4 or reply[:4] != bytes([6, size, 0, 1]):
                     raise RuntimeError(f'SWD TransferBlock failed: {reply.hex()}')
                 words.extend(struct.unpack('<' + 'I' * size, reply[4:]))
         return words
+
+    @staticmethod
+    def _memory_batches(address, count, block_words, pipelined, block_request):
+        # Only this call owns the planned TAR state. Reinitialize each new call;
+        # the MEM-AP wraps its lower 10 bits at a Cortex-M3 1 KiB boundary.
+        offset, tar_needed = 0, True
+        limit = 8 if pipelined else 1
+        while offset < count:
+            requests, sizes = [], []
+            while offset < count and len(requests) < limit:
+                if tar_needed:
+                    requests.append(b'\x05\x00\x01\x05' + struct.pack('<I', address))
+                    sizes.append(None)
+                    tar_needed = False
+                    if len(requests) == limit:
+                        break
+                size = min(count - offset, block_words, (0x400 - (address & 0x3ff)) // 4)
+                requests.append(block_request(offset, size))
+                sizes.append(size)
+                address += size * 4
+                offset += size
+                tar_needed = not (address & 0x3ff)
+            yield requests, sizes
 
     def close(self):
         if self.connected:

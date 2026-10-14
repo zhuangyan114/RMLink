@@ -26,7 +26,7 @@ def device_record(device_id):
 
 
 class ImportSession:
-    def __init__(self, reader, writer, broker):
+    def __init__(self, reader, writer, broker, *, coalesce_us=None):
         self.reader, self.writer, self.broker = reader, writer, broker
         self.source = 'usbip-' + uuid.uuid4().hex
         self.descriptors = Descriptors(broker.device_id)
@@ -37,6 +37,12 @@ class ImportSession:
         self.out_sequences = set()
         self.outstanding_dap = 0
         self.commands = asyncio.Queue(maxsize=8)
+        if coalesce_us is None:
+            coalesce_us = int(os.environ.get('RMLINK_USBIP_BATCH_US', '0'))
+        if not 0 <= coalesce_us <= 2000:
+            raise ValueError('RMLINK_USBIP_BATCH_US must be between 0 and 2000')
+        self.coalesce_seconds = coalesce_us / 1000000
+        self.flush_requested = asyncio.Event()
         self.sender = None
         self.done = False
 
@@ -65,8 +71,23 @@ class ImportSession:
             await self.send_submit(seq, 1, 3, 0, response)
 
     async def pump(self):
-        while True:
+        while not self.done:
             request = await self.commands.get()
+            self.flush_requested.clear()
+            # A synchronous host can submit its next OUT only after the ACK.
+            # Aggregate a TAR setup or multiword block until IN demand or a
+            # full window. Single-word/control transfers and Abort bypass it.
+            bulk_memory = (request[:4] == b'\x05\x00\x01\x05'
+                           or (request[0] == 6 and len(request) >= 5
+                               and int.from_bytes(request[2:4], 'little') > 1))
+            if (self.coalesce_seconds and bulk_memory
+                    and not self.in_urbs and self.commands.qsize() < 7):
+                try:
+                    await asyncio.wait_for(self.flush_requested.wait(), self.coalesce_seconds)
+                except asyncio.TimeoutError:
+                    pass  # Accepted OUT must also execute if no IN follows.
+            if self.done:
+                return
             group = [request]
             # Preserve FIFO order, and batch packets already received by the RX loop.
             while len(group) < 8 and not self.commands.empty(): group.append(self.commands.get_nowait())
@@ -119,6 +140,8 @@ class ImportSession:
                     if self.outstanding_dap >= 8: raise ValueError('Host exceeded advertised DAP packet count')
                     self.outstanding_dap += 1
                     self.commands.put_nowait(data)
+                    if self.commands.qsize() >= 7:
+                        self.flush_requested.set()
                     # ACK means accepted USB data, not successful target execution.
                     await self.send_submit(seq, 0, ep, 0, actual=length)
                 else:
@@ -128,6 +151,7 @@ class ImportSession:
                         raise ValueError(f'Bulk IN length={length}, pending={len(self.in_urbs)}, seq={seq}')
                     self.in_sequences.add(seq)
                     self.in_urbs.append((seq, length))
+                    self.flush_requested.set()
                     await self.drain_in()
         finally:
             self.done = True
