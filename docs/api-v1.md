@@ -84,12 +84,20 @@ timestamp表示探针单调时基，duration是采集跨度，变量不是原子
 
 `POST .../flash`：action=begin/chunk/commit/cancel；`GET .../flash` 查询进度。当前仅支持 F103C8 主 Flash 的完整1 KiB页镜像，不支持选项字节、部分页保留或通用 ELF 上传。
 
-1. begin：address、byte_length（最多64 KiB、均按1 KiB页对齐）、sha256。
+1. begin：address、byte_length（最多64 KiB、均按1 KiB页对齐）、sha256、backend=auto/host/probe、verify_on_host（默认false）。
 2. chunk：offset、data hex，每片最多4096 B。重叠内容不一致拒绝。
-3. commit：先检查覆盖/哈希、芯片容量，再停止订阅、加载RAM算法、逐页擦除/编程/校验、主机独立回读哈希、选项字节核对和软件复位。保留新程序。
+3. commit：先检查覆盖/哈希、芯片容量，再停止订阅。probe路径将镜像封存在ESP32后由单执行器自主加载RAM算法、擦除/编程/逐半字确认、全镜像回读比较、选项字节核对和软件复位。完整64 KiB可使用受保护的全主Flash擦除，局部完整页继续逐页擦除。verify_on_host=true再加主机全量SHA256；host路径始终主机回读。结果以verification/probe_verified/host_verified明确比较发生在哪里。保留新程序。
 4. cancel：请求有界取消。正在执行的写入可能完成；失败时尝试暂停核心，不重放、不自动恢复旧程序。
 
 提交后 complete/failed/cancelled 的上传不能再次 commit，必须 begin 一个新操作。HTTP 超时不代表操作未执行；查询状态后决定下一步。算法从 Orbit 固定提交独立构建，来源和 MIT 许可在 `host/algorithms/stm32f103c8/`。
+
+auto仅在明确不支持板端功能或BEGIN报告缓存内存不足时使用host；传输或未知写入失败不回退、不重放。Node AbortSignal可独立请求取消并等待原COMMIT终态；Python提供flash_status/cancel_flash。C rm_call的输出过小也可能已执行写入，应GET状态，不能重发COMMIT。完整线协议见[缓存烧录协议](buffered-flash-protocol.md)。
+
+## 设备健康与时钟
+
+`GET /v1/devices/{id}/health` 无需目标会话，返回内部RAM/PSRAM的free/largest/minimum、请求时钟和最后采集IO失败详情；旧固件明确supported=false。Python device_health、Node deviceHealth、C rm_device_health共享此入口。
+
+目标命令 `measure_swd_clock`（mode=sequence/dp_read）需已连接会话、停止采样，通过原控制屏障执行。返回原始RMT符号和数字周期统计，不改变Flash。80 MHz内部参考不是外部仪器，不能判定目标端模拟波形质量。字段、能力协商和二进制布局见[诊断协议](device-diagnostics.md)。
 
 ## 服务端录制
 

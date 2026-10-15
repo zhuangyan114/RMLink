@@ -14,7 +14,8 @@ class Probe:
     async def connect(self):pass
     async def close(self):self.closed=True
     async def exchange_many(self,packets):
-        return [b'\x80\x09\x00'+bytes.fromhex(ID) if p[:2]==b'\x80\x09' else b'\x03\x00' for p in packets]
+        info=b'\x80\x00\x00\x01\x00\x02\x10'+bytes(8)+b'\x40\x00'
+        return [b'\x80\x09\x00'+bytes.fromhex(ID) if p[:2]==b'\x80\x09' else info if p==b'\x80\x00' else b'\x03\x00' for p in packets]
 
 
 class SelectionTests(unittest.IsolatedAsyncioTestCase):
@@ -37,6 +38,8 @@ class SelectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.connector.brokers),1)
         self.assertEqual(self.connector.state.data['paired'][ID]['transport'],'usb')
         self.assertFalse(self.connector.switching)
+        self.assertEqual(self.connector.devices[ID].firmware,'0.2.16')
+        self.assertEqual(self.connector.state.data['paired'][ID]['firmware'],'0.2.16')
     async def test_unknown_transport_never_closes_probe(self):
         with self.assertRaises(ValueError):await self.connector.route('POST','/v1/transport',{'device_id':ID,'transport':'auto'})
         self.assertFalse(self.probe.closed)

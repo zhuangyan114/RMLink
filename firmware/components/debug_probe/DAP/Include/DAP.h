@@ -329,7 +329,14 @@
  
  // Configurable delay for clock generation
  #ifndef DELAY_SLOW_CYCLES
+#if defined(__XTENSA__)
+ // ESP32-S3 addi/bnez loop: measured 80 MHz RMT pad periods at 100 kHz..4 MHz.
+ // Four CPU cycles per iteration; the inherited ARM factor of three undersped
+ // the configured SWJ clock. Keep the GPIO overhead allowance conservative.
+ #define DELAY_SLOW_CYCLES       4U
+#else
  #define DELAY_SLOW_CYCLES       3U      // Number of cycles for one iteration
+#endif
  #endif
  __STATIC_FORCEINLINE void PIN_DELAY_SLOW (uint32_t delay) {
 #if defined(__XTENSA__)

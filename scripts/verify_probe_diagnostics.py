@@ -17,13 +17,18 @@ def main():
     if args.output.exists():p.error('Preserve existing evidence')
     api=ApiClient();key='50787d15a924';report=dict(capturedAt=datetime.now().astimezone().isoformat(),complete=False,clocks=[])
     try:
-        deadline=time.monotonic()+10
+        deadline=time.monotonic()+45
         while True:
             before=api.request('GET','/v1/status');device=next((d for d in before['devices'] if d['device_id']==key and d['connected']),None)
             if device is not None:break
-            if time.monotonic()>=deadline:raise TimeoutError('Device not connected')
+            if time.monotonic()>=deadline:raise TimeoutError('Device not connected after 45 seconds')
             time.sleep(.2)
         assert device['owner'] is None and device['connected'];report['device']=device
+        with api.open(key):
+            info=api.exchange(b'\x80\x00')
+            assert len(info)==17 and info[:4]==b'\x80\x00\0\1'
+            report['firmwareWire']='.'.join(str(v) for v in info[4:7])
+            assert device['firmware']==report['firmwareWire']
         report['healthBefore']=api.device_health(key);assert report['healthBefore']['supported']
         assert next(d for d in api.request('GET','/v1/status')['devices'] if d['device_id']==key)['owner'] is None
         # Discovery-only C client also reads health without reserving the target.

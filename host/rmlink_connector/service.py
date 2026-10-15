@@ -71,9 +71,17 @@ class Connector:
                 fresh = Broker(transport, key)
                 try:
                     await fresh.start()
-                    replies = await fresh.submit('identity', [b'\x80\x09'], 'background')
+                    replies = await fresh.submit('identity', [b'\x80\x09',b'\x80\x00'], 'background')
                     if replies[0] != b'\x80\x09\x00' + bytes.fromhex(key):
                         raise ConnectionError('Pinned device identity mismatch')
+                    info=replies[1]
+                    if len(info)!=17 or info[:4]!=b'\x80\x00\x00\x01' or int.from_bytes(info[15:17],'little')!=fresh.packet_size:
+                        raise ConnectionError('Device metadata does not match negotiated transport')
+                    # A paired record can predate a firmware update. Refresh it
+                    # on this connection, without opening another TCP session.
+                    device.firmware='.'.join(str(n) for n in info[4:7])
+                    if saved.get('firmware')!=device.firmware:
+                        saved['firmware']=device.firmware;self.state.save()
                     self.brokers[key] = fresh
                     self.connection_errors.pop(key, None)
                 except (OSError, TimeoutError, ValueError, ConnectionError) as exc:

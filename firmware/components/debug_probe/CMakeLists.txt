@@ -59,3 +59,14 @@ idf_component_register(
 # The appliance's SWD loops need predictable optimized code, independent of the
 # main application's debug build. Keep the original CMSIS-DAP executor/kernel.
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2)
+
+# Keep vendor discovery identity tied to the application version, not a second
+# manually maintained byte tuple.
+idf_build_get_property(rmlink_version PROJECT_VER)
+if(NOT rmlink_version MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+    message(FATAL_ERROR "RMLink wire version requires major.minor.patch")
+endif()
+target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    RMLINK_VERSION_MAJOR=${CMAKE_MATCH_1}
+    RMLINK_VERSION_MINOR=${CMAKE_MATCH_2}
+    RMLINK_VERSION_PATCH=${CMAKE_MATCH_3})
