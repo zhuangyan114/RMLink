@@ -63,8 +63,9 @@ class BufferedFlashTests(unittest.IsolatedAsyncioTestCase):
         for capacity in (64,512):
             with self.subTest(capacity=capacity):
                 target=ProbeTarget(capacity);f=FlashProgrammer(target,b'\0'*0x600);data=bytes(range(256))*8
-                upload(f,data);result=await f.commit()
+                upload(f,data,verify_on_host=True);result=await f.commit()
                 self.assertTrue(result['verified']);self.assertTrue(result['probe_verified'])
+                self.assertTrue(result['host_verified']);self.assertEqual(result['verification'],'probe_and_host')
                 self.assertEqual(result['backend'],'probe');self.assertEqual(target.flash[:len(data)],data)
                 self.assertEqual(result['upload_packets'],math.ceil(len(data)/(capacity-16)))
                 self.assertEqual(target.entries,[]);self.assertEqual(target.commits,1)
@@ -113,9 +114,20 @@ class BufferedFlashTests(unittest.IsolatedAsyncioTestCase):
     async def test_board_completion_race_is_not_reported_as_protocol_failure(self):
         target=ProbeTarget();target.finish_before_cancel=True;f=FlashProgrammer(target,b'\0'*0x600);upload(f,b'x'*1024)
         task=asyncio.create_task(f.commit());await target.commit_received.wait();f.cancel()
-        with self.assertRaisesRegex(RuntimeError,'Flash cancelled'):await task
+        result=await task;self.assertTrue(result['verified']);self.assertFalse(result['host_verified'])
         self.assertEqual(f.progress['probe_state'],10);self.assertTrue(f.progress['probe_verified'])
         self.assertFalse(f.progress['write_completion_may_be_unknown']);self.assertEqual(target.commits,1)
+
+    async def test_default_verifies_whole_image_on_probe_and_reports_no_host_read(self):
+        target=ProbeTarget();f=FlashProgrammer(target,b'\0'*0x600);upload(f,b'x'*1024)
+        async def unexpected_host_read(*args):raise AssertionError('Unexpected duplicate host read')
+        target.read_range=unexpected_host_read
+        result=await f.commit();self.assertTrue(result['verified']);self.assertTrue(result['probe_verified'])
+        self.assertFalse(result['host_verified']);self.assertEqual(result['verification'],'probe_full_compare')
+        self.assertEqual(result['timings']['host_verify_ms'],0)
+        self.assertEqual(f.progress['byte_length'],1024);self.assertEqual(f.progress['address'],0x08000000)
+        with self.assertRaisesRegex(ValueError,'boolean'):
+            f.stage(dict(action='begin',address=0x08000000,byte_length=1024,sha256='0'*64,verify_on_host='no'))
 
     async def test_only_explicit_begin_oom_allows_auto_host_fallback(self):
         for backend in ('auto','probe'):

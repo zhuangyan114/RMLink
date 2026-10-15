@@ -108,7 +108,7 @@ export class RMLinkClient {
   async target(command, parameters = {}) {
     return this.request('POST', `/sessions/${this.session}/target`, {command, ...parameters});
   }
-  async flashImage(data, address = 0x08000000, signal, {backend = 'auto'} = {}) {
+  async flashImage(data, address = 0x08000000, signal, {backend = 'auto',verifyOnHost = false} = {}) {
     if (!this.session) throw new Error('RMLink owner lost or session closed');
     if (this.flashPending) throw new Error('Flash upload already running');
     const image=Buffer.from(data), path=`/sessions/${this.session}/flash`;
@@ -121,7 +121,7 @@ export class RMLinkClient {
     signal?.addEventListener('abort',cancel,{once:true});
     try {
       check();started=true;
-      await this.request('POST',path,{action:'begin',address,byte_length:image.length,sha256:createHash('sha256').update(image).digest('hex'),backend});
+      await this.request('POST',path,{action:'begin',address,byte_length:image.length,sha256:createHash('sha256').update(image).digest('hex'),backend,verify_on_host:verifyOnHost});
       for(let offset=0;offset<image.length;offset+=4096){check();await this.request('POST',path,{action:'chunk',offset,data:image.subarray(offset,offset+4096).toString('hex')});}
       check();
       // Keep the commit response alive: aborting fetch alone cannot stop the
@@ -141,6 +141,14 @@ export class RMLinkClient {
     const result=await this.request('POST', `/sessions/${this.session}/subscriptions`, {kind, ...parameters});
     this.streamCursor??=result.stream_cursor ?? -1;
     return result;
+  }
+  async flashStatus() {
+    if(!this.session)throw new Error('RMLink session closed');
+    return this.request('GET',`/sessions/${this.session}/flash`);
+  }
+  async cancelFlash() {
+    if(!this.session)throw new Error('RMLink session closed');
+    return this.request('POST',`/sessions/${this.session}/flash`,{action:'cancel'});
   }
   async subscription(id, action = 'status') {
     return this.request(action === 'status' ? 'GET' : 'POST', `/sessions/${this.session}/subscriptions/${id}`,

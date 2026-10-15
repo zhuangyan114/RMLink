@@ -2,6 +2,8 @@
 
 0.2.13 扩展：features bit3 表示完整 64 KiB 镜像批量擦除，mask=15；结果增加 erase_strategy=mass/page，旧字段和命令兼容。[条件与验收](buffered-flash-0213.md)。
 
+服务 0.2.8 起，默认在板端完成全镜像比较；`verify_on_host=true` 额外做独立主机 SHA256。verification、probe_verified、host_verified 明确区分层级，见 [校验模式](buffered-flash-0214.md)。下文 0.2.7 的历史耗时包含两种回读。
+
 Windows 连接服务统一接收镜像；ESP32 缓存后在唯一 SWD 执行器调度 STM32 RAM 算法。Python、Node、C ABI 均可调用，标准调试软件继续通过虚拟 USB 使用标准 CMSIS-DAP。增强目标当前限定 STM32F103C8 已声明的 64 KiB 主 Flash、整 1 KiB 页镜像，不写选项字节。
 
 ## 本地服务
@@ -16,7 +18,7 @@ backend 为 auto／probe／host。auto 协商板端 feature bit5，旧固件走 
 
 commit 验证暂存镜像后独占作业、撤销旧订阅；其他目标操作和订阅创建被拒绝，GET 进度和 cancel 仍可用。完成后需要新建订阅。完成后的 cancel 返回 `cancel_requested=false, already_terminal=true`，保留成功状态。
 
-只有 `phase=complete, verified=true` 表示完整成功：板端逐页校验、全镜像逐字节比较、主机独立 SHA256 回读、选项字节核对和软件复位。结果另有 backend、probe_verified、probe_verified_bytes、programmed_bytes、erased_pages、halt_confirmed、write_completion_may_be_unknown。上传完成不等于已烧录。取消返回 HTTP 409 / FlashCancelled，失败返回 FlashFailed，均附 progress。
+只有 `phase=complete, verified=true` 表示完整成功。probe backend 完成半字比较和板端全镜像逐字节比较，可额外做主机 SHA256；host backend 完成主机全镜像 SHA256。两者均检查选项字节和软件复位。结果另有 backend、verification、host_verified、probe_verified、probe_verified_bytes、programmed_bytes、erased_pages、halt_confirmed、write_completion_may_be_unknown。上传完成不等于已烧录。取消返回 HTTP 409 / FlashCancelled，失败返回 FlashFailed，均附 progress。
 
 timings 单位 ms：probe_upload_ms、probe_commit_ms、host_verify_ms、enhanced_total_ms。probe_stage_us 是 ESP32 本地累计 upload/preflight/loader/erase/program/page_verify/full_verify，单位 us。主机和 ESP32 分别计时，不相减推断单向无线时延。
 

@@ -22,6 +22,7 @@ def main():
     p.add_argument('--allow-target-write',action='store_true');p.add_argument('--repetitions',type=int,default=5)
     p.add_argument('--backends',nargs='+',choices=('host','probe','auto'),default=['host','probe'])
     p.add_argument('--transport',choices=('wifi','usb'),default='wifi')
+    p.add_argument('--verify-on-host',action='store_true',help='Extra host SHA256 inside commit; acceptance always independently reads back afterwards')
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not args.allow_target_write:p.error('Target Flash write authorization required')
     if not 1<=args.repetitions<=10:p.error('repetitions must be 1..10')
@@ -30,7 +31,7 @@ def main():
     if len(image)!=65536 or sha!='2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4':raise ValueError('Fixture identity')
     api=ApiClient();report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
         'requestedClockHz':4000000,'actualClockMeasured':False,'fixtureSha256':sha,'fixtureRetained':True,
-        'transport':args.transport,'repetitions':args.repetitions,'rows':[]}
+        'transport':args.transport,'verifyOnHostRequested':args.verify_on_host,'repetitions':args.repetitions,'rows':[]}
     try:
         deadline=time.monotonic()+10
         while True:
@@ -48,12 +49,13 @@ def main():
                 with api.open(args.device_id):
                     row['target']=api.target('connect',clock_hz=4000000)
                     path=f'/v1/sessions/{api.session}/flash';begin=time.perf_counter()
-                    api.request('POST',path,{'action':'begin','address':0x08000000,'byte_length':len(image),'sha256':sha,'backend':backend})
+                    api.request('POST',path,{'action':'begin','address':0x08000000,'byte_length':len(image),'sha256':sha,'backend':backend,'verify_on_host':args.verify_on_host})
                     for at in range(0,len(image),4096):api.request('POST',path,{'action':'chunk','offset':at,'data':image[at:at+4096].hex()})
                     row['computerStageMs']=(time.perf_counter()-begin)*1000;start=time.perf_counter()
                     row['result']=api.request('POST',path,{'action':'commit'})
                     row['commitMs']=(time.perf_counter()-start)*1000;row['totalMs']=(time.perf_counter()-begin)*1000
                     assert row['result']['verified'] and row['result']['phase']=='complete'
+                    if args.verify_on_host:assert row['result']['host_verified']
                     if backend!='auto':assert row['result']['backend']==backend
                     start=time.perf_counter()
                     data=b''.join(bytes.fromhex(api.target('read_memory',address=0x08000000+at,byte_length=4096)['data']) for at in range(0,len(image),4096))

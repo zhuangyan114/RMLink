@@ -61,11 +61,17 @@ class ApiClient:
 
     def target(self, command, **parameters):
         return self.request('POST', f'/v1/sessions/{self.session}/target', {'command':command,**parameters})
-    def flash_image(self,data,address=0x08000000,backend='auto'):
+    def flash_image(self,data,address=0x08000000,backend='auto',verify_on_host=False):
         data=bytes(data);path=f'/v1/sessions/{self.session}/flash'
-        self.request('POST',path,{'action':'begin','address':address,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest(),'backend':backend})
+        self.request('POST',path,{'action':'begin','address':address,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest(),'backend':backend,'verify_on_host':verify_on_host})
         for offset in range(0,len(data),4096):self.request('POST',path,{'action':'chunk','offset':offset,'data':data[offset:offset+4096].hex()})
         return self.request('POST',path,{'action':'commit'})
+    def flash_status(self):
+        if not self.session:raise RuntimeError('RMLink session closed')
+        return self.request('GET',f'/v1/sessions/{self.session}/flash')
+    def cancel_flash(self):
+        if not self.session:raise RuntimeError('RMLink session closed')
+        return self.request('POST',f'/v1/sessions/{self.session}/flash',{'action':'cancel'})
     def subscribe(self, kind, **parameters):
         result=self.request('POST',f'/v1/sessions/{self.session}/subscriptions',{'kind':kind,**parameters})
         if not hasattr(self,'_stream_cursor'):self._stream_cursor=result.get('stream_cursor',-1)

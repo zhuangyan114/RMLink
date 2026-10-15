@@ -155,11 +155,10 @@ bool rmlink_flash_run(void) {
         else if(s.call_done) {s.programmed+=PAGE;phase(RM_FLASH_PAGE_VERIFY);}
         break;
     case RM_FLASH_PAGE_VERIFY:
-        if(!s.step) {call_begin(0x400,s.address+s.offset,PAGE,BUFFER,3);s.step=1;}
-        else if(s.call_done) {
-            s.offset+=PAGE;s.buffer_offset=0;
-            phase(s.offset<s.length?(whole_image()?RM_FLASH_PROGRAM:RM_FLASH_ERASE):RM_FLASH_VERIFY);
-        }
+        /* This pinned ProgramPage compares each programmed halfword before a
+         * successful return. Full-image probe readback remains mandatory. */
+        s.offset+=PAGE;s.buffer_offset=0;
+        phase(s.offset<s.length?(whole_image()?RM_FLASH_PROGRAM:RM_FLASH_ERASE):RM_FLASH_VERIFY);
         break;
     case RM_FLASH_VERIFY:
         if(!s.step) {call_begin(0x100,2,0,0,1);s.step=1;}

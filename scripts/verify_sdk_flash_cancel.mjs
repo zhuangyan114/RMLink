@@ -25,7 +25,7 @@ try {
     value=>{settled=true;return {value};},error=>{settled=true;return {error};});
   const deadline=Date.now()+15000;
   while(!settled) {
-    const progress=await c.request('GET',path);
+    const progress=await c.flashStatus();
     if(progress.erased_pages>=1 && progress.busy){report.beforeCancel=progress;controller.abort();break;}
     if(Date.now()>deadline)throw new Error('Did not reach erased Flash before deadline');
     await delay(10);
@@ -34,14 +34,14 @@ try {
   assert(result.error,'Cancel must reach an active job in this acceptance case');
   report.cancelError={code:result.error.errorCode,status:result.error.httpStatus,details:result.error.details};
   assert.equal(result.error.errorCode,'FlashCancelled');assert.equal(result.error.httpStatus,409);
-  report.cancelled=await c.request('GET',path);
+  report.cancelled=await c.flashStatus();
   assert.equal(report.cancelled.phase,'cancelled');assert.equal(report.cancelled.busy,false);
   assert.equal(report.cancelled.halt_confirmed,true);
   assert.equal((await c.target('state')).state,'Halted');
   // A new public SDK operation restores the chosen fixture, never the old image.
   report.recovery=await c.flashImage(image,0x08000000,undefined,{backend:'probe'});
   assert.equal(report.recovery.verified,true);assert.equal(report.recovery.sha256,sha);
-  report.lateCancel=await c.request('POST',path,{action:'cancel'});
+  report.lateCancel=await c.cancelFlash();
   assert.equal(report.lateCancel.cancel_requested,false);assert.equal(report.lateCancel.already_terminal,true);
   assert.equal((await c.request('GET',path)).phase,'complete');
   report.finalState=await c.target('state');assert.equal(report.finalState.state,'Running');

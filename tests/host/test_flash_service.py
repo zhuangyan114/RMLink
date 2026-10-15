@@ -36,8 +36,8 @@ class AlgorithmTarget:
             self.regs[0]=3 if self.bad_return else 0;self.regs[15]=BASE+0x500
     async def read_range(self,address,size):return {'data':self.flash[address-0x08000000:address-0x08000000+size].hex()}
 
-def upload(flash,data):
-    flash.stage({'action':'begin','address':0x08000000,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+def upload(flash,data,verify_on_host=False):
+    flash.stage({'action':'begin','address':0x08000000,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest(),'verify_on_host':verify_on_host})
     flash.stage({'action':'chunk','offset':0,'data':data.hex()})
 
 class FlashTests(unittest.IsolatedAsyncioTestCase):

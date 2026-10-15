@@ -130,6 +130,7 @@ class Connector:
                 'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
                 'capture_wire_version':1,'flash_api':True,'flash_profile':'stm32f103c8-page-images','source_stepping':False,
+                'flash_backends':['auto','host','probe'],'flash_verification':{'full_image_required':True,'optional_host_readback':True},
                 'time_sync':True,'memory_overflow_policy':'drop_old_bounded',
                 'recording':{'format':'rmlrec','version':1,'strict_gap_detection':True,
                     'scope':'existing subscriptions in one owner session','acknowledged_retransmission':False},

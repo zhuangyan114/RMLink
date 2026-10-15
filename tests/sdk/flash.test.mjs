@@ -12,9 +12,10 @@ function client(handler) {
 
 test('stages exact image and backend, then awaits one commit',async()=>{
   const c=client(body=>body.action==='commit'?{verified:true}:{});
-  assert.equal((await c.flashImage(Buffer.alloc(8192,17),0x08000400,undefined,{backend:'probe'})).verified,true);
+  assert.equal((await c.flashImage(Buffer.alloc(8192,17),0x08000400,undefined,{backend:'probe',verifyOnHost:true})).verified,true);
   assert.deepEqual(c.calls.map(x=>x.action),['begin','chunk','chunk','commit']);
   assert.equal(c.calls[0].backend,'probe');assert.equal(c.calls[0].address,0x08000400);
+  assert.equal(c.calls[0].verify_on_host,true);
   assert.equal(c.calls[2].offset,4096);assert.equal(c.calls[2].data.length,8192);
   assert.equal(c.calls.at(-1).timeout,180000);assert.equal(c.flashPending,false);
 });

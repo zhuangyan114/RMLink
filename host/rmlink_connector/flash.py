@@ -33,7 +33,7 @@ class FlashProgrammer:
     def __init__(self,target,algorithm=None):
         self.target=target;self.algorithm=algorithm
         self.image=None;self.received=None;self.address=0;self.digest=None
-        self.busy=False;self.cancelled=False;self.backend='auto'
+        self.busy=False;self.cancelled=False;self.backend='auto';self.verify_on_host=False
         self.progress={'phase':'idle','programmed_bytes':0,'erased_pages':0,'verified':False}
 
     def stage(self,body):
@@ -42,12 +42,16 @@ class FlashProgrammer:
         if action=='begin':
             backend=body.get('backend','auto')
             if backend not in ('auto','host','probe'):raise ValueError('Flash backend must be auto, host or probe')
+            verify_on_host=body.get('verify_on_host',False)
+            if type(verify_on_host) is not bool:raise ValueError('verify_on_host must be boolean')
             address=body.get('address',0x08000000);length=body.get('byte_length');digest=body.get('sha256')
             if type(address) is not int or type(length) is not int or address%PAGE or length%PAGE or not 1<=length<=65536 or not 0x08000000<=address or address+length>0x08010000:
                 raise ValueError('F103C8 main-Flash page-aligned binary image required')
             if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest):raise ValueError('sha256 required')
-            self.image=bytearray(length);self.received=bytearray(length);self.address=address;self.digest=digest;self.cancelled=False;self.backend=backend
-            self.progress={'phase':'staging','programmed_bytes':0,'erased_pages':0,'verified':False}
+            self.image=bytearray(length);self.received=bytearray(length);self.address=address;self.digest=digest;self.cancelled=False;self.backend=backend;self.verify_on_host=verify_on_host
+            self.progress={'phase':'staging','programmed_bytes':0,'erased_pages':0,'verified':False,
+                           'address':address,'byte_length':length,'image_sha256':digest,
+                           'host_verified':False,'probe_verified':False,'verification':'pending'}
             return {'staged_bytes':length,'address':address,'page_bytes':PAGE}
         if action=='chunk':
             if self.progress['phase']!='staging':raise ValueError('Begin a new upload before staging data')
@@ -172,12 +176,18 @@ class FlashProgrammer:
             if status['probe_state']!=10:raise RuntimeError(f'Probe Flash ended in {status["phase"]}, error={status["probe_error"]}')
             if not status['probe_verified'] or status['programmed_bytes']!=len(self.image) or status['probe_verified_bytes']!=len(self.image):
                 raise RuntimeError('Incomplete probe verification')
-            self.progress['phase']='verify_host';start=time.perf_counter();digest=hashlib.sha256()
-            for at in range(0,len(self.image),4096):
-                self.check_cancel();part=await target.read_range(self.address+at,min(4096,len(self.image)-at));digest.update(bytes.fromhex(part['data']))
-            if digest.hexdigest()!=self.digest:raise RuntimeError('Independent Flash verification failed')
+            timings['host_verify_ms']=0
+            self.progress['verification']='probe_full_compare'
+            if self.verify_on_host:
+                self.progress['phase']='verify_host';start=time.perf_counter();digest=hashlib.sha256()
+                for at in range(0,len(self.image),4096):
+                    self.check_cancel();part=await target.read_range(self.address+at,min(4096,len(self.image)-at));digest.update(bytes.fromhex(part['data']))
+                if digest.hexdigest()!=self.digest:raise RuntimeError('Independent Flash verification failed')
+                timings['host_verify_ms']=(time.perf_counter()-start)*1000
+                self.progress.update(host_verified=True,verification='probe_and_host')
+            start=time.perf_counter()
             if [await target.read_word(0x1ffff800+i*4) for i in range(4)]!=options:raise RuntimeError('Option bytes changed unexpectedly')
-            timings['host_verify_ms']=(time.perf_counter()-start)*1000;timings['enhanced_total_ms']=(time.perf_counter()-clock)*1000
+            timings['host_finalize_ms']=(time.perf_counter()-start)*1000;timings['enhanced_total_ms']=(time.perf_counter()-clock)*1000
             self.progress.update(phase='complete',verified=True,sha256=self.digest,option_bytes_unchanged=True,
                                  write_completion_may_be_unknown=False,timings=timings)
             return dict(self.progress,address=self.address,byte_length=len(self.image),original_restored=False)
@@ -241,7 +251,8 @@ class FlashProgrammer:
                     result=await target.read_range(self.address+offset,n);digest.update(bytes.fromhex(result['data']))
                 if digest.hexdigest()!=self.digest:raise RuntimeError('Independent Flash verification failed')
                 if [await target.read_word(0x1ffff800+i*4) for i in range(4)]!=options:raise RuntimeError('Option bytes changed unexpectedly')
-                self.progress.update(verified=True,sha256=self.digest,option_bytes_unchanged=True,phase='reset')
+                self.progress.update(verified=True,sha256=self.digest,option_bytes_unchanged=True,phase='reset',
+                                     host_verified=True,verification='host_sha256')
                 await target.write_word(0xe000ed0c,0x05fa0004)
                 await asyncio.sleep(.02)
                 await target.write_word(0xe000edf0,0xa05f0001)
