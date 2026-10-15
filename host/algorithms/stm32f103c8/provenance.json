@@ -4,5 +4,11 @@
   "source": "native/cmsis-dap-flash-algorithm/stm32f103c8_flash_algorithm.c",
   "linker": "native/cmsis-dap-flash-algorithm/stm32f103c8_flash_algorithm.ld",
   "license": "MIT",
-  "copyScope": "one independently built target RAM algorithm and its linker script; not the Orbit repository"
+  "copyScope": "one independently built target RAM algorithm and its linker script; not the Orbit repository",
+  "rmlinkModifications": {
+    "eraseChipEntry": "0x600",
+    "guard": "0x524D4C4B",
+    "scope": "Only exact 0x08000000 + 64KiB, unprotected declared F103C8 main Flash; options unchanged",
+    "reference": "https://www.st.com/resource/en/programming_manual/pm0075-stm32f10xxx-flash-memory-microcontrollers-stmicroelectronics.pdf"
+  }
 }

@@ -126,6 +126,7 @@ class FlashProgrammer:
                 raise ValueError('Unsupported buffered Flash capabilities')
             chunk=int.from_bytes(caps[8:10],'little')
             if not 1<=chunk<=target.broker.packet_size-16:raise ValueError('Probe upload chunk capacity')
+            self.progress['erase_strategy']='mass' if caps[10]&8 and self.address==0x08000000 and len(self.image)==65536 else 'page'
             options=[await target.read_word(0x1ffff800+i*4) for i in range(4)]
             begin=await target.packet(b'\x82\x01'+struct.pack('<III',operation,self.address,len(self.image))+bytes.fromhex(self.digest))
             if begin==b'\x82\x01\x04':raise ProbeImageMemoryUnavailable('Probe image cache memory unavailable')
@@ -215,6 +216,7 @@ class FlashProgrammer:
                         self.progress['probe_fallback']='image_cache_memory_unavailable'
                 code=self.code()
                 self.progress['backend']='host'
+                self.progress['erase_strategy']='page'
                 if await target.read_word(0xe0042000)&0xfff!=0x410 or await target.read_word(0x1ffff7e0)&0xffff!=64:
                     raise ValueError('Flash preflight requires STM32F103C8 64 KiB')
                 options=[await target.read_word(0x1ffff800+i*4) for i in range(4)]

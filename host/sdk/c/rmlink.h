@@ -24,7 +24,9 @@ RM_API int rm_capabilities(rm_client *client,char *out,size_t capacity,size_t *r
 RM_API int rm_time_sync(rm_client *client,const char *device_id,unsigned samples,char *out,size_t capacity,size_t *required);
 RM_API int rm_set_transport(rm_client *client,const char *device_id,int native_usb,char *out,size_t capacity,size_t *required);
 /* Generic authenticated public API. Return HTTP status, or negative Win32 error.
- * required includes the trailing NUL. A short buffer returns -122 without replay.
+ * required includes the trailing NUL. A short buffer returns -122 without replay;
+ * the request HAS executed. Do not use a sizing call for writes/commit. For
+ * Flash, query GET /flash afterwards instead of resending POST commit.
  * one instance supports a control thread and a stream thread; no concurrent close.
  * /flash commit may block up to 180 seconds; cancel via another rm_call thread.
  */

@@ -1,5 +1,7 @@
 # 缓存烧录接口：固件 0.2.12、服务／SDK 0.2.7
 
+0.2.13 扩展：features bit3 表示完整 64 KiB 镜像批量擦除，mask=15；结果增加 erase_strategy=mass/page，旧字段和命令兼容。[条件与验收](buffered-flash-0213.md)。
+
 Windows 连接服务统一接收镜像；ESP32 缓存后在唯一 SWD 执行器调度 STM32 RAM 算法。Python、Node、C ABI 均可调用，标准调试软件继续通过虚拟 USB 使用标准 CMSIS-DAP。增强目标当前限定 STM32F103C8 已声明的 64 KiB 主 Flash、整 1 KiB 页镜像，不写选项字节。
 
 ## 本地服务

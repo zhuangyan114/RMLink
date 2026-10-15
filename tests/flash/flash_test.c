@@ -5,8 +5,9 @@
 #include <string.h>
 #include "rmlink_flash.h"
 static uint8_t ram[20480],flash[65536],image[65536],out[520];
-static uint32_t regs[32],dcrdr,dhcsr,clock_us,io_writes,loader_calls,erase_calls,reset_calls;
+static uint32_t regs[32],dcrdr,dhcsr,clock_us,io_writes,loader_calls,erase_calls,mass_calls,reset_calls;
 static bool mismatch,no_memory,io_failure,bad_return,bad_pc,not_ready,reset_pending,corrupt_verify,corrupt_options;
+static bool write_protected;
 static size_t allocated;
 static uint32_t get(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
@@ -21,6 +22,7 @@ static bool read_target(uint32_t a,uint8_t *p,size_t n) {
     if(a==0xe000ed00)v=0x411fc231;
     else if(a==0xe0042000)v=mismatch?0x411:0x410;
     else if(a==0x1ffff7e0)v=64;
+    else if(a==0x40022020)v=write_protected?0xffff0000:0xffffffff;
     else if(a>=0x1ffff800 && a<0x1ffff810)v=corrupt_options && erase_calls?0xfffffffe:0xffffffff;
     else if(a==0xe000edf0)v=dhcsr|(not_ready?0:0x10000);
     else if(a==0xe000edf8)v=dcrdr;
@@ -36,10 +38,14 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
     else if(a==0xe000edf4) {if(v&0x10000)regs[v&31]=dcrdr;else dcrdr=regs[v&31];}
     else if(a==0xe000edf0) {
         dhcsr=v&2?0x20000:0;
-        if(!(v&2) && !reset_pending && regs[15]>=0x20000000 && regs[15]<0x20000500) {
+        if(!(v&2) && !reset_pending && regs[15]>=0x20000000 && regs[15]<0x20000700 && (regs[15]&~1u)!=0x20000500) {
             loader_calls++;uint32_t entry=(regs[15]&~1u)-0x20000000;
             uint32_t offset=regs[0]-0x08000000;
-            if(entry==0x200) {assert(offset<65536 && !(offset&1023));memset(flash+offset,255,1024);erase_calls++;}
+            if(entry==0x600) {
+                assert(!offset && regs[1]==65536 && regs[2]==0x524d4c4b && !write_protected);
+                memset(flash,255,sizeof(flash));erase_calls++;mass_calls++;
+            }
+            else if(entry==0x200) {assert(offset<65536 && !(offset&1023));memset(flash+offset,255,1024);erase_calls++;}
             else if(entry==0x300 || entry==0x400) {
                 assert(offset+regs[1]<=65536 && regs[1]==1024 && regs[2]==0x20003c00);
                 if(entry==0x300)memcpy(flash+offset,ram+0x3c00,regs[1]);
@@ -67,16 +73,18 @@ static uint8_t command(uint8_t sub,const uint8_t *payload,size_t n) {
 }
 static void reset(void) {
     rmlink_flash_init(&port);assert(!allocated);memset(ram,0,sizeof(ram));memset(flash,0xa5,sizeof(flash));memset(regs,0,sizeof(regs));
-    io_writes=loader_calls=erase_calls=reset_calls=0;dhcsr=0;clock_us=1;
+    io_writes=loader_calls=erase_calls=mass_calls=reset_calls=0;dhcsr=0;clock_us=1;
     mismatch=no_memory=io_failure=bad_return=bad_pc=not_ready=reset_pending=corrupt_verify=corrupt_options=false;
+    write_protected=false;
     for(unsigned i=0;i<65536;i++)image[i]=(uint8_t)(i*37+i/256);
 }
 static uint32_t id=123;
 static void id_bytes(uint8_t p[4]) {put(p,id);}
-static void begin(unsigned length,bool wrong_hash) {
-    uint8_t p[44];put(p,id);put(p+4,0x08000000);put(p+8,length);memset(p+12,wrong_hash?0x43:0x42,32);
+static void begin_at(uint32_t address,unsigned length,bool wrong_hash) {
+    uint8_t p[44];put(p,id);put(p+4,address);put(p+8,length);memset(p+12,wrong_hash?0x43:0x42,32);
     assert(command(1,p,sizeof(p))==0);
 }
+static void begin(unsigned length,bool wrong_hash) {begin_at(0x08000000,length,wrong_hash);}
 static void upload(unsigned length) {
     uint8_t p[510];unsigned limit=RMLINK_PACKET_SIZE-16;
     for(unsigned at=0;at<length;) {
@@ -93,9 +101,16 @@ static void run(void) {unsigned turns=0;while(rmlink_flash_run())assert(++turns<
 int main(void) {
     rmlink_flash_init(&port);reset();uint8_t p[4];id_bytes(p);
     begin(65536,false);upload(65536);assert(!io_writes && !loader_calls);start();run();
-    assert(status()==RM_FLASH_COMPLETE && !memcmp(flash,image,65536) && erase_calls==64 && reset_calls==1 && !allocated);
+    assert(status()==RM_FLASH_COMPLETE && !memcmp(flash,image,65536) && erase_calls==1 && mass_calls==1 && reset_calls==1 && !allocated);
     assert((out[5]&3)==3 && get(out+26)==65536 && get(out+30)==65536);
     unsigned before=loader_calls;assert(command(4,p,4)==RM_FLASH_STATE);run();assert(loader_calls==before);
+    reset();begin_at(0x08000400,2048,false);upload(2048);start();run();
+    assert(status()==RM_FLASH_COMPLETE && !memcmp(flash+1024,image,2048) && erase_calls==2 && !mass_calls);
+    for(unsigned i=0;i<sizeof(flash);i++)if(i<1024 || i>=3072)assert(flash[i]==0xa5);
+    reset();begin(65536,false);upload(65536);write_protected=true;start();run();
+    assert(status()==RM_FLASH_FAILED && out[4]==RM_FLASH_TARGET && !io_writes && !erase_calls && !(out[5]&1));
+    reset();begin(65536,false);upload(65536);start();while(!mass_calls)assert(rmlink_flash_run());
+    assert(!command(6,p,4));run();assert(status()==RM_FLASH_CANCELLED && (out[5]&5)==5 && !reset_calls && !allocated);
     reset();begin(1024,true);upload(1024);assert(command(3,p,4)==RM_FLASH_HASH && !io_writes && !allocated);
     reset();begin(1024,false);assert(command(3,p,4)==RM_FLASH_STATE && !io_writes);
     uint8_t request[6]={0x82,4};put(request+2,id);assert(rmlink_flash_command(2,8,request,6,out,RMLINK_PACKET_SIZE,&owner,true)==3 && out[2]==RM_FLASH_OWNER);

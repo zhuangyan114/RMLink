@@ -29,9 +29,9 @@ class ProbeFlash:
         reply=self.client.exchange(bytes([0x82,sub])+payload)
         assert reply[:3]==bytes([0x82,sub,error]),(sub,reply.hex(),error)
         return reply[3:]
-    def begin(self,image,digest=None):
+    def begin(self,image,digest=None,address=0x08000000):
         self.operation=secrets.randbelow(0xffffffff)+1
-        self.request(1,struct.pack('<III',self.operation,0x08000000,len(image))+
+        self.request(1,struct.pack('<III',self.operation,address,len(image))+
                      (hashlib.sha256(image).digest() if digest is None else digest))
     def chunk(self,offset,data,*,crc=None,error=0):
         payload=struct.pack('<IIHI',self.operation,offset,len(data),zlib.crc32(data) if crc is None else crc)+data
@@ -88,6 +88,10 @@ def main():
                 record('actualSha256Rejection',bad_hash)
                 assert readback()==image and not swd.read32(0xe000edf0)&0x20000
                 record('rejectedUploadsPreserveFlashAndRunningCore')
+                flash.begin(image[-1024:],address=0x0800fc00);flash.upload(image[-1024:]);flash.request(3);flash.request(4)
+                partial=flash.wait({10});assert partial['erased_pages']==1 and partial['programmed_bytes']==1024
+                assert readback()==image
+                record('lastPageProgrammingPreservesAllNeighbours',partial)
                 flash.begin(image);flash.upload(image);flash.request(3);flash.request(4)
                 reached=flash.wait({6,7,8});assert reached['flags']&1
                 flash.request(4,error=3)  # no second erase/program transaction

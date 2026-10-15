@@ -29,6 +29,7 @@ static void w64(uint8_t *p,uint64_t v) {for(unsigned i=0;i<8;i++)p[i]=v>>(i*8);}
 static uint32_t crc32(const uint8_t *p,size_t n) {
     uint32_t v=~0u;while(n--) {v^=*p++;for(unsigned j=0;j<8;j++)v=(v>>1)^(0xedb88320u&(0u-(v&1)));}return ~v;
 }
+static bool whole_image(void) {return s.address==0x08000000u && s.length==65536;}
 static int timing_index(unsigned state) {
     if(state==RM_FLASH_UPLOAD)return 0;
     return state>=RM_FLASH_PREFLIGHT && state<=RM_FLASH_VERIFY?(int)state-2:-1;
@@ -115,7 +116,10 @@ bool rmlink_flash_run(void) {
         else if(s.step==1) {if(!rd(0xe0042000,&v))goto swd;if((v&0xfff)!=0x410)goto target;s.step++;}
         else if(s.step==2) {if(!rd(0x1ffff7e0,&v))goto swd;if((v&0xffff)!=64)goto target;s.step++;}
         else if(s.step<7) {if(!rd(0x1ffff800+(s.step-3)*4,&s.options[s.step-3]))goto swd;s.step++;}
-        else if(s.step==7) {s.touched=true;if(!wr(DHCSR,0xa05f0003))goto swd;s.call_deadline=io.now()+1000000;s.step++;}
+        else if(s.step==7) {
+            if(whole_image()) {if(!rd(0x40022020,&v))goto swd;if((v&0xffff)!=0xffff)goto target;}
+            s.touched=true;if(!wr(DHCSR,0xa05f0003))goto swd;s.call_deadline=io.now()+1000000;s.step++;
+        }
         else if(s.step==8) {if(!rd(DHCSR,&v))goto swd;if(v&0x20000)s.step++;else if(io.now()>=s.call_deadline)goto timeout;}
         else if(s.step==9) {
             if(!rd(0xe0002000,&v))goto swd;
@@ -134,8 +138,13 @@ bool rmlink_flash_run(void) {
         else if(s.call_done)phase(RM_FLASH_ERASE);
         break;
     case RM_FLASH_ERASE:
-        if(!s.step) {s.flags|=1;call_begin(0x200,s.address+s.offset,0,0,1);s.step=1;}
-        else if(s.call_done) {s.erased++;s.buffer_offset=0;phase(RM_FLASH_PROGRAM);}
+        if(!s.step) {
+            s.flags|=1;
+            if(whole_image())call_begin(0x600,s.address,s.length,0x524d4c4b,3);
+            else call_begin(0x200,s.address+s.offset,0,0,1);
+            s.step=1;
+        }
+        else if(s.call_done) {s.erased=whole_image()?s.length/PAGE:s.erased+1;s.buffer_offset=0;phase(RM_FLASH_PROGRAM);}
         break;
     case RM_FLASH_PROGRAM:
         if(s.buffer_offset<PAGE) {
@@ -147,7 +156,10 @@ bool rmlink_flash_run(void) {
         break;
     case RM_FLASH_PAGE_VERIFY:
         if(!s.step) {call_begin(0x400,s.address+s.offset,PAGE,BUFFER,3);s.step=1;}
-        else if(s.call_done) {s.offset+=PAGE;phase(s.offset<s.length?RM_FLASH_ERASE:RM_FLASH_VERIFY);}
+        else if(s.call_done) {
+            s.offset+=PAGE;s.buffer_offset=0;
+            phase(s.offset<s.length?(whole_image()?RM_FLASH_PROGRAM:RM_FLASH_ERASE):RM_FLASH_VERIFY);
+        }
         break;
     case RM_FLASH_VERIFY:
         if(!s.step) {call_begin(0x100,2,0,0,1);s.step=1;}
@@ -180,7 +192,7 @@ size_t rmlink_flash_command(uint8_t transport,uint32_t session,const uint8_t *r,
     if(len<2 || capacity<64 || capacity>RMLINK_PACKET_SIZE || len>capacity)return 3;
     if(!r[1]) {
         out[2]=0;out[3]=1;out[4]=1;w32(out+5,65536);out[9]=0;out[10]=4;
-        out[11]=(uint8_t)(capacity-16);out[12]=(capacity-16)>>8;out[13]=7;return 14;
+        out[11]=(uint8_t)(capacity-16);out[12]=(capacity-16)>>8;out[13]=15;return 14;
     }
     if(!rmlink_owner_matches(owner,transport,session) ||
        (s.session && (s.session!=session || s.transport!=transport))) {out[2]=RM_FLASH_OWNER;return 3;}

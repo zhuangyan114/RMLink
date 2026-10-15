@@ -17,13 +17,13 @@ class ProbeTarget(AlgorithmTarget):
         self.upload_bad_ack=False;self.lost_commit_response=False;self.swd_failure=False
         self.commit_received=asyncio.Event()
         self.finish_before_cancel=False
-        self.out_of_memory=False
+        self.out_of_memory=False;self.mass_feature=False
     async def submit(self,source,packets,priority):
         assert source==self.source and priority=='control' and 1<=len(packets)<=8
         self.chunk_groups.append(len(packets));return [await self.packet(p) for p in packets]
     async def packet(self,p,priority='control'):
         assert p[0]==0x82;sub=p[1];reply=bytes([0x82,sub,0])
-        if sub==0:return reply+struct.pack('<BBIHHB',1,1,65536,1024,self.packet_size-16,7)
+        if sub==0:return reply+struct.pack('<BBIHHB',1,1,65536,1024,self.packet_size-16,15 if self.mass_feature else 7)
         operation=int.from_bytes(p[2:6],'little')
         if sub==1:
             if self.out_of_memory:return b'\x82\x01\x04'
@@ -141,6 +141,14 @@ class BufferedFlashTests(unittest.IsolatedAsyncioTestCase):
         upload(f,b'x'*1024)
         with self.assertRaisesRegex(RuntimeError,'Flash cancelled'):await f.commit(before_commit=prepare)
         self.assertEqual(called,[True]);self.assertEqual(target.commits,0);self.assertFalse(f.busy)
+
+    async def test_erase_strategy_follows_capability_and_complete_range(self):
+        for length,supported in ((2048,True),(65536,False),(65536,True)):
+            target=ProbeTarget();target.mass_feature=supported;f=FlashProgrammer(target,b'\0'*0x600)
+            data=b'x'*length;f.stage(dict(action='begin',address=0x08000000,byte_length=length,sha256=hashlib.sha256(data).hexdigest()))
+            for at in range(0,length,4096):f.stage(dict(action='chunk',offset=at,data=data[at:at+4096].hex()))
+            result=await f.commit()
+            self.assertEqual(result['erase_strategy'],'mass' if supported and length==65536 else 'page')
 
 
 if __name__=='__main__':unittest.main()
