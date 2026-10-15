@@ -1,0 +1,127 @@
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+index 94d5f5d..8a3781e 100644
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -14,5 +14,5 @@ if(NOT RMLINK_DAP_PACKET_SIZE MATCHES "^(64|128|256|512)$")
+     message(FATAL_ERROR "RMLINK_DAP_PACKET_SIZE must be 64, 128, 256 or 512")
+ endif()
+ add_compile_definitions(RMLINK_PACKET_SIZE=${RMLINK_DAP_PACKET_SIZE})
+-set(PROJECT_VER "0.2.8")
++set(PROJECT_VER "0.2.10-profile")
+ project(rmlink)
+diff --git a/firmware/components/debug_probe/rmlink_capture.c b/firmware/components/debug_probe/rmlink_capture.c
+index 86b49af..26dacaa 100644
+--- a/firmware/components/debug_probe/rmlink_capture.c
++++ b/firmware/components/debug_probe/rmlink_capture.c
+@@ -46,8 +46,14 @@ typedef struct {
+     uint32_t budget_overrun;
+     uint8_t pending[256];
+     bool rtt_pending, rtt_commit_unknown;
++    /* Experimental wall-clock profiling, not a public wire/API field. */
++    uint64_t profile_work,profile_dap,profile_calls,profile_turns;
++    uint64_t profile_frames,profile_span_sum,profile_work_sum,profile_dap_sum;
++    uint64_t profile_calls_sum,profile_turns_sum;
++    uint32_t profile_max_turn,profile_max_turn_all;
+ } subscription_t;
+ static subscription_t s_sub[SLOTS];
++static subscription_t *s_profile_active;
+ static uint8_t s_transport;
+ static uint32_t s_session, s_capture;
+ static bool s_barrier;
+@@ -87,6 +93,10 @@ static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count) {
+     int64_t started=esp_timer_get_time();
+     DAP_TransferDeadline(2000);
+     size_t n=DAP_ProcessCommand(request,out)&0xffff;
++    if(s_profile_active) {
++        s_profile_active->profile_dap+=esp_timer_get_time()-started;
++        s_profile_active->profile_calls++;
++    }
+     bool ok=n>=3 && out[0]==5 && out[1]==count && out[2]==1;
+ #ifndef RMLINK_HOST_TEST
+     /* Subscriptions stop on failure. Preserve the DAP reason without logging
+@@ -225,12 +235,31 @@ static void emit(subscription_t *s,unsigned id,uint64_t timestamp,uint32_t durat
+     }
+     s->dropped++; /* New frame could not fit; never wait in the SWD executor. */
+ }
++static void profile_dump(const subscription_t *s) {
++#ifndef RMLINK_HOST_TEST
++    if(s->kind==1 && s->profile_frames)
++        ESP_LOGI("rmlink_profile","cap=%lu frames=%llu span=%llu work=%llu dap=%llu calls=%llu turns=%llu maxturn=%lu",
++            (unsigned long)s->capture,(unsigned long long)s->profile_frames,
++            (unsigned long long)s->profile_span_sum,(unsigned long long)s->profile_work_sum,
++            (unsigned long long)s->profile_dap_sum,(unsigned long long)s->profile_calls_sum,
++            (unsigned long long)s->profile_turns_sum,(unsigned long)s->profile_max_turn_all);
++#else
++    (void)s;
++#endif
++}
+ static void sample_finish(subscription_t *s,unsigned id) {
+     uint8_t values[FIELDS*4];
+     for(unsigned i=0;i<s->count;i++) w32(values+4*i,s->values[i]);
+     uint32_t all=s->count==32?~0u:((1u<<s->count)-1);
+     uint64_t ended=esp_timer_get_time();
+     uint32_t duration=(uint32_t)(ended-s->timestamp);
++    if(s->kind==1 && s->index==s->count && s->valid==all) {
++        s->profile_frames++;
++        s->profile_span_sum+=ended-s->started;
++        s->profile_work_sum+=s->profile_work;s->profile_dap_sum+=s->profile_dap;
++        s->profile_calls_sum+=s->profile_calls;s->profile_turns_sum+=s->profile_turns;
++        if(s->profile_max_turn>s->profile_max_turn_all)s->profile_max_turn_all=s->profile_max_turn;
++    }
+     bool overrun=s->index==s->count && ended-s->started>s->period;
+     emit(s,id,s->timestamp,duration,values,s->count*4,s->valid,(s->valid==all?0:1)|(overrun?2:0)|(s->reused?4:0));
+     s->last_timestamp=s->timestamp;
+@@ -382,16 +411,19 @@ bool rmlink_capture_run(void) {
+     for(unsigned k=0;k<SLOTS;k++) {
+         subscription_t *s=&s_sub[k];
+         if(s->state!=2 || (!s->started && now<s->next)) continue;
++        uint64_t profile_step_started=esp_timer_get_time();
+         if(!s->started) {
+             uint64_t missed=(now-s->next)/s->period;
+             s->missed+=missed; s->seq+=(uint32_t)missed;
+             s->next+=(missed+1)*s->period;
+             s->started=now; s->timestamp=now; s->reused=false; s->valid=0; memset(s->values,0,sizeof(s->values));
+             s->cache_count=0;s->resolved=0;
++            s->profile_work=0;s->profile_dap=0;s->profile_calls=0;s->profile_turns=0;s->profile_max_turn=0;
+             memcpy(s->resolve_address,s->address,sizeof(s->address));
+             memset(s->resolve_depth,0,sizeof(s->resolve_depth));
+         }
+         if(s->kind==3) { if(rtt_run(s,k+1))s->started=0;timer_refresh();return true; }
++        s_profile_active=s->kind==1?s:NULL;
+         unsigned end=s->index+8; if(end>s->count) end=s->count;
+         bool failed=false;
+         bool static_group=s->kind==1;
+@@ -408,6 +440,12 @@ bool rmlink_capture_run(void) {
+             }else { s->failures++;failed=true; }
+         }
+         if(!static_group && !dynamic_step(s)) {s->failures++;failed=true;}
++        s_profile_active=NULL;
++        if(s->kind==1) {
++            uint32_t elapsed=esp_timer_get_time()-profile_step_started;
++            s->profile_work+=elapsed;s->profile_turns++;
++            if(elapsed>s->profile_max_turn)s->profile_max_turn=elapsed;
++        }
+         if(s->index==s->count || failed) {
+             sample_finish(s,k+1);
+             if(failed) { s->state=3; s->reason=3; }
+@@ -544,6 +582,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
+          * so a new task can consume it once. An attempted write with a lost
+          * response remains pending until descriptor reconciliation on resume. */
+         if(r[1]==4 && !s->rtt_commit_unknown)s->rtt_pending=false;
++        if(r[1]==4)profile_dump(s);
+         s->started=0;s->rtt_phase=0; s->state=3; s->reason=r[1]==4?2:1; break;
+     case 6: /* RESUME */
+         if(s->state!=3) return 3;
+diff --git a/firmware/components/debug_probe/swd.c b/firmware/components/debug_probe/swd.c
+index b685071..ff21e52 100644
+--- a/firmware/components/debug_probe/swd.c
++++ b/firmware/components/debug_probe/swd.c
+@@ -75,7 +75,7 @@ static size_t process(const request_t *job, uint8_t *out)
+         if (job->len >= 2 && r[1] == 0) {
+             memset(out, 0, RMLINK_PACKET_SIZE);
+             out[0] = 0x80; out[2] = 0; out[3] = 1;
+-            out[5] = 2; out[6] = 8; /* firmware 0.2.8: pointer Watch reuse */
++            out[5] = 2; out[6] = 10; /* experimental capture path profiling */
+             out[7] = 1; /* USB */
+ #if CONFIG_RMLINK_WIFI_ENABLED
+             out[7] |= 6; /* TCP + USB provisioning */

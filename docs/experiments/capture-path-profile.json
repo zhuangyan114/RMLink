@@ -1,0 +1,550 @@
+{
+  "recordedAt": "2026-10-15T20:47:19.742127+08:00",
+  "baseCommit": "daf8d75aa506216618ab6da34a42ab2a283d198f",
+  "decision": "diagnostic only; production firmware and source restored to 0.2.8",
+  "profileReceipt": {
+    "flashedAt": "2026-10-15T20:38:26.7354904+08:00",
+    "profile": "firmware-target-tcp512-core0",
+    "port": "COM13",
+    "binarySha256": "0660DA9BB6B5A6A06E0E418C36C5654BA0E4C91CB53A407A3A674CCE7F599DAE",
+    "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+    "targetGpioEnabled": true,
+    "tcpPacketSize": 512,
+    "requestedExecutorCore": 0,
+    "configuredExecutorCore": 0
+  },
+  "restoredDevice": {
+    "capturedAt": "2026-10-15T20:46:32.350264+08:00",
+    "complete": true,
+    "devices": [
+      {
+        "device_id": "50787d15a924",
+        "hostname": "rmlink-15a924.local",
+        "address": "192.168.137.170",
+        "port": 3241,
+        "firmware": "0.2.8",
+        "paired": true,
+        "connected": true,
+        "packet_size": 512,
+        "transport": "wifi",
+        "owner": null
+      }
+    ],
+    "flashReceipt": {
+      "flashedAt": "2026-10-15T20:41:32.5796671+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "8ACF0AA665CCB3553CE06802E1E88DB4C8B45B85CACC4D490AC75549076C62F2",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0,
+      "restoredFromCheckpoint": "0.2.8"
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "state": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    },
+    "fixtureMagic": {
+      "address": 536870912,
+      "data": "4b4c4d52"
+    },
+    "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "after": [
+      {
+        "device_id": "50787d15a924",
+        "hostname": "rmlink-15a924.local",
+        "address": "192.168.137.170",
+        "port": 3241,
+        "firmware": "0.2.8",
+        "paired": true,
+        "connected": true,
+        "packet_size": 512,
+        "transport": "wifi",
+        "owner": null
+      }
+    ]
+  },
+  "groups": [
+    {
+      "depth": 0,
+      "shared": false,
+      "coexist": true,
+      "matrices": [
+        {
+          "source": "artifacts/logs/capture-profile-before-028.json",
+          "medianHz": 926.1820571875041,
+          "runsHz": [
+            926.1820571875041,
+            936.8430808500892,
+            921.5883731047019
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-measured-0210.json",
+          "medianHz": 932.5777122258555,
+          "runsHz": [
+            937.1118475204441,
+            925.3099651503081,
+            932.5777122258555
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-after-028.json",
+          "medianHz": 925.3215580858423,
+          "runsHz": [
+            935.6090338164622,
+            921.0723583954003,
+            925.3215580858423
+          ]
+        }
+      ],
+      "profile": {
+        "frames": 14769,
+        "meanSpanUs": 746.2000812512696,
+        "meanWorkUs": 735.6154106574581,
+        "meanDapUs": 723.8909201706276,
+        "meanOtherWorkUs": 11.724490486830524,
+        "meanOutsideWorkUs": 10.584670593811362,
+        "dapShareOfSpanPercent": 97.01029768809022,
+        "callsPerFrame": 2,
+        "maxTurnUs": 1513,
+        "perCapture": [
+          {
+            "cap": 1,
+            "frames": 4898,
+            "spanUs": 3636592,
+            "workUs": 3585818,
+            "dapUs": 3528780,
+            "calls": 9796,
+            "turns": 9796,
+            "maxTurnUs": 1219
+          },
+          {
+            "cap": 16,
+            "frames": 4839,
+            "spanUs": 3624566,
+            "workUs": 3570789,
+            "dapUs": 3514176,
+            "calls": 9678,
+            "turns": 9678,
+            "maxTurnUs": 1447
+          },
+          {
+            "cap": 31,
+            "frames": 5032,
+            "spanUs": 3759471,
+            "workUs": 3707697,
+            "dapUs": 3648189,
+            "calls": 10064,
+            "turns": 10064,
+            "maxTurnUs": 1513
+          }
+        ]
+      }
+    },
+    {
+      "depth": 2,
+      "shared": true,
+      "coexist": true,
+      "matrices": [
+        {
+          "source": "artifacts/logs/capture-profile-before-028.json",
+          "medianHz": 627.17467165418,
+          "runsHz": [
+            627.17467165418,
+            640.9328714726323,
+            621.318557663519
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-measured-0210.json",
+          "medianHz": 581.778411317532,
+          "runsHz": [
+            578.2614819282513,
+            586.2597859270629,
+            581.778411317532
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-after-028.json",
+          "medianHz": 633.3381085016117,
+          "runsHz": [
+            633.3381085016117,
+            634.3724987197191,
+            627.3460780420864
+          ]
+        }
+      ],
+      "profile": {
+        "frames": 9228,
+        "meanSpanUs": 1018.4249024707412,
+        "meanWorkUs": 995.1506285218899,
+        "meanDapUs": 935.113133940182,
+        "meanOtherWorkUs": 60.03749458170785,
+        "meanOutsideWorkUs": 23.274273948851324,
+        "dapShareOfSpanPercent": 91.81954719209621,
+        "callsPerFrame": 4,
+        "maxTurnUs": 1362,
+        "perCapture": [
+          {
+            "cap": 4,
+            "frames": 3083,
+            "spanUs": 3140657,
+            "workUs": 3069000,
+            "dapUs": 2883096,
+            "calls": 12332,
+            "turns": 12332,
+            "maxTurnUs": 1199
+          },
+          {
+            "cap": 19,
+            "frames": 3104,
+            "spanUs": 3157382,
+            "workUs": 3084577,
+            "dapUs": 2897879,
+            "calls": 12416,
+            "turns": 12416,
+            "maxTurnUs": 1362
+          },
+          {
+            "cap": 34,
+            "frames": 3041,
+            "spanUs": 3099986,
+            "workUs": 3029673,
+            "dapUs": 2848249,
+            "calls": 12164,
+            "turns": 12164,
+            "maxTurnUs": 1069
+          }
+        ]
+      }
+    },
+    {
+      "depth": 3,
+      "shared": true,
+      "coexist": true,
+      "matrices": [
+        {
+          "source": "artifacts/logs/capture-profile-before-028.json",
+          "medianHz": 499.90677888008804,
+          "runsHz": [
+            499.90677888008804,
+            500.0046857135717,
+            499.9059972200349
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-measured-0210.json",
+          "medianHz": 499.8092472923577,
+          "runsHz": [
+            499.80787166061947,
+            499.90396424441377,
+            499.8092472923577
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-after-028.json",
+          "medianHz": 499.9079679538001,
+          "runsHz": [
+            500.00346956917974,
+            499.6794454084134,
+            499.9079679538001
+          ]
+        }
+      ],
+      "profile": {
+        "frames": 7959,
+        "meanSpanUs": 1140.858399296394,
+        "meanWorkUs": 1111.123131046614,
+        "meanDapUs": 1033.951501444905,
+        "meanOtherWorkUs": 77.17162960170876,
+        "meanOutsideWorkUs": 29.735268249780123,
+        "dapShareOfSpanPercent": 90.62925794143936,
+        "callsPerFrame": 5,
+        "maxTurnUs": 1296,
+        "perCapture": [
+          {
+            "cap": 7,
+            "frames": 2665,
+            "spanUs": 3035743,
+            "workUs": 2955517,
+            "dapUs": 2749742,
+            "calls": 13325,
+            "turns": 13325,
+            "maxTurnUs": 1087
+          },
+          {
+            "cap": 22,
+            "frames": 2678,
+            "spanUs": 3033996,
+            "workUs": 2955393,
+            "dapUs": 2750485,
+            "calls": 13390,
+            "turns": 13390,
+            "maxTurnUs": 1178
+          },
+          {
+            "cap": 37,
+            "frames": 2616,
+            "spanUs": 3010353,
+            "workUs": 2932519,
+            "dapUs": 2728993,
+            "calls": 13080,
+            "turns": 13080,
+            "maxTurnUs": 1296
+          }
+        ]
+      }
+    },
+    {
+      "depth": 3,
+      "shared": false,
+      "coexist": true,
+      "matrices": [
+        {
+          "source": "artifacts/logs/capture-profile-before-028.json",
+          "medianHz": 266.5793019795512,
+          "runsHz": [
+            264.16535059344756,
+            266.5793019795512,
+            267.84899631895803
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-measured-0210.json",
+          "medianHz": 265.7529267169621,
+          "runsHz": [
+            269.3611887781125,
+            265.7529267169621,
+            265.57572325447427
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-after-028.json",
+          "medianHz": 266.3700885956601,
+          "runsHz": [
+            267.38307094511293,
+            265.46349648929976,
+            266.3700885956601
+          ]
+        }
+      ],
+      "profile": {
+        "frames": 4254,
+        "meanSpanUs": 3090.2247296661967,
+        "meanWorkUs": 3040.676304654443,
+        "meanDapUs": 2878.7517630465445,
+        "meanOtherWorkUs": 161.92454160789845,
+        "meanOutsideWorkUs": 49.54842501175364,
+        "dapShareOfSpanPercent": 93.15671237144959,
+        "callsPerFrame": 8,
+        "maxTurnUs": 1580,
+        "perCapture": [
+          {
+            "cap": 10,
+            "frames": 1447,
+            "spanUs": 4463760,
+            "workUs": 4392943,
+            "dapUs": 4159424,
+            "calls": 11576,
+            "turns": 11576,
+            "maxTurnUs": 1580
+          },
+          {
+            "cap": 25,
+            "frames": 1398,
+            "spanUs": 4323397,
+            "workUs": 4253707,
+            "dapUs": 4027170,
+            "calls": 11184,
+            "turns": 11184,
+            "maxTurnUs": 1276
+          },
+          {
+            "cap": 40,
+            "frames": 1409,
+            "spanUs": 4358659,
+            "workUs": 4288387,
+            "dapUs": 4059616,
+            "calls": 11272,
+            "turns": 11272,
+            "maxTurnUs": 1380
+          }
+        ]
+      }
+    },
+    {
+      "depth": 4,
+      "shared": false,
+      "coexist": true,
+      "matrices": [
+        {
+          "source": "artifacts/logs/capture-profile-before-028.json",
+          "medianHz": 232.64397597876572,
+          "runsHz": [
+            232.18951556823797,
+            232.64397597876572,
+            233.40828761456538
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-measured-0210.json",
+          "medianHz": 230.72389475953022,
+          "runsHz": [
+            230.09223986110936,
+            230.72389475953022,
+            232.37267627323726
+          ]
+        },
+        {
+          "source": "artifacts/logs/capture-profile-after-028.json",
+          "medianHz": 231.67939658816226,
+          "runsHz": [
+            232.65171317590048,
+            231.67939658816226,
+            230.0418134825683
+          ]
+        }
+      ],
+      "profile": {
+        "frames": 3760,
+        "meanSpanUs": 3880.701595744681,
+        "meanWorkUs": 3817.306117021277,
+        "meanDapUs": 3593.678989361702,
+        "meanOtherWorkUs": 223.62712765957446,
+        "meanOutsideWorkUs": 63.39547872340425,
+        "dapShareOfSpanPercent": 92.60384754401862,
+        "callsPerFrame": 10,
+        "maxTurnUs": 1440,
+        "perCapture": [
+          {
+            "cap": 13,
+            "frames": 1229,
+            "spanUs": 4778316,
+            "workUs": 4700533,
+            "dapUs": 4427028,
+            "calls": 12290,
+            "turns": 12290,
+            "maxTurnUs": 1118
+          },
+          {
+            "cap": 28,
+            "frames": 1228,
+            "spanUs": 4771260,
+            "workUs": 4693127,
+            "dapUs": 4416657,
+            "calls": 12280,
+            "turns": 12280,
+            "maxTurnUs": 1086
+          },
+          {
+            "cap": 43,
+            "frames": 1303,
+            "spanUs": 5041862,
+            "workUs": 4959411,
+            "dapUs": 4668548,
+            "calls": 13030,
+            "turns": 13030,
+            "maxTurnUs": 1440
+          }
+        ]
+      }
+    }
+  ],
+  "scope": {
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "executorCore": 0,
+    "tcpPacketBytes": 512,
+    "timelinePeriodUs": 1000,
+    "fields": 10,
+    "leafStrideBytes": 64,
+    "watchFields": 4,
+    "watchPeriodUs": 100000,
+    "rttPeriodUs": 5000,
+    "secondsPerRow": 5,
+    "repetitions": 3,
+    "installedVSCodeUiTested": false,
+    "countsIncludeOnlyValidCompleteFrames": true,
+    "loggingOnlyAtStop": true
+  },
+  "limits": [
+    "All measured times are wall time and include preemption.",
+    "Instrumentation affects execution and code layout; common depth2 rate regressed.",
+    "No pure SWCLK, CPU-only time or task-specific preemption measurement.",
+    "Profile counters include warm-up frames outside the host consumer window.",
+    "Profile image has no full programming/debug or ten-minute qualification."
+  ],
+  "evidence": {
+    "artifacts/logs/capture-profile-before-028.json": {
+      "sha256": "e19f712833976302b4d2f16a46993720789b2a471da2d44eef6ad574511561f7",
+      "bytes": 15956
+    },
+    "artifacts/logs/capture-profile-measured-0210.json": {
+      "sha256": "9c49b873ea9668ff49730bb2757b65bba96ddfccdbf1ecf0b4db9bb4263b9655",
+      "bytes": 15917
+    },
+    "artifacts/logs/capture-profile-after-028.json": {
+      "sha256": "39f89a877a182732cd803f2e69b174cfda44d56044d60b56ea5ddb023f49b4d3",
+      "bytes": 15956
+    },
+    "artifacts/logs/capture-profile-uart-0210.log": {
+      "sha256": "00e250facd9cc52f9134153bddbae329159a733d64380c1f8e82c4b3135bd511",
+      "bytes": 2710
+    },
+    "artifacts/logs/capture-profile-model-0210.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/build-capture-profile-0210.log": {
+      "sha256": "cb0794476c8fed65a6c68843f6f254a7c1d8bcfaba7a975bd047f60e7e84917a",
+      "bytes": 12872
+    },
+    "artifacts/logs/flash-capture-profile-0210.log": {
+      "sha256": "79073c9f12cd2f67dc62c2474f23bc45fad703fe99961c8a57f6daee401d7cda",
+      "bytes": 5082
+    },
+    "artifacts/logs/restore-after-capture-profile-028.log": {
+      "sha256": "7a1e7a4c13d29da432ec18f13be5b65c86be1f3b8f11367b509176f874723cf2",
+      "bytes": 1689
+    },
+    "artifacts/logs/build-after-profiling-028.log": {
+      "sha256": "a968785f32431f12f4964a2062d52bee04afa921d2ffcdb3d2547c8b4561a2b1",
+      "bytes": 12845
+    },
+    "artifacts/logs/capture-after-profiling-028-model.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-profile-final-identity-028.json": {
+      "sha256": "b3309718fb40e079d7796bc4a35444a3c931e338d89d9009c6c962adcf86b8d7",
+      "bytes": 1653
+    },
+    "artifacts/logs/pyocd-after-capture-profile-028.json": {
+      "sha256": "e37f440b3f9b85c328768c987c5b371633286d39351021725acadb8bbe9fffe1",
+      "bytes": 278
+    },
+    "artifacts/logs/pointer-watch-after-capture-profile-028.json": {
+      "sha256": "b9d00cb6c2187b7caac7256534583215c17c18b5183e2844406986bf8ac77eae",
+      "bytes": 6868
+    },
+    "docs/experiments/capture-path-profile.patch": {
+      "sha256": "197cfd432d7b3d04107adf038d1cd91628b38066fd960ffb28ab9127014495c9",
+      "bytes": 6628
+    },
+    "docs/experiments/capture-profile-harness.py": {
+      "sha256": "9a9feee787ea570162e246e6de2df2d6b097c92d0146c22ba0f344eb0bfaaba3",
+      "bytes": 1629
+    }
+  }
+}
