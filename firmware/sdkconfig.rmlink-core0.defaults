@@ -1,0 +1,2 @@
+# Reproducible comparison profile: executor CPU0, network receive CPU1.
+CONFIG_RMLINK_EXECUTOR_CORE=0

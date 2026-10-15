@@ -3,12 +3,13 @@
 #include "capture_platform.h"
 #include "rmlink_capture.h"
 uint64_t host_clock=1000000;
-static uint32_t ram[5120], reads, writes;
+static uint32_t ram[5120], reads, writes, commands;
 static uint32_t operation_us=20;
 static bool fail;
 static bool fail_after_write;
 uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
     assert(r[0]==5 && r[3]==8 && r[8]==1);
+    commands++;
     host_clock+=operation_us;
     out[0]=5; out[1]=fail?0:r[2]; out[2]=fail?4:1;
     if(fail) return 3;
@@ -40,6 +41,11 @@ static void prepare(unsigned sid,unsigned kind,unsigned count) {
 }
 static void address(unsigned sid,unsigned index,uint32_t a) {
     uint8_t r[9]={0x81,2,sid,index,1}; memcpy(r+5,&a,4); command(r,9); assert(out[2]==0);
+}
+static void pointer(unsigned field,unsigned depth,int32_t last_offset) {
+    uint8_t r[22]={0x81,15,1,field,depth,4};
+    assert(depth && depth<=4);memcpy(r+6+4*(depth-1),&last_offset,4);
+    command(r,6+4*depth);assert(out[2]==0);
 }
 static size_t next_record(uint8_t *frame) {
     for(unsigned i=0;i<32;i++) {
@@ -76,7 +82,7 @@ int main(void) {
     rmlink_capture_closed(2,7);
     prepare(1,1,1); address(1,0,0x20000000); ram[0]=0x20000100; ram[65]=0xdead1234;
     uint8_t ptr[10]={0x81,15,1,0,1,4,4,0,0,0}; command(ptr,sizeof(ptr)); assert(out[2]==0);
-    action(3,1); assert(rmlink_capture_run()); assert(rmlink_capture_take(frame,sizeof(frame),0)==60);
+    action(3,1); assert(next_record(frame)==60);
     memcpy(&v,frame+56,4); assert(v==0xdead1234);
     fail=true; host_clock+=2000; assert(rmlink_capture_run()); assert(rmlink_capture_take(frame,sizeof(frame),0)==60);
     assert(frame[52]==1 && frame[48]==0); action(7,1); assert(out[3]==3); fail=false;
@@ -92,16 +98,75 @@ int main(void) {
     ram[0]=0x20000100;ram[64]=11;ram[65]=22;
     ptr[3]=0;ptr[6]=0;command(ptr,sizeof(ptr));assert(out[2]==0);
     ptr[3]=1;ptr[6]=4;command(ptr,sizeof(ptr));assert(out[2]==0);
-    action(3,1);before=reads;assert(rmlink_capture_run());assert(reads==before+3);
-    assert(rmlink_capture_take(frame,sizeof(frame),0)==64);
-    ram[0]=0x20000104;host_clock+=1000;before=reads;assert(rmlink_capture_run());assert(reads==before+3);
-    assert(rmlink_capture_take(frame,sizeof(frame),0)==64);memcpy(&v,frame+56,4);assert(v==22);
+    action(3,1);before=reads;assert(next_record(frame)==64);assert(reads==before+3);
+    ram[0]=0x20000104;host_clock+=1000;before=reads;
+    assert(next_record(frame)==64 && reads==before+3);memcpy(&v,frame+56,4);assert(v==22);
+    rmlink_capture_closed(2,7);
+    /* Shared three-level chain: one read per distinct pointer/value in a frame,
+     * at most five DAP packets for ten leaf fields, not thirteen round trips. */
+    prepare(1,1,10);ram[0]=0x20000004;ram[1]=0x20000008;ram[2]=0x20001000;
+    for(unsigned i=0;i<10;i++) {address(1,i,0x20000000);pointer(i,3,i*4);ram[1024+i]=i+100;}
+    action(3,1);before=reads;unsigned before_commands=commands;
+    assert(next_record(frame)==96 && reads==before+13 && commands-before_commands<=5);
+    assert(frame[48]==255 && frame[49]==3 && frame[52]==0);
+    for(unsigned i=0;i<10;i++){memcpy(&v,frame+56+i*4,4);assert(v==i+100);}
+    /* A root that changes between frames must be fetched again. */
+    ram[0]=0x2000000c;ram[3]=0x20000010;ram[4]=0x20001100;
+    for(unsigned i=0;i<10;i++)ram[1088+i]=i+200;
+    host_clock+=1000;before=reads;assert(next_record(frame)==96 && reads==before+13);
+    memcpy(&v,frame+56,4);assert(v==200);
+    /* Invalid shared root does not attempt target IO at address zero. */
+    ram[0]=0;host_clock+=1000;before=reads;assert(next_record(frame)==96 && reads==before+1);
+    assert(frame[48]==0 && frame[52]==1);action(7,1);assert(out[3]==2);
+    rmlink_capture_closed(2,7);
+    /* A control barrier between pointer levels ends the partial frame. On
+     * release, the next frame must fetch a changed root rather than resume
+     * the old dependency cache; no target reads may run behind the barrier. */
+    prepare(1,1,10);ram[0]=0x20000004;ram[1]=0x20000008;ram[2]=0x20001000;
+    for(unsigned i=0;i<10;i++){address(1,i,0x20000000);pointer(i,3,i*4);ram[1024+i]=i+100;}
+    action(3,1);before=reads;assert(rmlink_capture_run() && reads==before+1);
+    assert(!rmlink_capture_take(frame,sizeof(frame),0));action(8,1);
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==96 && frame[48]==0 && (frame[52]&1));
+    before=reads;assert(!rmlink_capture_run() && reads==before);
+    ram[0]=0x2000000c;ram[3]=0x20000010;ram[4]=0x20001100;
+    for(unsigned i=0;i<10;i++)ram[1088+i]=i+300;
+    host_clock+=1000;action(9,1);before=reads;
+    assert(next_record(frame)==96 && reads==before+13 && frame[52]==0);
+    for(unsigned i=0;i<10;i++){memcpy(&v,frame+56+i*4,4);assert(v==i+300);}
+    rmlink_capture_closed(2,7);
+    /* Full advertised capacity: 32 independent four-level chains need 160
+     * distinct words, without cache exhaustion, duplicate reads or deadlock. */
+    prepare(1,1,32);
+    for(unsigned i=0;i<32;i++) {
+        address(1,i,0x20000000+i*16);pointer(i,4,0);
+        for(unsigned d=0;d<4;d++)ram[i*4+d]=d<3?0x20000000+i*16+(d+1)*4:0x20001000+i*4;
+        ram[1024+i]=0x5000+i;
+    }
+    action(3,1);before=reads;before_commands=commands;
+    assert(next_record(frame)==184 && reads==before+160 && commands-before_commands<=20);
+    assert(frame[48]==255 && frame[49]==255 && frame[50]==255 && frame[51]==255 && frame[52]==0);
+    for(unsigned i=0;i<32;i++){memcpy(&v,frame+56+i*4,4);assert(v==0x5000+i);}
+    rmlink_capture_closed(2,7);
+    /* Normal STOP before the RdOff write leaves target data unconsumed. A
+     * replacement must be allowed to read it once, without getting BUSY from
+     * the discarded, never-committed local payload. */
+    memcpy(ram,"SEGGER RTT",10);ram[4]=1;ram[5]=0;
+    ram[7]=0x20000200;ram[8]=64;ram[9]=16;ram[10]=0;
+    for(unsigned i=0;i<16;i++)((uint8_t*)&ram[128])[i]=i;
+    prepare(3,3,1);address(3,0,0x20000000);action(3,3);
+    unsigned stop_writes=writes;
+    for(unsigned i=0;i<3;i++)assert(rmlink_capture_run());
+    assert(writes==stop_writes && ram[10]==0 && !rmlink_capture_take(frame,sizeof(frame),0));
+    action(4,3);prepare(3,3,1);address(3,0,0x20000000);action(3,3);
+    assert(next_record(frame)==88 && writes==stop_writes+1 && ram[10]==16);
+    for(unsigned i=0;i<16;i++)assert(frame[72+i]==i);
     rmlink_capture_closed(2,7);
     memcpy(ram,"SEGGER RTT",10); ram[4]=1; ram[5]=0;
     ram[7]=0x20000200; ram[8]=16; ram[9]=4; ram[10]=14;
     uint8_t *buffer=(uint8_t*)&ram[128]; for(unsigned i=0;i<16;i++) buffer[i]=i;
     prepare(3,3,1); address(3,0,0x20000000); action(3,3);
-    assert(next_record(frame)==78);assert(ram[10]==4 && writes==1);
+    unsigned wrap_writes=writes;
+    assert(next_record(frame)==78);assert(ram[10]==4 && writes==wrap_writes+1);
     uint8_t expected[]={14,15,0,1,2,3}; assert(memcmp(frame+72,expected,6)==0);
     rmlink_capture_closed(2,7);
     /* Timeline and a control barrier preempt a partially read RTT poll. The
@@ -123,7 +188,12 @@ int main(void) {
         action(7,3);if(out[3]==3)break;
     }
     action(7,3);assert(out[3]==3 && out[50]==3 && ram[10]==4 && writes==before_writes+1);
-    assert(!rmlink_capture_take(frame,sizeof(frame),0));fail_after_write=false;action(6,3);
+    assert(!rmlink_capture_take(frame,sizeof(frame),0));
+    /* STOP must not discard a write whose response was lost. Keep PREPARE
+     * denied until descriptor reconciliation publishes the retained payload. */
+    action(4,3);uint8_t unknown_prepare[17]={0x81,1,3,3,1};uint32_t unknown_period=1000;
+    memcpy(unknown_prepare+5,&unknown_period,4);command(unknown_prepare,sizeof(unknown_prepare));assert(out[2]==3);
+    fail_after_write=false;action(6,3);
     assert(next_record(frame)==78 && writes==before_writes+1);
     assert(memcmp(frame+72,expected,6)==0);rmlink_capture_closed(2,7);
     uint8_t ticket[]={0x81,11}; command(ticket,2); assert(out[2]==0);

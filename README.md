@@ -2,7 +2,7 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
-2026-10-15 当前开发版本：固件、连接服务和 SDK 均为 **0.2.5**。接线恢复后，STM32F103C8 已通过请求 SWD 4000 kHz 的虚拟 USB 完整烧录与调试验收；最新64 KiB烧录／校验约7.11秒，独立回读与选项字节核对通过。10 个离散变量在500 Hz档基本跟随周期；真实Orbit适配器的三标量、Watch、RTT和监控共存，五轮中位约500 Hz。更高频率及实板条件见 [采样性能记录](docs/subscription-performance-20261015.md)。实际 SWCLK 尚未仪表量测。
+2026-10-15 最新实板检查点为 **0.2.6**：STM32F103C8 请求 SWD 4000 kHz 的虚拟 USB 完整烧录／调试、pyOCD、原生 USB 三订阅和 RTT 连续重建通过。指针依赖分批读取使共享三级链、末端连续十变量的一对短测由 498.51 提高到 958.04 Hz；最终五轮中位 958.62 Hz。十条独立四级链与 Watch／RTT 共存的十分钟测试为 232.36 Hz，不能套用共享连续布局的数字。重启后的网络恢复、一次 Orbit 子进程异常退出和控制长尾仍待处理，条件与证据见 [采样性能记录](docs/subscription-performance-20261015.md) 和 [检查点](docs/subscription-checkpoint-026.json)。实际 SWCLK 尚未仪表量测。
 
 标准 CMSIS-DAP 以虚拟 USB 为主入口，测试 STM32 默认保留新程序。完整架构、协议、调度和实施验收见 [订阅采集与 Orbit 接入方案](docs/subscription-design.md)；第三方接入见 [公开 API 与 SDK](docs/api-v1.md)。
 

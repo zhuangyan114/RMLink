@@ -16,12 +16,14 @@
 #include "freertos/ringbuf.h"
 #include "esp_timer.h"
 #include "esp_random.h"
+#include "esp_log.h"
 #include "DAP.h"
 #endif
 #include "rmlink_capture.h"
 
 #define SLOTS 4
 #define FIELDS 32
+#define CACHE_WORDS (FIELDS*5) /* four pointer reads and one value per field */
 #define RECORD_MAX 384
 #define LEASE_US 15000000LL
 typedef struct {
@@ -31,8 +33,10 @@ typedef struct {
     uint32_t address[FIELDS], values[FIELDS], valid;
     uint8_t depth[FIELDS], width[FIELDS];
     int32_t offset[FIELDS][4];
-    uint32_t cache_address[128],cache_value[128];
+    uint32_t cache_address[CACHE_WORDS],cache_value[CACHE_WORDS];
     unsigned cache_count;
+    uint32_t resolve_address[FIELDS],resolved;
+    uint8_t resolve_depth[FIELDS];
     uint64_t next, started, timestamp, last_timestamp, frames, missed, dropped, failures;
     bool reused;
     bool strict_deadlines;
@@ -41,7 +45,7 @@ typedef struct {
     uint8_t rtt_phase;
     uint32_t budget_overrun;
     uint8_t pending[256];
-    bool rtt_pending;
+    bool rtt_pending, rtt_commit_unknown;
 } subscription_t;
 static subscription_t s_sub[SLOTS];
 static uint8_t s_transport;
@@ -80,9 +84,20 @@ static bool memory(uint32_t a, size_t n, bool write) {
 }
 static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count) {
     /* Bound bad-address WAIT handling, keep asynchronous Abort effective. */
+    int64_t started=esp_timer_get_time();
     DAP_TransferDeadline(2000);
     size_t n=DAP_ProcessCommand(request,out)&0xffff;
-    return n>=3 && out[0]==5 && out[1]==count && out[2]==1;
+    bool ok=n>=3 && out[0]==5 && out[1]==count && out[2]==1;
+#ifndef RMLINK_HOST_TEST
+    /* Subscriptions stop on failure. Preserve the DAP reason without logging
+     * successful samples or retrying a possibly completed target write. */
+    if(!ok) ESP_LOGW("rmlink_capture","SWD failed: reply=%u count=%u/%u status=0x%02x elapsed=%u us",
+        (unsigned)n,n>=3?out[1]:0,count,n>=3?out[2]:0,
+        (unsigned)(esp_timer_get_time()-started));
+#else
+    (void)started;
+#endif
+    return ok;
 }
 static bool word(uint32_t addr,uint32_t *value,bool write) {
     uint8_t req[24]={5,0,4,8},reply[32];
@@ -238,31 +253,62 @@ static bool reuse_timeline(uint32_t address,uint32_t *value) {
     }
     return false;
 }
-static bool frame_word(subscription_t *s,uint32_t address,uint32_t *value) {
+static bool cached_word(subscription_t *s,uint32_t address,uint32_t *value) {
     for(unsigned i=0;i<s->cache_count;i++)if(s->cache_address[i]==address) { *value=s->cache_value[i];return true; }
-    if(!word(address,value,false))return false;
-    if(s->cache_count<128) {
-        s->cache_address[s->cache_count]=address;s->cache_value[s->cache_count++]=*value;
-    }
-    return true;
+    return false;
 }
-/* 0: SWD failure, 1: valid, 2: currently invalid pointer/range (keep sampling). */
-static unsigned field(subscription_t *s,unsigned i,uint32_t *value) {
-    uint32_t address=s->address[i];
-    for(unsigned d=0;d<s->depth[i];d++) {
-        uint32_t pointer;
-        if((address&3) || !memory(address,4,false)) return 2;
-        if(!frame_word(s,address,&pointer)) return 0;
-        int64_t next=(int64_t)pointer+s->offset[i][d];
-        if(next<0 || next>UINT32_MAX) return 2;
-        address=(uint32_t)next;
+/* Advance every field using this frame's cache. Each unresolved chain contributes
+ * only its next dependency. Deduplicate shared roots/suffixes before physical IO.
+ * Range checks apply before queueing, so invalid branches cannot poison peers. */
+static unsigned resolve_fields(subscription_t *s,uint32_t missing[8]) {
+    unsigned count=0;
+    for(unsigned i=0;i<s->count;i++) {
+        uint32_t bit=1u<<i,a=s->resolve_address[i],value=0;
+        if(s->resolved&bit)continue;
+        while(s->resolve_depth[i]<s->depth[i]) {
+            unsigned d=s->resolve_depth[i];
+            if((a&3) || !memory(a,4,false))goto invalid;
+            if(!cached_word(s,a,&value))goto pending;
+            int64_t next=(int64_t)value+s->offset[i][d];
+            if(next<0 || next>UINT32_MAX)goto invalid;
+            s->resolve_address[i]=a=(uint32_t)next;s->resolve_depth[i]++;
+        }
+        unsigned width=s->width[i];
+        if(a%width || !memory(a,width,false))goto invalid;
+        if(s->kind==2 && !s->depth[i] && width==4 && reuse_timeline(a,&value)) {
+            s->reused=true;
+            if(s_sub[0].last_timestamp<s->timestamp)s->timestamp=s_sub[0].last_timestamp;
+        }else {
+            uint32_t aligned=a&~3u;
+            if(!cached_word(s,aligned,&value)) {a=aligned;goto pending;}
+            value>>=(a&3)*8;
+            if(width<4)value&=(1u<<(width*8))-1;
+        }
+        s->values[i]=value;s->valid|=bit;s->resolved|=bit;continue;
+invalid:
+        s->failures++;s->resolved|=bit;continue;
+pending:;
+        unsigned j=0;for(;j<count;j++)if(missing[j]==a)break;
+        if(j==count && count<8)missing[count++]=a;
     }
-    unsigned width=s->width[i];
-    if(address%width || !memory(address,width,false)) return 2;
-    if(!frame_word(s,address&~3u,value)) return 0;
-    *value>>=(address&3)*8;
-    if(width<4) *value&=(1u<<(width*8))-1;
-    return 1;
+    s->index=__builtin_popcount(s->resolved);
+    return count;
+}
+static bool dynamic_step(subscription_t *s) {
+    uint32_t addresses[8],values[8];unsigned count=resolve_fields(s,addresses);
+    if(!count)return true;
+    /* At most eight physical reads per executor turn. Never replay a partial
+     * response; a failure pauses capture just as it does for static fields. */
+    if(s->cache_count+count>CACHE_WORDS)return false;
+    bool contiguous=true;
+    for(unsigned i=1;i<count;i++)if(addresses[i]!=addresses[i-1]+4)contiguous=false;
+    bool ok=contiguous && (addresses[0]&0x3ff)+count*4<=0x400?
+        block(addresses[0],values,count):scattered(addresses,values,count);
+    if(!ok)return false;
+    for(unsigned i=0;i<count;i++) {
+        s->cache_address[s->cache_count]=addresses[i];s->cache_value[s->cache_count++]=values[i];
+    }
+    resolve_fields(s,addresses);return true;
 }
 static bool rtt_run(subscription_t *s,unsigned id) {
     /* F103 32-bit RTT descriptor: name,buffer,size,WrOff,RdOff,flags. */
@@ -304,12 +350,14 @@ static bool rtt_run(subscription_t *s,unsigned id) {
     }
     if(s->rtt_phase!=3)goto fail;
     uint32_t wanted=s->rtt_pending_rd;
+    s->rtt_commit_unknown=true;
     if(!word(desc+16,&wanted,true))goto fail;
+    s->rtt_commit_unknown=false;
 publish:;
     uint8_t payload[80]; w32(payload,s->rtt_channel); w64(payload+4,s->frames);
     w32(payload+12,s->rtt_bytes); memcpy(payload+16,s->pending,s->rtt_bytes);
     emit(s,id,esp_timer_get_time(),0,payload,16+s->rtt_bytes,0,0);
-    s->frames+=s->rtt_bytes; s->seq++; s->rtt_pending=false;s->rtt_phase=0;return true;
+    s->frames+=s->rtt_bytes; s->seq++; s->rtt_pending=false;s->rtt_commit_unknown=false;s->rtt_phase=0;return true;
 fail:
     s->failures++; s->state=3; s->reason=3;s->rtt_phase=0;return true;
 }
@@ -330,15 +378,15 @@ bool rmlink_capture_run(void) {
             s->missed+=missed; s->seq+=(uint32_t)missed;
             s->next+=(missed+1)*s->period;
             s->started=now; s->timestamp=now; s->reused=false; s->valid=0; memset(s->values,0,sizeof(s->values));
-            s->cache_count=0;
+            s->cache_count=0;s->resolved=0;
+            memcpy(s->resolve_address,s->address,sizeof(s->address));
+            memset(s->resolve_depth,0,sizeof(s->resolve_depth));
         }
         if(s->kind==3) { if(rtt_run(s,k+1))s->started=0;timer_refresh();return true; }
-        unsigned end=s->index+(s->kind==1?8:4); if(end>s->count) end=s->count;
+        unsigned end=s->index+8; if(end>s->count) end=s->count;
         bool failed=false;
-        uint64_t block_start=esp_timer_get_time();
         bool static_group=s->kind==1;
-        for(unsigned i=s->index;i<end;i++)if(s->depth[i] || s->width[i]!=4)static_group=false;
-        if(!static_group && end>s->index+4u)end=s->index+4u;
+        for(unsigned i=0;i<s->count;i++)if(s->depth[i] || s->width[i]!=4)static_group=false;
         if(static_group) {
             bool contiguous=true;
             for(unsigned i=s->index+1;i<end;i++)if(s->address[i]!=s->address[i-1]+4)contiguous=false;
@@ -350,16 +398,7 @@ bool rmlink_capture_run(void) {
                 for(;s->index<end;s->index++)s->valid|=1u<<s->index;
             }else { s->failures++;failed=true; }
         }
-        for(;!static_group && s->index<end;s->index++) {
-            uint32_t v=0;
-            unsigned ok=s->kind==2 && !s->depth[s->index] && s->width[s->index]==4 && reuse_timeline(s->address[s->index],&v);
-            if(ok) { s->reused=true; if(s_sub[0].last_timestamp<s->timestamp) s->timestamp=s_sub[0].last_timestamp; }
-            if(!ok) ok=field(s,s->index,&v);
-            if(ok==1) { s->values[s->index]=v; s->valid|=1u<<s->index; }
-            else if(ok==2) s->failures++;
-            else { s->failures++; failed=true; break; }
-            if(esp_timer_get_time()-block_start>=200) { s->index++; break; }
-        }
+        if(!static_group && !dynamic_step(s)) {s->failures++;failed=true;}
         if(s->index==s->count || failed) {
             sample_finish(s,k+1);
             if(failed) { s->state=3; s->reason=3; }
@@ -489,6 +528,10 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     case 5: /* PAUSE */
         if(!s->state) return 3;
         if(s->started && s->kind!=3) sample_finish(s,r[2]);
+        /* A normal STOP may discard an uncommitted read: RdOff is unchanged,
+         * so a new task can consume it once. An attempted write with a lost
+         * response remains pending until descriptor reconciliation on resume. */
+        if(r[1]==4 && !s->rtt_commit_unknown)s->rtt_pending=false;
         s->started=0;s->rtt_phase=0; s->state=3; s->reason=r[1]==4?2:1; break;
     case 6: /* RESUME */
         if(s->state!=3) return 3;

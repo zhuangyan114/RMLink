@@ -1,6 +1,6 @@
 # 构建、连接与接线
 
-更新：2026-10-14。当前 target profile 固件 0.1.6，GPIO4 / 5 / 6 已配置；热点参数已保存。STM32F103 三线 SWD 烧录 / 校验、RAM、暂停 / 继续和调试通过；GPIO6 尚未接目标 NRST，复位使用 SYSRESETREQ。TCP / 虚拟 USB 可扩至 512，原生 USB 保留 64。
+更新：2026-10-15。最新实板检查点为 0.2.6；GPIO4 / 5 / 6 已配置，热点参数已保存。STM32F103 三线 SWD 烧录／校验、RAM、暂停／继续、调试和十分钟四级独立指针采样通过；范围及未完成项见 [开发进度](development-status.md)。GPIO6 尚未接目标 NRST，复位使用 SYSRESETREQ。TCP／虚拟 USB 为 512 字节开发档，原生 USB 保留 64。
 
 ## 两个 USB 口
 
@@ -25,7 +25,7 @@ PowerShell：
 & 'D:\STM32\RMLink\scripts\Test-Core.ps1'
 ```
 
-默认传输配置与 sdkconfig 输出到 artifacts/build/firmware。-TargetProfile 另外编译 artifacts/build/firmware-target，并允许目标 GPIO；接线确认后已烧入该 profile。脚本记录最后成功刷写的 profile 与哈希至 artifacts/hardware/rmlink-last-flash.json。
+默认传输配置与 sdkconfig 输出到 artifacts/build/firmware-core0。-TargetProfile 另外编译 artifacts/build/firmware-target-core0，并允许目标 GPIO。0.2.6 的构建目录明确带执行核后缀，避免 CPU0／CPU1 配置复用；脚本记录最后成功刷写的 profile、实际配置核与哈希至 artifacts/hardware/rmlink-last-flash.json。
 
 当前接线确认后使用：
 
@@ -37,12 +37,12 @@ PowerShell：
 当前 512 字节无线扩容版本使用独立目录；原生 USB 仍为 64。默认不传参数时构建 64 字节 TCP 回退档：
 
 ```powershell
-& 'D:\STM32\RMLink\scripts\Build-Firmware.ps1' -TargetProfile -TcpPacketSize 512
-& 'D:\STM32\RMLink\scripts\Flash-Firmware.ps1' -Port COM13 -TargetProfile -TargetWiringConfirmed -TcpPacketSize 512
+& 'D:\STM32\RMLink\scripts\Build-Firmware.ps1' -TargetProfile -TcpPacketSize 512 -ExecutorCore 0
+& 'D:\STM32\RMLink\scripts\Flash-Firmware.ps1' -Port COM13 -TargetProfile -TargetWiringConfirmed -TcpPacketSize 512 -ExecutorCore 0
 & 'D:\STM32\RMLink\scripts\Test-Core.ps1' -PacketSize 512
 ```
 
-128 / 256 / 512 产物分别位于 artifacts/build/firmware-target-tcp128 / tcp256 / tcp512。连接服务无需按档修改配置，会查询设备容量。直接 TCP 工具只在连接服务释放其唯一 TCP 连接后使用；正常调试软件使用连接服务挂载的虚拟 CMSIS-DAP。结果见 [提速验收](performance-results.md)。
+128／256／512 产物分别位于 artifacts/build/firmware-target-tcp128-core0／firmware-target-tcp256-core0／firmware-target-tcp512-core0。默认执行核为 CPU0；-ExecutorCore 1 仅用于未合格的实验配置，当前板曾返回 NO_ACK，不能当作提速版本使用。连接服务会查询设备容量。直接 TCP 工具只在连接服务释放其唯一 TCP 连接后使用；正常调试软件使用连接服务挂载的虚拟 CMSIS-DAP。历史结果见 [提速验收](performance-results.md)。
 
 以后运行不带 -TargetProfile 的刷写入口会切回目标 GPIO 关闭版本；profile 选择需与验证目的一致。
 
@@ -66,7 +66,7 @@ $env:PYTHONPYCACHEPREFIX = 'D:\STM32\RMLink\artifacts\cache\python'
 & $rmlinkPython 'D:\STM32\RMLink\scripts\rmlink_tool.py' verify --host rmlink-15a924.local
 ```
 
-也可运行 rmlink_tool.py provision 手动本地输入账号密码。IP 由热点 DHCP 分配，重启后的本轮地址为 192.168.137.243，不能当作永久固定值。TCP 默认端口 3241；现有调试软件是否支持这种 TCP DAP，需要逐软件验证。Windows USB/IP 服务和自动挂载已实现，使用入口与限制见 [Windows 连接组件](windows-connector.md)；Orbit 专用后端仍待接入。
+也可运行 rmlink_tool.py provision 手动本地输入账号密码。IP 由热点 DHCP 分配，通过服务发现，不能当作永久固定值。TCP 默认端口 3241；标准 CMSIS-DAP 软件优先使用服务自动挂载的虚拟 USB。使用入口与限制见 [Windows 连接组件](windows-connector.md)。Orbit 专用后端已在隔离工作树通过真实适配器子进程验收，用户已安装的 VS Code 界面尚未替换或验收。
 
 test_device_transport.py 需要 USB 和 Wi-Fi 均在线，会主动三次断开 STA，检查 USB 持续查询、运行时间和新 TCP 连接；仅供传输验收，不进行 STM32 操作。运行时应停止其他占用该设备的工具。
 
@@ -94,10 +94,10 @@ Test-WirelessStartup.ps1 用于检查无原生 USB 枚举的启动：先拔掉�
 & $rmlinkPython 'D:\STM32\RMLink\scripts\rmlink_swd.py' --host rmlink-15a924.local --clock 100000
 ```
 
-该入口会配置 CoreSight DP / AP 寄存器，并读芯片信息和 Flash；不写目标 RAM / Flash。test_target_ownership.py 验证会话排他及 STA 断连时 USB 目标读取；benchmark_swd_reads.py / benchmark_swd_pipeline.py 对照同一段 Flash 的顺序请求和最多 8 包连续提交。后者是主机标准 DAP 排队，板端周期采样尚未实现。
+该入口会配置 CoreSight DP／AP 寄存器，并读芯片信息和 Flash；不写目标 RAM／Flash。test_target_ownership.py 验证会话排他及 STA 断连时 USB 目标读取；benchmark_swd_reads.py／benchmark_swd_pipeline.py 对照同一段 Flash 的顺序请求和最多八包连续提交。后者是主机标准 DAP 排队；板端周期采样则使用独立订阅接口，见 [API](api-v1.md) 和 [采样性能记录](subscription-performance-20261015.md)。
 
 ## 本地原固件备份
 
 artifacts/hardware/esp32s3-before-rmlink.bin 是刷入 RMLink 前的完整 16 MB Flash 备份，仅本地保留。备份 SHA256 为 9C7CB67284D4384C5C708A10A5C971D4E49C253D22399052B74F80B209AFEF54。固件可能包含原设备配置，勿作为公开发布内容。
 
-artifacts/hardware/stm32f103c8-before-rmlink.bin 为本次从 STM32 读取的 64 KiB 主 Flash 备份，保存原程序；验收后已重新烧录恢复，并由 USB / TCP 完整回读核对。它不包含 RAM、选项字节或系统 ROM；选项数据仅作读取前后比较，未写入。原程序备份仅在本地保留，不放入文档分享副本。
+artifacts/hardware/stm32f103c8-before-rmlink.bin 为早期从 STM32 读取的 64 KiB 主 Flash 备份，保存原程序；早期验收曾恢复并完整核对。按当前用户决定，后续默认保留新测试固件，只有显式 --restore-original 才恢复旧程序。备份不包含 RAM、选项字节或系统 ROM；选项数据仅作读取前后比较，未写入。原程序备份仅在本地保留，不放入文档分享副本。

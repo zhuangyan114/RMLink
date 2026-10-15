@@ -17,6 +17,17 @@ menu "Debug Probe Configuration"
         default "JTAG" if DEBUG_PROBE_IFACE_JTAG
         default "CMSIS-DAP"
 
+    config RMLINK_EXECUTOR_CORE
+        int "CPU core for the CMSIS-DAP SWD executor"
+        depends on DEBUG_PROBE_IFACE_SWD && !FREERTOS_UNICORE
+        range 0 1
+        default 0
+        help
+            Keep GPIO bundle creation and all SWD operations on this core.
+            Network receive uses the other core. CPU0 is the validated default.
+            CPU1 is experimental: sustained target access has returned NO_ACK
+            on the current development board and is not qualified for use.
+
     config DEBUG_PROBE_GPIO_TDI
         int "GPIO pin for the target TDI signal"
         default 3

@@ -278,6 +278,6 @@ void app_main(void)
     msc_init();
 #endif
 
-    // dedic_gpio bundles are CPU-local; task must run on the same core that created them
+    // USB queues SWD requests; the selected executor owns CPU-local GPIO bundles.
     xTaskCreatePinnedToCore(tusb_device_task, "tusb_device_task", 4 * 1024, NULL, 5, NULL, esp_cpu_get_core_id());
 }

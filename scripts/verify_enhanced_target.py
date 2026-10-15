@@ -13,11 +13,18 @@ from rmlink_connector.client import ApiClient
 from rmlink_connector.capture_protocol import decode_record
 
 
-def controls(device_id,repetitions,loaded):
+def controls(device_id,repetitions,loaded,pointer_depth=0):
     rows=[]
     with ApiClient().open(device_id) as client:
         client.target('connect');sub=None
-        if loaded:sub=client.subscribe('memory_series',addresses=[0x20000100+i*64 for i in range(10)],period_us=200)
+        if loaded:
+            if pointer_depth:
+                from benchmark_pointer_subscriptions import layout
+                assert client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52'
+                image,fields=layout(pointer_depth,False)
+                client.target('write_memory',address=0x20001000,data=image.hex())
+                sub=client.subscribe('memory_series',fields=fields,period_us=200)
+            else:sub=client.subscribe('memory_series',addresses=[0x20000100+i*64 for i in range(10)],period_us=200)
         try:
             for i in range(repetitions):
                 begin=time.perf_counter();client.target('halt');halt_ms=(time.perf_counter()-begin)*1000
@@ -30,7 +37,8 @@ def controls(device_id,repetitions,loaded):
         finally:
             client.target('run')
             if sub:client.unsubscribe(1)
-    return {'loaded':loaded,'rows':rows,'median_halt_ms':statistics.median(r['halt_ms'] for r in rows),
+    return {'loaded':loaded,'pointerDepth':pointer_depth if loaded else 0,'independentChains':bool(loaded and pointer_depth),
+        'rows':rows,'median_halt_ms':statistics.median(r['halt_ms'] for r in rows),
         'max_halt_ms':max(r['halt_ms'] for r in rows),'median_run_ms':statistics.median(r['run_ms'] for r in rows),
         'max_run_ms':max(r['run_ms'] for r in rows),'scope':'local API round trip including WiFi and control barriers'}
 
@@ -74,13 +82,15 @@ def c_sdk(device_id):
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--device-id',default='50787d15a924')
     p.add_argument('--repetitions',type=int,default=20);p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--pointer-depth',type=int,choices=range(5),default=0,
+                   help='Loaded case: ten independent chains in reserved fixture RAM')
     args=p.parse_args()
     if not 1<=args.repetitions<=100:p.error('repetitions must be 1..100')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,'requestedClockHz':4000000,
         'actualClockMeasured':False,'fixtureRetained':True}
     try:
         report['idleControls']=controls(args.device_id,args.repetitions,False)
-        report['loadedControls']=controls(args.device_id,args.repetitions,True)
+        report['loadedControls']=controls(args.device_id,args.repetitions,True,args.pointer_depth)
         report['cSdk']=c_sdk(args.device_id);report['complete']=True
     except BaseException as error:report['failure']=f'{type(error).__name__}: {error}';raise
     finally:

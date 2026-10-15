@@ -324,8 +324,15 @@ esp_err_t rmlink_network_init(void)
     }
     if (xTaskCreate(connection_task, "rmlink_wifi", 4096, NULL, 4, &s_manager) != pdPASS) return ESP_ERR_NO_MEM;
     /* RX must run during a busy SWD loop on the other CPU, without touching GPIO. */
+    int network_core=0;
+#if !CONFIG_FREERTOS_UNICORE
+    network_core=1-esp_cpu_get_core_id();
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+    network_core=1-CONFIG_RMLINK_EXECUTOR_CORE;
+#endif
+#endif
     if (xTaskCreatePinnedToCore(tcp_task, "rmlink_tcp", 6144, NULL, 4, NULL,
-                              1 - esp_cpu_get_core_id()) != pdPASS) return ESP_ERR_NO_MEM;
+                              network_core) != pdPASS) return ESP_ERR_NO_MEM;
     esp_err_t bench_result = rmlink_transport_bench_init();
     if (bench_result != ESP_OK) ESP_LOGW("rmlink_wifi", "Transport benchmark unavailable: %s", esp_err_to_name(bench_result));
     ESP_LOGI("rmlink_wifi", "STA + TCP ready; configure credentials using USB vendor commands");

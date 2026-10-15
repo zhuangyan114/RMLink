@@ -19,14 +19,17 @@ def main():
         add('sdk/'+name,ROOT/'artifacts/build/sdk'/name)
     for name in ('api-v1.md','subscriptions-implementation.md','quickstart.md','recording-format.md',
                  'subscription-performance-20261015.md','subscription-performance-20261015.json','subscription-checkpoint-024.json',
-                 'orbit-matrix-acceptance-024.json','subscription-checkpoint-025.json'):
+                 'orbit-matrix-acceptance-024.json','subscription-checkpoint-025.json','subscription-checkpoint-026.json'):
         add('docs/'+name,ROOT/'docs'/name)
     for name in ('Start.ps1','Install.ps1','README.md'):
         add(name,ROOT/'host/distribution'/name)
     for source in sorted((ROOT/'artifacts/build/connector/dist').glob('*.txt')):
         add('licenses/'+source.name,source)
     add('licenses/Firmware-LICENSE',ROOT/'firmware/LICENSE')
-    add('firmware/rmlink.bin',ROOT/'artifacts/build/firmware-target-tcp512/rmlink.bin')
+    firmware=ROOT/'artifacts/build/firmware-target-tcp512-core0'
+    if 'CONFIG_RMLINK_EXECUTOR_CORE=0' not in (firmware/'sdkconfig').read_text():
+        raise RuntimeError('Only the qualified CPU0 firmware may be packaged')
+    add('firmware/rmlink.bin',firmware/'rmlink.bin')
     manifest={'version':version,'source_commit':commit,'source_clean':clean,
         'scope':'development; F103C8 target, subscriptions and recording measured; installed VS Code and other targets pending',
         'kernel_driver_included':False,'files':[{'path':name,'size':len(data),'sha256':hashlib.sha256(data).hexdigest()} for name,data in sorted(files.items())]}

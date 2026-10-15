@@ -18,9 +18,15 @@ from rmlink_connector.client import ApiClient
 
 
 class Adapter:
-    def __init__(self,worktree):
+    def __init__(self,worktree,node_report_directory=None):
         self.stderr=bytearray();self.messages=queue.Queue();self.events=[];self.seq=0
-        self.child=subprocess.Popen(['node',str(worktree/'dist/debugadapter.js')],cwd=worktree,
+        self.request_trace=[]
+        command=['node']
+        if node_report_directory:
+            node_report_directory=node_report_directory.resolve()
+            node_report_directory.mkdir(parents=True,exist_ok=True)
+            command+=['--report-on-fatalerror','--report-exclude-env',f'--report-directory={node_report_directory}']
+        self.child=subprocess.Popen(command+[str(worktree/'dist/debugadapter.js')],cwd=worktree,
             stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         def reader():
             try:
@@ -53,6 +59,7 @@ class Adapter:
 
     def request(self,command,args=None,timeout=30):
         self.seq+=1;seq=self.seq
+        trace={'seq':seq,'command':command,'completed':False};self.request_trace.append(trace)
         data=json.dumps({'type':'request','seq':seq,'command':command,'arguments':args or {}},ensure_ascii=True).encode()
         self.child.stdin.write(f'Content-Length: {len(data)}\r\n\r\n'.encode()+data);self.child.stdin.flush()
         end=time.perf_counter()+timeout
@@ -60,6 +67,7 @@ class Adapter:
             message=self.next(max(.01,end-time.perf_counter()))
             if message.get('type')=='response' and message.get('request_seq')==seq:
                 if not message.get('success'):raise RuntimeError(f'{command}: {message}')
+                trace['completed']=True
                 return message.get('body')
         raise TimeoutError(command)
 
@@ -83,13 +91,16 @@ def main():
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--seconds',type=float,default=10)
     p.add_argument('--period-us',type=int,default=2000)
     p.add_argument('--matrix',action='store_true',help='Use all ten original discrete 2D-array fields')
+    p.add_argument('--pointers',action='store_true',help='Use ten fields through the existing typed three-pointer chain')
+    p.add_argument('--node-report-directory',type=Path,help='Optional Node fatal-error reports, excluding environment variables')
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 2<=args.seconds<=300:p.error('seconds must be 2..300')
     if not 200<=args.period_us<=10000000:p.error('period-us must be 200..10000000')
+    if args.matrix and args.pointers:p.error('Choose matrix or pointers')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
         'scope':'real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded',
         'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False,'periodUs':args.period_us,
-        'fieldSet':'ten_discrete_matrix_words' if args.matrix else 'three_struct_scalars'}
+        'fieldSet':'ten_three_level_pointer_fields' if args.pointers else 'ten_discrete_matrix_words' if args.matrix else 'three_struct_scalars'}
     deadline=time.perf_counter()+30
     while True:
         try:
@@ -98,7 +109,8 @@ def main():
         except OSError:pass
         if time.perf_counter()>deadline:raise ConnectionError('RMLink did not become ready in 30 seconds')
         time.sleep(.2)
-    adapter=Adapter(args.worktree)
+    report['nodeVersion']=subprocess.check_output(['node','--version']).decode().strip()
+    adapter=Adapter(args.worktree,args.node_report_directory)
     try:
         report['initialize']=adapter.request('initialize',{'adapterID':'ozone','clientID':'rmlink-acceptance','linesStartAt1':True})
         report['launch']=adapter.request('launch',{'device':'STM32F103C8','probe':'cmsis-dap',
@@ -106,7 +118,7 @@ def main():
             'flashBeforeDebug':False,'runToEntryPoint':False,'speedKHz':4000,'loggingEnabled':False,
             'rttLogEnabled':True,'rttControlBlockAddress':'0x20000400','rttStripAnsi':False})
         adapter.request('configurationDone');adapter.request('continue',{'threadId':1})
-        expressions=[f'capture_values[{i}][0]' for i in range(10)] if args.matrix else [
+        expressions=[f'capture_root->next->leaf->values[{i}]' for i in range(10)] if args.pointers else [f'capture_values[{i}][0]' for i in range(10)] if args.matrix else [
             'fixture_state.counter','fixture_state.boots','fixture_state.guard']
         report['samplingStart']=adapter.request('dataSamplingStart',{'expressions':expressions,'sampleIntervalMs':args.period_us/1000,'sendIntervalMs':16})
         assert len(report['samplingStart']['activeExpressions'])==len(expressions),report['samplingStart']
@@ -114,7 +126,8 @@ def main():
         report['watch']=adapter.request('watchEvaluate',{'expressions':expressions[:4]})
         for i,value in enumerate(report['watch']['results']):
             assert not value.get('error'),value
-            if args.matrix:assert int(value['value'])>>24==i,value
+            if args.pointers:assert int(value['value'])>>24==9 if not i else int(value['value'])==(9<<16)|i,value
+            elif args.matrix:assert int(value['value'])>>24==i,value
             else:assert int(value['value'])>0 if i==0 else int(value['value'])==[0,1,0x13579bdf][i],value
         report['samplingStop']=adapter.request('dataSamplingStop')
         rows={expression:[] for expression in expressions}
@@ -123,7 +136,8 @@ def main():
                 for row in event['body']['snapshots']:rows[row['expression']].extend(row['data'])
         for i,expression in enumerate(expressions):
             assert rows[expression],f'No samples: {expression}'
-            if args.matrix:assert all(int(point['value'])>>24==i for point in rows[expression]),f'Field identity: {expression}'
+            if args.pointers:assert all(int(point['value'])>>24==9 if not i else int(point['value'])==(9<<16)|i for point in rows[expression]),f'Pointer field identity: {expression}'
+            elif args.matrix:assert all(int(point['value'])>>24==i for point in rows[expression]),f'Field identity: {expression}'
             elif i:assert all(int(point['value'])==[0,1,0x13579bdf][i] for point in rows[expression]),f'Field identity: {expression}'
         assert int(rows[expressions[0]][-1]['value'])>int(rows[expressions[0]][0]['value']),'Counter did not run'
         first=rows[expressions[0]];span=first[-1]['timestamp']-first[0]['timestamp']
@@ -137,8 +151,11 @@ def main():
     except BaseException as error:report['failure']=f'{type(error).__name__}: {error}';raise
     finally:
         adapter.close();report['adapterExitCode']=adapter.child.returncode
+        report['requestTrace']=adapter.request_trace
         report['stderrTail']=adapter.stderr[-2000:].decode(errors='replace')
         report['eventKinds']=sorted(set(event['event'] for event in adapter.events))
+        report['outputTail']=[event.get('body',{}).get('output','')[-1000:] for event in adapter.events
+            if event['event']=='output'][-12:]
         args.output.parent.mkdir(parents=True,exist_ok=True)
         args.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report),flush=True)
 

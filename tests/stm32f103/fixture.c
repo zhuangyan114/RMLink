@@ -6,6 +6,12 @@ __attribute__((section(".state")))
 volatile struct { uint32_t magic, boots, counter, guard; } fixture_state;
 __attribute__((section(".capture"))) volatile uint32_t capture_values[10][16];
 __attribute__((section(".pointers"))) volatile uint32_t capture_pointers[4];
+/* Typed DWARF view of the existing three-pointer chain. The alias adds no RAM
+ * storage or target instructions, so direct/pointer tests keep one Flash image. */
+typedef struct { uint32_t values[16]; } pointer_leaf_t;
+typedef struct { volatile pointer_leaf_t *leaf; } pointer_middle_t;
+typedef struct { volatile pointer_middle_t *next; } pointer_root_t;
+extern volatile pointer_root_t *capture_root __attribute__((alias("capture_pointers")));
 typedef struct { const char *name; volatile uint8_t *buffer; uint32_t size; volatile uint32_t wr,rd; uint32_t flags; } rtt_up_t;
 typedef struct { char signature[16]; uint32_t up_count,down_count; rtt_up_t up; } rtt_cb_t;
 __attribute__((section(".rtt"))) volatile rtt_cb_t fixture_rtt;

@@ -75,7 +75,7 @@ static size_t process(const request_t *job, uint8_t *out)
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 2; out[6] = 5; /* firmware 0.2.5: cooperative RTT steps */
+            out[5] = 2; out[6] = 6; /* firmware 0.2.6: isolated executor CPU */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */
@@ -128,6 +128,7 @@ static size_t process(const request_t *job, uint8_t *out)
 }
 static void swd_task(void *arg)
 {
+    ESP_LOGI("rmlink", "SWD executor CPU %d", esp_cpu_get_core_id());
     DAP_Setup();
     request_t job;
     uint8_t out[RMLINK_PACKET_SIZE];
@@ -199,8 +200,12 @@ esp_err_t debug_probe_init(void)
     esp_err_t capture_result = rmlink_capture_init(capture_wake);
     if (capture_result != ESP_OK)
         ESP_LOGW("rmlink", "Capture unavailable: %s; standard DAP remains enabled", esp_err_to_name(capture_result));
+    int executor_core=0;
+#if !CONFIG_FREERTOS_UNICORE
+    executor_core=CONFIG_RMLINK_EXECUTOR_CORE;
+#endif
     if (xTaskCreatePinnedToCore(swd_task, "rmlink_executor", 6144, NULL,
-        DEBUG_PROBE_TASK_PRI, &s_executor, esp_cpu_get_core_id()) != pdPASS) return ESP_ERR_NO_MEM;
+        DEBUG_PROBE_TASK_PRI, &s_executor, executor_core) != pdPASS) return ESP_ERR_NO_MEM;
     return ESP_OK;
 }
 esp_err_t debug_probe_process_data(const uint8_t *data, size_t len)

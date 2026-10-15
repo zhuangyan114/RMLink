@@ -1,0 +1,3507 @@
+{
+  "version": "0.2.6",
+  "requested_clock_hz": 4000000,
+  "actual_clock_measured": false,
+  "scope": "F103C8 development checkpoint; known reboot recovery and Orbit child crash remain open",
+  "firmware_receipt": {
+    "flashedAt": "2026-10-15T18:46:45.8593927+08:00",
+    "profile": "firmware-target-tcp512-core0",
+    "port": "COM13",
+    "binarySha256": "8B33C0C97A85B5C541BA91B4C0436D6FB2AD19AA706EB208B6F3E39A12414901",
+    "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+    "targetGpioEnabled": true,
+    "tcpPacketSize": 512,
+    "requestedExecutorCore": 0,
+    "configuredExecutorCore": 0
+  },
+  "connector_sha256": "bc68689058779dfd6ea0c73818ce3556c51bbfdcb751d650e5e52e69aaa5214d",
+  "source_base_commit": "78bf9173169ba52eb2c45c77ab9bd30cbd32c532",
+  "orbit_commit": "db81bf17e864150fad7034084fc7377c2f4a344c",
+  "host_validation": {
+    "tests_passed": 79,
+    "capture_model": true,
+    "protocol_fuzz_inputs_per_capacity": 20000,
+    "capacities": [
+      64,
+      512
+    ]
+  },
+  "build_validation": {
+    "cpu0_tcp64": true,
+    "cpu0_tcp512": true,
+    "cpu1_experimental_not_qualified": true
+  },
+  "pointer_pair": {
+    "before": {
+      "samplesPerExpression": {
+        "capture_root->next->leaf->values[0]": 2513,
+        "capture_root->next->leaf->values[1]": 2513,
+        "capture_root->next->leaf->values[2]": 2513,
+        "capture_root->next->leaf->values[3]": 2513,
+        "capture_root->next->leaf->values[4]": 2513,
+        "capture_root->next->leaf->values[5]": 2513,
+        "capture_root->next->leaf->values[6]": 2513,
+        "capture_root->next->leaf->values[7]": 2513,
+        "capture_root->next->leaf->values[8]": 2513,
+        "capture_root->next->leaf->values[9]": 2513
+      },
+      "effectiveHz": 498.51013611804956,
+      "timestampSpanMs": 5039.014892578125,
+      "events": 178
+    },
+    "after": {
+      "samplesPerExpression": {
+        "capture_root->next->leaf->values[0]": 4910,
+        "capture_root->next->leaf->values[1]": 4910,
+        "capture_root->next->leaf->values[2]": 4910,
+        "capture_root->next->leaf->values[3]": 4910,
+        "capture_root->next->leaf->values[4]": 4910,
+        "capture_root->next->leaf->values[5]": 4910,
+        "capture_root->next->leaf->values[6]": 4910,
+        "capture_root->next->leaf->values[7]": 4910,
+        "capture_root->next->leaf->values[8]": 4910,
+        "capture_root->next->leaf->values[9]": 4910
+      },
+      "effectiveHz": 958.0420540014728,
+      "timestampSpanMs": 5123.9921875,
+      "events": 66
+    },
+    "conditions": "one ~5 second run per firmware, same shared 3-level chain, 10 contiguous uint32 leaves (40 B), Watch4 and RTT and Orbit monitor, values[0] dynamic only"
+  },
+  "sparse_pointer_comparison": {
+    "rows_per_variant": 54,
+    "seconds_per_run": 3,
+    "repetitions": 3,
+    "leaf_stride_bytes": 64,
+    "optimized_variant": "D99EEAF9, pointer resolver before RTT STOP repair; not final long-test identity",
+    "all_leaves_dynamic": true,
+    "groups": [
+      {
+        "depth": 0,
+        "shared": false,
+        "coexist": false,
+        "before_hz": [
+          941.9478644850556,
+          935.9558677399137,
+          926.1010244710659
+        ],
+        "after_hz": [
+          945.4263993582884,
+          966.7336796510622,
+          933.1273351359861
+        ],
+        "before_median_hz": 935.9558677399137,
+        "after_median_hz": 945.4263993582884
+      },
+      {
+        "depth": 0,
+        "shared": false,
+        "coexist": true,
+        "before_hz": [
+          939.6700456092937,
+          924.2449355909729,
+          913.7586217807767
+        ],
+        "after_hz": [
+          914.7864882503566,
+          950.2118091399942,
+          928.0438807771457
+        ],
+        "before_median_hz": 924.2449355909729,
+        "after_median_hz": 928.0438807771457
+      },
+      {
+        "depth": 1,
+        "shared": false,
+        "coexist": false,
+        "before_hz": [
+          332.9919240199297,
+          333.3323283112379,
+          332.8856595153644
+        ],
+        "after_hz": [
+          494.54125762445733,
+          496.32226207823487,
+          494.7505952152569
+        ],
+        "before_median_hz": 332.9919240199297,
+        "after_median_hz": 494.7505952152569
+      },
+      {
+        "depth": 1,
+        "shared": false,
+        "coexist": true,
+        "before_hz": [
+          333.2257556800206,
+          333.0065956058045,
+          333.1173761948653
+        ],
+        "after_hz": [
+          495.41658284947215,
+          495.4177026095479,
+          492.889393104129
+        ],
+        "before_median_hz": 333.1173761948653,
+        "after_median_hz": 495.41658284947215
+      },
+      {
+        "depth": 1,
+        "shared": true,
+        "coexist": false,
+        "before_hz": [
+          499.6688397073741,
+          499.45700315788946,
+          499.666397270851
+        ],
+        "after_hz": [
+          877.1243861229511,
+          866.751758734305,
+          885.0053100318602
+        ],
+        "before_median_hz": 499.666397270851,
+        "after_median_hz": 877.1243861229511
+      },
+      {
+        "depth": 1,
+        "shared": true,
+        "coexist": true,
+        "before_hz": [
+          499.67827619940357,
+          499.8462498244211,
+          499.1882070132515
+        ],
+        "after_hz": [
+          730.4618345753222,
+          748.578009904712,
+          746.868803267543
+        ],
+        "before_median_hz": 499.67827619940357,
+        "after_median_hz": 746.868803267543
+      },
+      {
+        "depth": 2,
+        "shared": false,
+        "coexist": false,
+        "before_hz": [
+          249.74756697531527,
+          249.99932976051002,
+          249.91842475009832
+        ],
+        "after_hz": [
+          332.77262498757176,
+          331.8694615274503,
+          332.99943511431854
+        ],
+        "before_median_hz": 249.91842475009832,
+        "after_median_hz": 332.77262498757176
+      },
+      {
+        "depth": 2,
+        "shared": false,
+        "coexist": true,
+        "before_hz": [
+          249.6792642156224,
+          249.5119839138156,
+          249.5784082378492
+        ],
+        "after_hz": [
+          332.8388299288676,
+          333.12618100486753,
+          332.81122720918773
+        ],
+        "before_median_hz": 249.5784082378492,
+        "after_median_hz": 332.8388299288676
+      },
+      {
+        "depth": 2,
+        "shared": true,
+        "coexist": false,
+        "before_hz": [
+          498.82782148650693,
+          499.3388168564276,
+          499.6625764498873
+        ],
+        "after_hz": [
+          656.604322790441,
+          633.3130790303078,
+          632.3203463865485
+        ],
+        "before_median_hz": 499.3388168564276,
+        "after_median_hz": 633.3130790303078
+      },
+      {
+        "depth": 2,
+        "shared": true,
+        "coexist": true,
+        "before_hz": [
+          499.1902707040296,
+          499.19407996374645,
+          498.9203917079431
+        ],
+        "after_hz": [
+          622.8268207521832,
+          594.3138251824165,
+          603.4250558453709
+        ],
+        "before_median_hz": 499.1902707040296,
+        "after_median_hz": 603.4250558453709
+      },
+      {
+        "depth": 3,
+        "shared": false,
+        "coexist": false,
+        "before_hz": [
+          199.66364614872137,
+          199.73408935641461,
+          199.5978423237632
+        ],
+        "after_hz": [
+          271.6310180407426,
+          272.29652447226863,
+          273.87513084500426
+        ],
+        "before_median_hz": 199.66364614872137,
+        "after_median_hz": 272.29652447226863
+      },
+      {
+        "depth": 3,
+        "shared": false,
+        "coexist": true,
+        "before_hz": [
+          199.2819996339453,
+          199.42580659137334,
+          199.26504206570613
+        ],
+        "after_hz": [
+          262.98379898187267,
+          264.902021529543,
+          264.52004449297345
+        ],
+        "before_median_hz": 199.2819996339453,
+        "after_median_hz": 264.52004449297345
+      },
+      {
+        "depth": 3,
+        "shared": true,
+        "coexist": false,
+        "before_hz": [
+          498.1712134753321,
+          498.8433824521468,
+          498.50182160317115
+        ],
+        "after_hz": [
+          500.00419185271505,
+          499.9447288893579,
+          500.004439930136
+        ],
+        "before_median_hz": 498.50182160317115,
+        "after_median_hz": 500.00419185271505
+      },
+      {
+        "depth": 3,
+        "shared": true,
+        "coexist": true,
+        "before_hz": [
+          497.9370499735332,
+          498.016667775073,
+          497.3165104032555
+        ],
+        "after_hz": [
+          499.998628052545,
+          499.9928527069975,
+          499.9961514087127
+        ],
+        "before_median_hz": 497.9370499735332,
+        "after_median_hz": 499.9961514087127
+      },
+      {
+        "depth": 4,
+        "shared": false,
+        "coexist": false,
+        "before_hz": [
+          166.27729788394643,
+          166.1622815665362,
+          166.1095633227405
+        ],
+        "after_hz": [
+          241.19641552315738,
+          237.0452592619835,
+          237.90607948465473
+        ],
+        "before_median_hz": 166.1622815665362,
+        "after_median_hz": 237.90607948465473
+      },
+      {
+        "depth": 4,
+        "shared": false,
+        "coexist": true,
+        "before_hz": [
+          165.2143324565011,
+          165.822579297713,
+          165.52250861743414
+        ],
+        "after_hz": [
+          236.45411452989333,
+          228.5560678227145,
+          229.39559827708317
+        ],
+        "before_median_hz": 165.52250861743414,
+        "after_median_hz": 229.39559827708317
+      },
+      {
+        "depth": 4,
+        "shared": true,
+        "coexist": false,
+        "before_hz": [
+          495.84171375666443,
+          494.4884101144445,
+          492.08236110554054
+        ],
+        "after_hz": [
+          499.4959231020597,
+          499.6409674534549,
+          499.83127776747807
+        ],
+        "before_median_hz": 494.4884101144445,
+        "after_median_hz": 499.6409674534549
+      },
+      {
+        "depth": 4,
+        "shared": true,
+        "coexist": true,
+        "before_hz": [
+          493.9350564103713,
+          493.297724002157,
+          492.7595478058521
+        ],
+        "after_hz": [
+          499.5229189725583,
+          499.19356085394946,
+          499.06038757194153
+        ],
+        "before_median_hz": 493.297724002157,
+        "after_median_hz": 499.19356085394946
+      }
+    ],
+    "retarget": [
+      {
+        "step": "initial",
+        "checked": 13,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 149,
+          "last_sequence": 20,
+          "completed": 20,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 96859,
+          "host_dropped": 96859,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "retarget",
+        "checked": 15,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 149,
+          "last_sequence": 47,
+          "completed": 47,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 96885,
+          "host_dropped": 96885,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "null",
+        "checked": 12,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 149,
+          "last_sequence": 67,
+          "completed": 67,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 180,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 96906,
+          "host_dropped": 96906,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "unaligned",
+        "checked": 10,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 149,
+          "last_sequence": 85,
+          "completed": 85,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 360,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 96924,
+          "host_dropped": 96924,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "outside_ram",
+        "checked": 16,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 149,
+          "last_sequence": 105,
+          "completed": 105,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 560,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 96942,
+          "host_dropped": 96942,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "recovered",
+        "checked": 10,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 149,
+          "last_sequence": 128,
+          "completed": 128,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 610,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 96967,
+          "host_dropped": 96967,
+          "stream_error": null
+        }
+      }
+    ]
+  },
+  "signed_offsets": {
+    "samples": 20,
+    "fourSignedOffsets": [
+      4,
+      -4,
+      4,
+      -4
+    ],
+    "widths": [
+      4,
+      2,
+      1
+    ],
+    "invalidCases": [
+      "uint32_overflow",
+      "uint32_underflow",
+      "unaligned",
+      "outside_ram"
+    ],
+    "status": {
+      "state": 3,
+      "kind": 1,
+      "field_count": 7,
+      "capture_id": 150,
+      "last_sequence": 20,
+      "completed": 20,
+      "deadline_missed": 0,
+      "ring_dropped": 0,
+      "failures": 80,
+      "stop_reason": "sample_limit",
+      "budget_overrun": 0,
+      "host_history_evicted": 0,
+      "host_dropped": 0,
+      "stream_error": null
+    }
+  },
+  "orbit_final_pointer_five_runs": {
+    "rates_hz": [
+      721.5299268309154,
+      958.6152122125653,
+      965.3250560686492,
+      961.1634888015215,
+      957.7377439201721
+    ],
+    "median_hz": 958.6152122125653,
+    "min_hz": 721.5299268309154,
+    "max_hz": 965.3250560686492,
+    "seconds_per_run": 5,
+    "runs": 5,
+    "scope": "real Orbit child adapter, Watch4, RTT, monitor; installed VS Code UI excluded"
+  },
+  "orbit_final_matrix_five_successes": {
+    "rates_hz": [
+      968.3569923090881,
+      961.6215346760708,
+      962.7909079801756,
+      961.6490619116003,
+      963.5895747256177
+    ],
+    "median_hz": 962.7909079801756,
+    "min_hz": 961.6215346760708,
+    "max_hz": 968.3569923090881,
+    "seconds_per_run": 5,
+    "runs": 5,
+    "scope": "real Orbit child adapter, Watch4, RTT, monitor; installed VS Code UI excluded"
+  },
+  "final_timing_matrix": {
+    "capturedAt": "2026-10-15T18:54:16.249586+08:00",
+    "complete": true,
+    "rows": [
+      {
+        "samples": 1878,
+        "effectiveHz": 945.1281839540699,
+        "sequenceGaps": 109,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 92,
+          "last_sequence": 2033,
+          "completed": 1923,
+          "deadline_missed": 110,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 17,
+          "host_history_evicted": 0,
+          "host_dropped": 0,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1878,
+        "captureSpanUs": {
+          "p50": 704,
+          "p95": 864,
+          "p99": 993,
+          "max": 1835
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 1648,
+          "p99": 2001,
+          "max": 2523
+        },
+        "depth": 0,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1951,
+        "effectiveHz": 936.5949250964212,
+        "sequenceGaps": 132,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 93,
+          "last_sequence": 2132,
+          "completed": 1999,
+          "deadline_missed": 133,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 18,
+          "host_history_evicted": 45,
+          "host_dropped": 45,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1951,
+        "captureSpanUs": {
+          "p50": 704,
+          "p95": 880,
+          "p99": 974,
+          "max": 1236
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 1669,
+          "p99": 1960,
+          "max": 2160
+        },
+        "depth": 0,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1017,
+        "effectiveHz": 497.3146964324523,
+        "sequenceGaps": 1027,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 96,
+          "last_sequence": 2089,
+          "completed": 1039,
+          "deadline_missed": 1050,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1039,
+          "host_history_evicted": 1249,
+          "host_dropped": 1249,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1017,
+        "captureSpanUs": {
+          "p50": 1467,
+          "p95": 1719,
+          "p99": 1897,
+          "max": 2197
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2150,
+          "p99": 2502,
+          "max": 3213
+        },
+        "depth": 1,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1050,
+        "effectiveHz": 496.45641808350786,
+        "sequenceGaps": 1064,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 97,
+          "last_sequence": 2123,
+          "completed": 1054,
+          "deadline_missed": 1069,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1054,
+          "host_history_evicted": 2534,
+          "host_dropped": 2534,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1050,
+        "captureSpanUs": {
+          "p50": 1476,
+          "p95": 1733,
+          "p99": 1842,
+          "max": 2140
+        },
+        "sampleIntervalUs": {
+          "p50": 2001,
+          "p95": 2185,
+          "p99": 2589,
+          "max": 4166
+        },
+        "depth": 1,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1786,
+        "effectiveHz": 897.8963571062083,
+        "sequenceGaps": 203,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 100,
+          "last_sequence": 2050,
+          "completed": 1841,
+          "deadline_missed": 209,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 108,
+          "host_history_evicted": 4500,
+          "host_dropped": 4500,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1786,
+        "captureSpanUs": {
+          "p50": 841,
+          "p95": 1010,
+          "p99": 1101,
+          "max": 1617
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 2000,
+          "p99": 2025,
+          "max": 2253
+        },
+        "depth": 1,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1671,
+        "effectiveHz": 765.6427226805381,
+        "sequenceGaps": 511,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 101,
+          "last_sequence": 2232,
+          "completed": 1708,
+          "deadline_missed": 524,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 95,
+          "host_history_evicted": 6462,
+          "host_dropped": 6462,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1671,
+        "captureSpanUs": {
+          "p50": 842,
+          "p95": 1011,
+          "p99": 1128,
+          "max": 1392
+        },
+        "sampleIntervalUs": {
+          "p50": 1096,
+          "p95": 2014,
+          "p99": 2136,
+          "max": 2557
+        },
+        "depth": 1,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 652,
+        "effectiveHz": 332.9909647428553,
+        "sequenceGaps": 1304,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 104,
+          "last_sequence": 2009,
+          "completed": 669,
+          "deadline_missed": 1340,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 669,
+          "host_history_evicted": 7219,
+          "host_dropped": 7219,
+          "stream_error": null
+        },
+        "timingWindowFrames": 652,
+        "captureSpanUs": {
+          "p50": 2231,
+          "p95": 2522,
+          "p99": 2718,
+          "max": 2971
+        },
+        "sampleIntervalUs": {
+          "p50": 3000,
+          "p95": 3090,
+          "p99": 3245,
+          "max": 4006
+        },
+        "depth": 2,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 715,
+        "effectiveHz": 333.18105310411346,
+        "sequenceGaps": 1429,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 105,
+          "last_sequence": 2203,
+          "completed": 734,
+          "deadline_missed": 1469,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 734,
+          "host_history_evicted": 8178,
+          "host_dropped": 8178,
+          "stream_error": null
+        },
+        "timingWindowFrames": 715,
+        "captureSpanUs": {
+          "p50": 2239,
+          "p95": 2562,
+          "p99": 2702,
+          "max": 2965
+        },
+        "sampleIntervalUs": {
+          "p50": 3000,
+          "p95": 3149,
+          "p99": 3295,
+          "max": 3681
+        },
+        "depth": 2,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1278,
+        "effectiveHz": 643.3330394589352,
+        "sequenceGaps": 708,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 108,
+          "last_sequence": 2037,
+          "completed": 1310,
+          "deadline_missed": 727,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 355,
+          "host_history_evicted": 9546,
+          "host_dropped": 9546,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1278,
+        "captureSpanUs": {
+          "p50": 983,
+          "p95": 1130,
+          "p99": 1255,
+          "max": 1465
+        },
+        "sampleIntervalUs": {
+          "p50": 1993,
+          "p95": 2018,
+          "p99": 2123,
+          "max": 2475
+        },
+        "depth": 2,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1288,
+        "effectiveHz": 595.2774654408361,
+        "sequenceGaps": 875,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 109,
+          "last_sequence": 2218,
+          "completed": 1321,
+          "deadline_missed": 897,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 449,
+          "host_history_evicted": 11091,
+          "host_dropped": 11091,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1288,
+        "captureSpanUs": {
+          "p50": 983,
+          "p95": 1158,
+          "p99": 1300,
+          "max": 1655
+        },
+        "sampleIntervalUs": {
+          "p50": 1953,
+          "p95": 2133,
+          "p99": 2232,
+          "max": 2327
+        },
+        "depth": 2,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 543,
+        "effectiveHz": 273.464185778046,
+        "sequenceGaps": 1440,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 112,
+          "last_sequence": 2031,
+          "completed": 555,
+          "deadline_missed": 1476,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 555,
+          "host_history_evicted": 11742,
+          "host_dropped": 11742,
+          "stream_error": null
+        },
+        "timingWindowFrames": 543,
+        "captureSpanUs": {
+          "p50": 3005,
+          "p95": 3309,
+          "p99": 3501,
+          "max": 3554
+        },
+        "sampleIntervalUs": {
+          "p50": 3996,
+          "p95": 4032,
+          "p99": 4163,
+          "max": 4510
+        },
+        "depth": 3,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 560,
+        "effectiveHz": 268.3537911093765,
+        "sequenceGaps": 1524,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 113,
+          "last_sequence": 2140,
+          "completed": 574,
+          "deadline_missed": 1566,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 574,
+          "host_history_evicted": 12540,
+          "host_dropped": 12540,
+          "stream_error": null
+        },
+        "timingWindowFrames": 560,
+        "captureSpanUs": {
+          "p50": 3011,
+          "p95": 3333,
+          "p99": 3582,
+          "max": 3834
+        },
+        "sampleIntervalUs": {
+          "p50": 3966,
+          "p95": 4150,
+          "p99": 4278,
+          "max": 4434
+        },
+        "depth": 3,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 973,
+        "effectiveHz": 499.99742799676955,
+        "sequenceGaps": 972,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 116,
+          "last_sequence": 2012,
+          "completed": 1006,
+          "deadline_missed": 1006,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1006,
+          "host_history_evicted": 13627,
+          "host_dropped": 13627,
+          "stream_error": null
+        },
+        "timingWindowFrames": 973,
+        "captureSpanUs": {
+          "p50": 1085,
+          "p95": 1301,
+          "p99": 1415,
+          "max": 1765
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2019,
+          "p99": 2158,
+          "max": 2355
+        },
+        "depth": 3,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1070,
+        "effectiveHz": 499.9981290996105,
+        "sequenceGaps": 1069,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 117,
+          "last_sequence": 2198,
+          "completed": 1099,
+          "deadline_missed": 1099,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1099,
+          "host_history_evicted": 14969,
+          "host_dropped": 14969,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1070,
+        "captureSpanUs": {
+          "p50": 1080,
+          "p95": 1309,
+          "p99": 1419,
+          "max": 1616
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2107,
+          "p99": 2230,
+          "max": 2590
+        },
+        "depth": 3,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 460,
+        "effectiveHz": 235.02653137194562,
+        "sequenceGaps": 1494,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 120,
+          "last_sequence": 2016,
+          "completed": 474,
+          "deadline_missed": 1542,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 474,
+          "host_history_evicted": 15532,
+          "host_dropped": 15532,
+          "stream_error": null
+        },
+        "timingWindowFrames": 460,
+        "captureSpanUs": {
+          "p50": 3803,
+          "p95": 4223,
+          "p99": 4401,
+          "max": 4594
+        },
+        "sampleIntervalUs": {
+          "p50": 4001,
+          "p95": 5031,
+          "p99": 5224,
+          "max": 5357
+        },
+        "depth": 4,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 481,
+        "effectiveHz": 231.7735456572156,
+        "sequenceGaps": 1591,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 121,
+          "last_sequence": 2130,
+          "completed": 494,
+          "deadline_missed": 1636,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 494,
+          "host_history_evicted": 16214,
+          "host_dropped": 16214,
+          "stream_error": null
+        },
+        "timingWindowFrames": 481,
+        "captureSpanUs": {
+          "p50": 3805,
+          "p95": 4207,
+          "p99": 4382,
+          "max": 4442
+        },
+        "sampleIntervalUs": {
+          "p50": 4076,
+          "p95": 5042,
+          "p99": 5146,
+          "max": 5409
+        },
+        "depth": 4,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 973,
+        "effectiveHz": 499.7498679930261,
+        "sequenceGaps": 973,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 124,
+          "last_sequence": 2017,
+          "completed": 1008,
+          "deadline_missed": 1009,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1008,
+          "host_history_evicted": 17267,
+          "host_dropped": 17267,
+          "stream_error": null
+        },
+        "timingWindowFrames": 973,
+        "captureSpanUs": {
+          "p50": 1201,
+          "p95": 1423,
+          "p99": 1549,
+          "max": 1788
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2087,
+          "p99": 2271,
+          "max": 2563
+        },
+        "depth": 4,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1038,
+        "effectiveHz": 499.7648165569144,
+        "sequenceGaps": 1038,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 125,
+          "last_sequence": 2135,
+          "completed": 1067,
+          "deadline_missed": 1068,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1067,
+          "host_history_evicted": 18581,
+          "host_dropped": 18581,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1038,
+        "captureSpanUs": {
+          "p50": 1205,
+          "p95": 1418,
+          "p99": 1547,
+          "max": 1921
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2168,
+          "p99": 2348,
+          "max": 2822
+        },
+        "depth": 4,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      }
+    ],
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureFlashRetained": true,
+    "scratchRam": [
+      536875008,
+      536879104
+    ],
+    "leafStrideBytes": 64,
+    "requestedSecondsPerRun": 2.0,
+    "repetitions": 1,
+    "scope": "public service subscriptions; no Orbit adapter or installed VS Code UI",
+    "timingScope": "probe frame span includes SWD plus executor scheduling; last 8192 frames, not pure SWCLK time",
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "retarget": [
+      {
+        "step": "initial",
+        "checked": 11,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 21,
+          "completed": 21,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18735,
+          "host_dropped": 18735,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "retarget",
+        "checked": 11,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 47,
+          "completed": 47,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18761,
+          "host_dropped": 18761,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "null",
+        "checked": 18,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 75,
+          "completed": 75,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 220,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18804,
+          "host_dropped": 18804,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "unaligned",
+        "checked": 10,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 111,
+          "completed": 111,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 580,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18826,
+          "host_dropped": 18826,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "outside_ram",
+        "checked": 16,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 146,
+          "completed": 146,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 930,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18862,
+          "host_dropped": 18862,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "recovered",
+        "checked": 10,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 172,
+          "completed": 172,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 1080,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18887,
+          "host_dropped": 18887,
+          "stream_error": null
+        }
+      }
+    ],
+    "signedOffsetsAndWidths": {
+      "samples": 20,
+      "fourSignedOffsets": [
+        4,
+        -4,
+        4,
+        -4
+      ],
+      "widths": [
+        4,
+        2,
+        1
+      ],
+      "invalidCases": [
+        "uint32_overflow",
+        "uint32_underflow",
+        "unaligned",
+        "outside_ram"
+      ],
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 7,
+        "capture_id": 129,
+        "last_sequence": 20,
+        "completed": 20,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 80,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 18909,
+        "host_dropped": 18909,
+        "stream_error": null
+      }
+    }
+  },
+  "final_control_and_c_sdk": {
+    "capturedAt": "2026-10-15T18:55:06.197775+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "idleControls": {
+      "loaded": false,
+      "pointerDepth": 0,
+      "independentChains": false,
+      "median_halt_ms": 59.01254999480443,
+      "max_halt_ms": 178.5125999886077,
+      "median_run_ms": 74.85904999339255,
+      "max_run_ms": 117.03359999228269,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "loadedControls": {
+      "loaded": true,
+      "pointerDepth": 4,
+      "independentChains": true,
+      "median_halt_ms": 84.33905000129016,
+      "max_halt_ms": 230.81780000939034,
+      "median_run_ms": 44.45030000351835,
+      "max_run_ms": 227.116299996851,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "cSdk": {
+      "samples": 40,
+      "crcVerified": true,
+      "cursorResumeWithoutReplay": true,
+      "firstCursor": 0,
+      "lastCursor": 39,
+      "captureId": 131
+    }
+  },
+  "virtual_usb": {
+    "capturedAt": "2026-10-15T18:47:12.066396+08:00",
+    "complete": true,
+    "transport": "Windows virtual USB -> loopback USB/IP -> WiFi TCP DAP",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "restoreRequested": false,
+    "virtualBcdDevice": "0x0100",
+    "physicalNrstTested": false,
+    "virtualSerial": "RM50787D15A924",
+    "device": {
+      "version": "0.2.6",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 2,
+      "ownerSession": 3,
+      "packetSize": 512
+    },
+    "cpuid": "0x411fc231",
+    "flashBeforeSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "optionBytesBefore": [
+      4294924965,
+      4294967295,
+      4294967295,
+      4294967295
+    ],
+    "openocdProgram": {
+      "exitCode": 0,
+      "elapsedMs": 12401.45,
+      "verified": true,
+      "log": "artifacts\\logs\\accept-virtual-final-026-accept-virtual-openocd-fixture.log",
+      "errorLines": []
+    },
+    "debug": {
+      "flashReadback": {
+        "bytes": 65536,
+        "sha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+        "elapsedMs": 2668.14
+      },
+      "haltRegisterRun": {
+        "counterBefore": 355,
+        "counterRunning": 362,
+        "counterHalted": 363,
+        "registersBefore": [
+          536870912,
+          15,
+          363,
+          3540,
+          536871936,
+          536870912,
+          536871168,
+          536872448,
+          1380799060,
+          0,
+          3724530687,
+          4156251983,
+          82,
+          536891328,
+          134218089,
+          134218198,
+          2164260864
+        ]
+      },
+      "ramWriteRead": {
+        "address": "0x20004000",
+        "bytes": 3072,
+        "crosses1KiBBoundaries": true
+      },
+      "hardwareBreakpointAndStep": {
+        "pc": "0x80000c2",
+        "dfsr": "0x2",
+        "pcAfterStep": "0x80000c4"
+      },
+      "softwareBreakpointAndStep": {
+        "pc": "0x20004000",
+        "register0AfterTwoSteps": 18
+      },
+      "nrstAndResetTarget": {
+        "tested": false,
+        "passed": null,
+        "reason": "User confirmed no spare NRST jumper; three-wire SWD acceptance uses SYSRESETREQ"
+      },
+      "softwareSystemReset": {
+        "passed": true
+      },
+      "dataWatchpoint": {
+        "dfsr": "0x4",
+        "pc": "0x8000168"
+      },
+      "faultRecovery": {
+        "faultResponse": "050204",
+        "recoveryCpuid": "0x411FC231"
+      },
+      "swdSequence": "1d00ff",
+      "swclkPinMonitor": {
+        "highAndLow": true
+      },
+      "asynchronousAbort": {
+        "actualResponse": "050011",
+        "elapsedMs": 93.16,
+        "hostDelayMs": 80
+      },
+      "boundedTransferDeadline": {
+        "elapsedMs": 1028.75,
+        "response": "050011"
+      },
+      "blockAbort": {
+        "requestedWords": 15,
+        "actualWords": 2,
+        "elapsedMs": 194.79,
+        "response": "060200017714a01b7714a01b"
+      },
+      "coreRunningAtEnd": true,
+      "ownerDuring": {
+        "version": "0.2.6",
+        "capabilities": 7,
+        "targetPinsConfirmed": true,
+        "ownerTransport": 2,
+        "ownerSession": 3,
+        "packetSize": 512
+      },
+      "ownerAfter": {
+        "version": "0.2.6",
+        "capabilities": 7,
+        "targetPinsConfirmed": true,
+        "ownerTransport": 0,
+        "ownerSession": 0,
+        "packetSize": 512
+      }
+    },
+    "finalFlashSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "optionBytesUnchanged": true,
+    "coreHaltedAtEnd": false,
+    "fixtureRetained": true,
+    "restored": false,
+    "finalStateVerified": true
+  },
+  "pyocd": {
+    "capturedAt": "2026-10-15T18:48:18.607721+08:00",
+    "complete": true,
+    "requestedSerial": "RM50787D15A924",
+    "pyocdVersion": "0.45.1",
+    "probeSerial": "RM50787D15A924",
+    "cpuid": "0x411fc231",
+    "pcWhileHalted": "0x80001d2",
+    "haltReadRegisterResume": true
+  },
+  "subscriptions": {
+    "capturedAt": "2026-10-15T18:48:21.020575+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "strictThreeSubscriptions": {
+      "recording": {
+        "recording_id": "09fe521fb25f41b9b43eebb4b19bce76",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\09fe521fb25f41b9b43eebb4b19bce76.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2040,
+        "bytes": 210528,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "3cebe788c76229faf0732f7dd9e55ad89d8ab94603d777c8c0973531b994729a",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1016,
+        "2": 102,
+        "3": 922
+      },
+      "watchReusedFrames": 102,
+      "rttBytesVerified": 14784,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "strictOverload": {
+      "strictFailure": {
+        "recording_id": "35cecb5193eb47a4b73ef801a4ad6d11",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\35cecb5193eb47a4b73ef801a4ad6d11.rmlrec",
+        "strict": true,
+        "phase": "failed",
+        "frames": 0,
+        "bytes": 0,
+        "gaps": 0,
+        "invalid_samples": 1,
+        "error": "invalid_sample",
+        "finalized": true,
+        "sha256": "0b7f17665ce3b6334603e29aea57bba187f2186d23a959f82e498db8cd625d0d",
+        "queued_frames": 0
+      },
+      "pausedStatus": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 4,
+        "last_sequence": 528,
+        "completed": 125,
+        "deadline_missed": 403,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": "paused",
+        "budget_overrun": 125,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "realtimeReplacement": {
+        "recording_id": "b6a34ada40544ee78fb24d1ff2082d3a",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\b6a34ada40544ee78fb24d1ff2082d3a.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 520,
+        "bytes": 56160,
+        "gaps": 519,
+        "invalid_samples": 520,
+        "error": null,
+        "finalized": true,
+        "sha256": "b9b5f9dd0b661cac141657d52d67a025b4ac9d8986d440c937ba89d4c4d28372",
+        "queued_frames": 0
+      }
+    },
+    "pointerFields": {
+      "samples": 8,
+      "threeLevelPointer": true,
+      "widths": [
+        1,
+        2,
+        4
+      ],
+      "invalidFieldIsolated": true,
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 5,
+        "capture_id": 5,
+        "last_sequence": 8,
+        "completed": 8,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 8,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowConsumer": {
+      "recording": {
+        "recording_id": "8781f8499af5461c9c55cd77e32c79c1",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\8781f8499af5461c9c55cd77e32c79c1.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 10031,
+        "bytes": 722232,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "028969fd73984d4435908a68d3deba1358047822424cd7829ad148e59d0f0b17",
+        "queued_frames": 0
+      },
+      "consumerGap": 5941,
+      "hostHistoryEvicted": 8960,
+      "status": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 1,
+        "capture_id": 6,
+        "last_sequence": 10124,
+        "completed": 10124,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 9038,
+        "host_dropped": 9038,
+        "stream_error": null
+      },
+      "recorderIndependentOfHistory": true
+    },
+    "rttReconfiguration": {
+      "replacements": 50,
+      "rttFramesChecked": 289,
+      "rttBytesChecked": 9392,
+      "timelineAndWatchStayedActive": true,
+      "statuses": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 7,
+          "last_sequence": 8598,
+          "completed": 8598,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18928,
+          "host_dropped": 18928,
+          "stream_error": null
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "field_count": 4,
+          "capture_id": 8,
+          "last_sequence": 170,
+          "completed": 170,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18977,
+          "host_dropped": 18977,
+          "stream_error": null
+        }
+      }
+    },
+    "stateAtEnd": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    }
+  },
+  "native_usb": {
+    "capturedAt": "2026-10-15T18:50:10.328595+08:00",
+    "complete": true,
+    "transport": "native USB64",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "selection": {
+      "device_id": "50787d15a924",
+      "transport": "usb",
+      "connected": true,
+      "connection_error": null
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "coreState": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    },
+    "threeSubscriptions": {
+      "recording": {
+        "recording_id": "c11184174e4340d791b1a20e252764d4",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\c11184174e4340d791b1a20e252764d4.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2025,
+        "bytes": 209780,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "6cf426968604af126c9a50652699439a29c8ee8c3d26ba450725fdb9a6577a1a",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1004,
+        "2": 100,
+        "3": 921
+      },
+      "watchReusedFrames": 100,
+      "rttBytesVerified": 15584,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "wifiRestored": {
+      "device_id": "50787d15a924",
+      "transport": "wifi",
+      "connected": true,
+      "connection_error": null
+    }
+  },
+  "node_diagnostic_harness_smoke": {
+    "capturedAt": "2026-10-15T19:16:56.382355+08:00",
+    "complete": true,
+    "scope": "real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded",
+    "fixtureRetained": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "periodUs": 1000,
+    "fieldSet": "ten_discrete_matrix_words",
+    "nodeVersion": "v24.15.0",
+    "initialize": {
+      "supportsConfigurationDoneRequest": true,
+      "supportsConditionalBreakpoints": false,
+      "supportsHitConditionalBreakpoints": false,
+      "supportsEvaluateForHovers": true,
+      "supportsStepBack": false,
+      "supportsSetVariable": false,
+      "supportsRestartFrame": false,
+      "supportsGotoTargetsRequest": false,
+      "supportsStepInTargetsRequest": false,
+      "supportsCompletionsRequest": false,
+      "supportsRestartRequest": true,
+      "supportsExceptionOptions": false,
+      "supportTerminateDebuggee": false,
+      "supportsLogPoints": false,
+      "supportsDataBreakpoints": false,
+      "supportsReadMemoryRequest": true,
+      "supportsWriteMemoryRequest": true,
+      "supportsDisassembleRequest": false,
+      "supportsCancelRequest": false,
+      "supportsBreakpointLocationsRequest": false,
+      "supportsSteppingGranularity": true,
+      "supportsInstructionBreakpoints": false,
+      "supportsRTOS": true,
+      "rtosName": ""
+    },
+    "launch": null,
+    "samplingStart": {
+      "ok": true,
+      "planned": [
+        {
+          "expression": "capture_values[0][0]",
+          "spec": {
+            "expression": "capture_values[0][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871168
+          }
+        },
+        {
+          "expression": "capture_values[1][0]",
+          "spec": {
+            "expression": "capture_values[1][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871232
+          }
+        },
+        {
+          "expression": "capture_values[2][0]",
+          "spec": {
+            "expression": "capture_values[2][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871296
+          }
+        },
+        {
+          "expression": "capture_values[3][0]",
+          "spec": {
+            "expression": "capture_values[3][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871360
+          }
+        },
+        {
+          "expression": "capture_values[4][0]",
+          "spec": {
+            "expression": "capture_values[4][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871424
+          }
+        },
+        {
+          "expression": "capture_values[5][0]",
+          "spec": {
+            "expression": "capture_values[5][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871488
+          }
+        },
+        {
+          "expression": "capture_values[6][0]",
+          "spec": {
+            "expression": "capture_values[6][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871552
+          }
+        },
+        {
+          "expression": "capture_values[7][0]",
+          "spec": {
+            "expression": "capture_values[7][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871616
+          }
+        },
+        {
+          "expression": "capture_values[8][0]",
+          "spec": {
+            "expression": "capture_values[8][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871680
+          }
+        },
+        {
+          "expression": "capture_values[9][0]",
+          "spec": {
+            "expression": "capture_values[9][0]",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536871744
+          }
+        }
+      ],
+      "activeExpressions": [
+        "capture_values[0][0]",
+        "capture_values[1][0]",
+        "capture_values[2][0]",
+        "capture_values[3][0]",
+        "capture_values[4][0]",
+        "capture_values[5][0]",
+        "capture_values[6][0]",
+        "capture_values[7][0]",
+        "capture_values[8][0]",
+        "capture_values[9][0]"
+      ],
+      "intervalMs": 1
+    },
+    "watch": {
+      "results": [
+        {
+          "expression": "capture_values[0][0]",
+          "value": 151107,
+          "display": "151107",
+          "hex": "0x24e43",
+          "typeName": "uint32_t"
+        },
+        {
+          "expression": "capture_values[1][0]",
+          "value": 16928323,
+          "display": "16928323",
+          "hex": "0x1024e43",
+          "typeName": "uint32_t"
+        },
+        {
+          "expression": "capture_values[2][0]",
+          "value": 33705539,
+          "display": "33705539",
+          "hex": "0x2024e43",
+          "typeName": "uint32_t"
+        },
+        {
+          "expression": "capture_values[3][0]",
+          "value": 50482755,
+          "display": "50482755",
+          "hex": "0x3024e43",
+          "typeName": "uint32_t"
+        }
+      ]
+    },
+    "samplingStop": {
+      "ok": true,
+      "targetReadGate": {
+        "sampling": {
+          "attempts": 0,
+          "gateDeferred": 0,
+          "readsCompleted": 0,
+          "samplesAccepted": 18970,
+          "samplesSent": 18970,
+          "commitMs": {
+            "count": 0,
+            "retainedCount": 0,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "queueWaitMs": {
+          "count": 0,
+          "retainedCount": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "gateHoldMs": {
+          "count": 0,
+          "retainedCount": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "handoffGapMs": {
+          "count": 0,
+          "retainedCount": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "byPriority": {
+          "foreground": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "watch": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "timeline": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "background": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        },
+        "acquisitionsByPriority": {
+          "foreground": 0,
+          "watch": 0,
+          "timeline": 0,
+          "background": 0
+        },
+        "queuedWaiters": 0,
+        "activeWaiterTimers": 0,
+        "controlWaiters": 0,
+        "gateOwned": false,
+        "activePriority": null
+      },
+      "performanceMetrics": {
+        "owner": "sessionTarget/cmsis-dap",
+        "fastSampling": {
+          "captures": 0,
+          "batchRequests": 0,
+          "fallbackReads": 0,
+          "cacheHits": 0,
+          "readMs": {
+            "count": 0,
+            "retainedCount": 0,
+            "p50": null,
+            "p95": null,
+            "max": null
+          },
+          "formatMs": {
+            "count": 0,
+            "retainedCount": 0,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "planner": {
+          "planCacheHit": 0,
+          "planCacheMiss": 2,
+          "planCacheInvalidation": 2,
+          "planBuildElapsed": {
+            "count": 2,
+            "retainedCount": 2,
+            "p50": 0,
+            "p95": 1,
+            "max": 1
+          },
+          "cacheEntries": 2,
+          "symbolGeneration": 1,
+          "sessionGeneration": 1
+        },
+        "transport": "rmlink-service",
+        "boardSubscriptions": true,
+        "rttCacheDroppedBytes": 0
+      }
+    },
+    "timeline": {
+      "samplesPerExpression": {
+        "capture_values[0][0]": 1897,
+        "capture_values[1][0]": 1897,
+        "capture_values[2][0]": 1897,
+        "capture_values[3][0]": 1897,
+        "capture_values[4][0]": 1897,
+        "capture_values[5][0]": 1897,
+        "capture_values[6][0]": 1897,
+        "capture_values[7][0]": 1897,
+        "capture_values[8][0]": 1897,
+        "capture_values[9][0]": 1897
+      },
+      "effectiveHz": 928.930503677617,
+      "timestampSpanMs": 2041.056884765625,
+      "events": 74
+    },
+    "rttOutputEvents": 4,
+    "pauseContinue": true,
+    "adapterExitCode": 0,
+    "requestTrace": [
+      {
+        "seq": 1,
+        "command": "initialize",
+        "completed": true
+      },
+      {
+        "seq": 2,
+        "command": "launch",
+        "completed": true
+      },
+      {
+        "seq": 3,
+        "command": "configurationDone",
+        "completed": true
+      },
+      {
+        "seq": 4,
+        "command": "continue",
+        "completed": true
+      },
+      {
+        "seq": 5,
+        "command": "dataSamplingStart",
+        "completed": true
+      },
+      {
+        "seq": 6,
+        "command": "watchEvaluate",
+        "completed": true
+      },
+      {
+        "seq": 7,
+        "command": "watchEvaluate",
+        "completed": true
+      },
+      {
+        "seq": 8,
+        "command": "dataSamplingStop",
+        "completed": true
+      },
+      {
+        "seq": 9,
+        "command": "pause",
+        "completed": true
+      },
+      {
+        "seq": 10,
+        "command": "continue",
+        "completed": true
+      },
+      {
+        "seq": 11,
+        "command": "disconnect",
+        "completed": true
+      }
+    ],
+    "stderrTail": "",
+    "eventKinds": [
+      "continued",
+      "initialized",
+      "orbitAutomationLifecycle",
+      "output",
+      "ozoneDataSamples",
+      "ozoneRttOutput",
+      "ozoneRttStarted",
+      "stopped"
+    ],
+    "outputTail": [
+      "Flash skipped: flashBeforeDebug=false\n",
+      "[Orbit] 调试路径: CMSIS-DAP / 未知传输 (owner=cmsis-dap)\n"
+    ]
+  },
+  "final_soak": {
+    "capturedAt": "2026-10-15T19:05:19.578800+08:00",
+    "complete": true,
+    "requestedSeconds": 600.0,
+    "pointerDepth": 4,
+    "shared": false,
+    "requestedPeriodUs": 1000,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "scope": "public service + real F103 fixture + independent recording; installed VS Code UI excluded",
+    "fixtureFlashRetained": true,
+    "wirelessAtStart": {
+      "connected": true,
+      "rssiDbm": -16,
+      "scope": "probe snapshot before capture; not continuous RF measurement"
+    },
+    "elapsedSeconds": 600.0134115000001,
+    "statuses": {
+      "1": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 132,
+        "last_sequence": 600275,
+        "completed": 139477,
+        "deadline_missed": 460798,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 139477,
+        "host_history_evicted": 186981,
+        "host_dropped": 186981,
+        "stream_error": null
+      },
+      "2": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 133,
+        "last_sequence": 6002,
+        "completed": 6002,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 186983,
+        "host_dropped": 186983,
+        "stream_error": null
+      },
+      "3": {
+        "state": 2,
+        "kind": 3,
+        "field_count": 1,
+        "capture_id": 134,
+        "last_sequence": 94512,
+        "completed": 872272,
+        "deadline_missed": 48908,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 187014,
+        "host_dropped": 187014,
+        "stream_error": null
+      }
+    },
+    "recording": {
+      "recording_id": "7bfaf844a2a74c37aa3d50b6feec386a",
+      "path": "C:\\Users\\22690\\.rmlink\\recordings\\7bfaf844a2a74c37aa3d50b6feec386a.rmlrec",
+      "strict": false,
+      "phase": "complete",
+      "frames": 191062,
+      "bytes": 20268312,
+      "gaps": 163751,
+      "invalid_samples": 139458,
+      "error": null,
+      "finalized": true,
+      "sha256": "a21d39a226a4bc989b2b29f862f5292d60ac8de7fe098c6326b1339d30e962ec",
+      "queued_frames": 0
+    },
+    "live": {
+      "kinds": {
+        "1": {
+          "frames": 139457,
+          "gaps": 460730,
+          "budgetFlags": 139457,
+          "firstUs": 1116547588,
+          "lastUs": 1716733873,
+          "lastSequence": 600186,
+          "effectiveHz": 232.35452639508415
+        },
+        "2": {
+          "frames": 6001,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 1116650370,
+          "lastUs": 1716656468,
+          "lastSequence": 6000,
+          "effectiveHz": 9.99989836769959
+        },
+        "3": {
+          "frames": 45593,
+          "gaps": 48888,
+          "budgetFlags": 0,
+          "firstUs": 1116678625,
+          "lastUs": 1716738377,
+          "lastSequence": 94480,
+          "effectiveHz": 75.97910016134527
+        }
+      },
+      "rttBytes": 872032,
+      "rttRecordsChecked": 54502,
+      "rttProducerSkipped": 55894,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4089,
+      "recentTimelineIntervalP99Us": 5150
+    },
+    "disk": {
+      "kinds": {
+        "1": {
+          "frames": 139458,
+          "gaps": 460730,
+          "budgetFlags": 139458,
+          "firstUs": 1116735754,
+          "lastUs": 1716922587,
+          "lastSequence": 600375,
+          "effectiveHz": 232.35598039185908
+        },
+        "2": {
+          "frames": 6002,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 1116752561,
+          "lastUs": 1716856620,
+          "lastSequence": 6002,
+          "effectiveHz": 9.999932361730618
+        },
+        "3": {
+          "frames": 45602,
+          "gaps": 48898,
+          "budgetFlags": 0,
+          "firstUs": 1116748624,
+          "lastUs": 1716927233,
+          "lastSequence": 94512,
+          "effectiveHz": 75.97904909669981
+        }
+      },
+      "rttBytes": 872112,
+      "rttRecordsChecked": 54507,
+      "rttProducerSkipped": 55894,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4088,
+      "recentTimelineIntervalP99Us": 5153
+    },
+    "consumerGap": 0,
+    "independentFileValidation": {
+      "metadata": {
+        "version": 1,
+        "connector_version": "0.2.6",
+        "device_id": "50787d15a924",
+        "created_at": "2026-10-15T19:05:20.550197+08:00",
+        "strict": false,
+        "starts_mid_capture": true,
+        "configs": {
+          "1": {
+            "subscription_id": 1,
+            "kind": "memory_series",
+            "addresses": [
+              536875008,
+              536875072,
+              536875136,
+              536875200,
+              536875264,
+              536875328,
+              536875392,
+              536875456,
+              536875520,
+              536875584
+            ],
+            "fields": [
+              {
+                "address": 536875008,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875072,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875136,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875200,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875264,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875328,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875392,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875456,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875520,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875584,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ],
+            "period_us": 1000,
+            "sample_limit": 0,
+            "channel": 0,
+            "strict_deadlines": false,
+            "stream_cursor": -1,
+            "capture_id": 132
+          },
+          "2": {
+            "subscription_id": 2,
+            "kind": "memory_snapshot",
+            "addresses": [
+              536875008,
+              536875072,
+              536875136,
+              536875200
+            ],
+            "fields": [
+              {
+                "address": 536875008,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875072,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875136,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875200,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ],
+            "period_us": 100000,
+            "sample_limit": 0,
+            "channel": 0,
+            "strict_deadlines": false,
+            "stream_cursor": 20,
+            "capture_id": 133
+          },
+          "3": {
+            "subscription_id": 3,
+            "kind": "rtt_stream",
+            "addresses": [
+              536871936
+            ],
+            "fields": [
+              {
+                "address": 536871936,
+                "offsets": [],
+                "byte_length": 4
+              }
+            ],
+            "period_us": 5000,
+            "sample_limit": 0,
+            "channel": 0,
+            "strict_deadlines": false,
+            "stream_cursor": 24,
+            "capture_id": 134
+          }
+        }
+      },
+      "summary": {
+        "recording_id": "7bfaf844a2a74c37aa3d50b6feec386a",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\7bfaf844a2a74c37aa3d50b6feec386a.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 191062,
+        "bytes": 20268312,
+        "gaps": 163751,
+        "invalid_samples": 139458,
+        "error": null,
+        "finalized": true,
+        "queued_frames": 0,
+        "window_end": "last_received_record"
+      },
+      "frames": 191062,
+      "sha256": "a21d39a226a4bc989b2b29f862f5292d60ac8de7fe098c6326b1339d30e962ec"
+    }
+  },
+  "final_soak_rtt_recheck": {
+    "complete": true,
+    "source": "artifacts/logs/pointer-soak-independent4-postreboot-026.json",
+    "recordingSha256": "a21d39a226a4bc989b2b29f862f5292d60ac8de7fe098c6326b1339d30e962ec",
+    "frames": 191062,
+    "validated": {
+      "kinds": {
+        "1": {
+          "frames": 139458,
+          "gaps": 460730,
+          "budgetFlags": 139458,
+          "firstUs": 1116735754,
+          "lastUs": 1716922587,
+          "lastSequence": 600375,
+          "effectiveHz": 232.35598039185908
+        },
+        "2": {
+          "frames": 6002,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 1116752561,
+          "lastUs": 1716856620,
+          "lastSequence": 6002,
+          "effectiveHz": 9.999932361730618
+        },
+        "3": {
+          "frames": 45602,
+          "gaps": 48898,
+          "budgetFlags": 0,
+          "firstUs": 1116748624,
+          "lastUs": 1716927233,
+          "lastSequence": 94512,
+          "effectiveHz": 75.97904909669981
+        }
+      },
+      "rttBytes": 872112,
+      "rttRecordsChecked": 54507,
+      "rttProducerSkipped": 55894,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4088,
+      "recentTimelineIntervalP99Us": 5153
+    },
+    "producerGaps": [
+      {
+        "previous": 31821,
+        "next": 87716,
+        "skipped": 55894,
+        "atUsFromFirstRttFrame": 218469
+      }
+    ],
+    "note": "Producer sequence gaps are distinct from transport byte_sequence continuity and missed poll deadlines."
+  },
+  "earlier_variant_soak": {
+    "firmware_sha256": "d99eeaf9504f7f09291819089c2003c0e4ce8b6b2d901056ab1341d447643499",
+    "result": {
+      "capturedAt": "2026-10-15T18:27:55.152068+08:00",
+      "complete": true,
+      "requestedSeconds": 600.0,
+      "pointerDepth": 3,
+      "shared": true,
+      "requestedPeriodUs": 1000,
+      "requestedClockHz": 4000000,
+      "actualClockMeasured": false,
+      "scope": "public service + real F103 fixture + independent recording; installed VS Code UI excluded",
+      "fixtureFlashRetained": true,
+      "elapsedSeconds": 600.0003160999913,
+      "statuses": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 157,
+          "last_sequence": 600158,
+          "completed": 300056,
+          "deadline_missed": 300102,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 300056,
+          "host_history_evicted": 356408,
+          "host_dropped": 356408,
+          "stream_error": null
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "field_count": 4,
+          "capture_id": 158,
+          "last_sequence": 6002,
+          "completed": 6002,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 356408,
+          "host_dropped": 356408,
+          "stream_error": null
+        },
+        "3": {
+          "state": 2,
+          "kind": 3,
+          "field_count": 1,
+          "capture_id": 159,
+          "last_sequence": 54446,
+          "completed": 872000,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 356428,
+          "host_dropped": 356428,
+          "stream_error": null
+        }
+      },
+      "recording": {
+        "recording_id": "9bfa0466bbc6481886871a17ca46cff0",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\9bfa0466bbc6481886871a17ca46cff0.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 360470,
+        "bytes": 38352032,
+        "gaps": 300022,
+        "invalid_samples": 300023,
+        "error": null,
+        "finalized": true,
+        "sha256": "8f8f82b3eddf6122575bcf2c61c8ec5a8526b50c16b724bc22918f6a361ac0e5",
+        "queued_frames": 0
+      },
+      "live": {
+        "kinds": {
+          "1": {
+            "frames": 300025,
+            "gaps": 300070,
+            "budgetFlags": 300025,
+            "firstUs": 6828653000,
+            "lastUs": 7428746963,
+            "lastSequence": 600094,
+            "effectiveHz": 499.9617034974238
+          },
+          "2": {
+            "frames": 6001,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 6828684572,
+            "lastUs": 7428684577,
+            "lastSequence": 6000,
+            "effectiveHz": 9.999999916666667
+          },
+          "3": {
+            "frames": 54437,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 6828766468,
+            "lastUs": 7428748770,
+            "lastSequence": 54436,
+            "effectiveHz": 90.72934287985048
+          }
+        },
+        "rttBytes": 871856,
+        "rttRecordsChecked": 54491,
+        "rttPartialBytes": 0,
+        "intervalWindow": 8192,
+        "recentTimelineIntervalP50Us": 2000,
+        "recentTimelineIntervalP99Us": 2277
+      },
+      "disk": {
+        "kinds": {
+          "1": {
+            "frames": 300023,
+            "gaps": 300068,
+            "budgetFlags": 300023,
+            "firstUs": 6828758964,
+            "lastUs": 7428849135,
+            "lastSequence": 600196,
+            "effectiveHz": 499.96152994813843
+          },
+          "2": {
+            "frames": 6001,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 6828785180,
+            "lastUs": 7428784579,
+            "lastSequence": 6001,
+            "effectiveHz": 10.0000100166767
+          },
+          "3": {
+            "frames": 54446,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 6828766468,
+            "lastUs": 7428848770,
+            "lastSequence": 54445,
+            "effectiveHz": 90.72922133937554
+          }
+        },
+        "rttBytes": 872000,
+        "rttRecordsChecked": 54500,
+        "rttPartialBytes": 0,
+        "intervalWindow": 8192,
+        "recentTimelineIntervalP50Us": 2000,
+        "recentTimelineIntervalP99Us": 2279
+      },
+      "consumerGap": 0,
+      "independentFileValidation": {
+        "metadata": {
+          "version": 1,
+          "connector_version": "0.2.6",
+          "device_id": "50787d15a924",
+          "created_at": "2026-10-15T18:27:56.023056+08:00",
+          "strict": false,
+          "starts_mid_capture": true,
+          "configs": {
+            "1": {
+              "subscription_id": 1,
+              "kind": "memory_series",
+              "addresses": [
+                536875008,
+                536875008,
+                536875008,
+                536875008,
+                536875008,
+                536875008,
+                536875008,
+                536875008,
+                536875008,
+                536875008
+              ],
+              "fields": [
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    64
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    128
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    192
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    256
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    320
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    384
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    448
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    512
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    576
+                  ]
+                }
+              ],
+              "period_us": 1000,
+              "sample_limit": 0,
+              "channel": 0,
+              "strict_deadlines": false,
+              "stream_cursor": -1,
+              "capture_id": 157
+            },
+            "2": {
+              "subscription_id": 2,
+              "kind": "memory_snapshot",
+              "addresses": [
+                536875008,
+                536875008,
+                536875008,
+                536875008
+              ],
+              "fields": [
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    64
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    128
+                  ]
+                },
+                {
+                  "address": 536875008,
+                  "offsets": [
+                    0,
+                    0,
+                    192
+                  ]
+                }
+              ],
+              "period_us": 100000,
+              "sample_limit": 0,
+              "channel": 0,
+              "strict_deadlines": false,
+              "stream_cursor": 13,
+              "capture_id": 158
+            },
+            "3": {
+              "subscription_id": 3,
+              "kind": "rtt_stream",
+              "addresses": [
+                536871936
+              ],
+              "fields": [
+                {
+                  "address": 536871936,
+                  "offsets": [],
+                  "byte_length": 4
+                }
+              ],
+              "period_us": 5000,
+              "sample_limit": 0,
+              "channel": 0,
+              "strict_deadlines": false,
+              "stream_cursor": 53,
+              "capture_id": 159
+            }
+          }
+        },
+        "summary": {
+          "recording_id": "9bfa0466bbc6481886871a17ca46cff0",
+          "path": "C:\\Users\\22690\\.rmlink\\recordings\\9bfa0466bbc6481886871a17ca46cff0.rmlrec",
+          "strict": false,
+          "phase": "complete",
+          "frames": 360470,
+          "bytes": 38352032,
+          "gaps": 300022,
+          "invalid_samples": 300023,
+          "error": null,
+          "finalized": true,
+          "queued_frames": 0,
+          "window_end": "last_received_record"
+        },
+        "frames": 360470,
+        "sha256": "8f8f82b3eddf6122575bcf2c61c8ec5a8526b50c16b724bc22918f6a361ac0e5"
+      }
+    },
+    "rtt_producer_recheck": {
+      "complete": true,
+      "source": "artifacts\\logs\\pointer-soak-600s-retry-026.json",
+      "recordingSha256": "8f8f82b3eddf6122575bcf2c61c8ec5a8526b50c16b724bc22918f6a361ac0e5",
+      "frames": 360470,
+      "validated": {
+        "kinds": {
+          "1": {
+            "frames": 300023,
+            "gaps": 300068,
+            "budgetFlags": 300023,
+            "firstUs": 6828758964,
+            "lastUs": 7428849135,
+            "lastSequence": 600196,
+            "effectiveHz": 499.96152994813843
+          },
+          "2": {
+            "frames": 6001,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 6828785180,
+            "lastUs": 7428784579,
+            "lastSequence": 6001,
+            "effectiveHz": 10.0000100166767
+          },
+          "3": {
+            "frames": 54446,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 6828766468,
+            "lastUs": 7428848770,
+            "lastSequence": 54445,
+            "effectiveHz": 90.72922133937554
+          }
+        },
+        "rttBytes": 872000,
+        "rttRecordsChecked": 54500,
+        "rttProducerSkipped": 4782,
+        "rttPartialBytes": 0,
+        "intervalWindow": 8192,
+        "recentTimelineIntervalP50Us": 2000,
+        "recentTimelineIntervalP99Us": 2279
+      },
+      "rttPayloadOrderChecked": true
+    }
+  },
+  "failed_attempts": [
+    {
+      "source": "artifacts/logs/orbit-matrix-final-026-5.json",
+      "failure": "EOFError: Adapter exited",
+      "exit_code": 3221226505,
+      "cause": "unresolved; retry passed, no fix claimed"
+    },
+    {
+      "source": "artifacts/logs/pointer-soak-independent4-final-026.json",
+      "failure": "RMLinkError: invalid_request",
+      "cause": "raw DAP query after high-level connect rejected; harness reordered before connect"
+    },
+    {
+      "source": "artifacts/logs/pointer-soak-600s-026.log",
+      "cause": "incomplete attempt; no completion report"
+    },
+    {
+      "source": "artifacts/logs/pyocd-log-collision-026.log",
+      "cause": "harness stdout redirection collided with its child log; separated console output on retry"
+    }
+  ],
+  "reboot_recovery_observation": {
+    "beforeUptimeHex": "800600a27c05420000000001000000",
+    "networkBefore": "8004000101eec0a889aa",
+    "networkOnlyReconnectResponse": "800500",
+    "scope": "PC reboot recovery diagnostic; no target reset or firmware flashing"
+  },
+  "remaining": [
+    "Ten-field 1 kHz sustained goal not met; realtime deadlines and sequence gaps remain explicit.",
+    "Control latency tails exceed 100 ms; measurements include API, WiFi and barriers, not pure executor delay.",
+    "PC reboot recovery required network-only STA reconnect; automatic recovery edge remains open.",
+    "One Orbit Node launch exit 0xC0000409 unresolved; no installed VS Code UI acceptance.",
+    "Physical NRST lacks wire, actual SWCLK unmeasured, CPU1 not qualified.",
+    "No Keil/IAR/HID, formal driver signing, other targets, hour-long or power-loss acceptance."
+  ],
+  "sources": [
+    {
+      "path": "artifacts/hardware/rmlink-last-flash.json",
+      "sha256": "8f6f940b68c65822187eee60ce48369a95b6275214bac124cb5927dfd0a8bbff"
+    },
+    {
+      "path": "artifacts/build/firmware-target-tcp512-core0/rmlink.bin",
+      "sha256": "8b33c0c97a85b5c541ba91b4c0436d6fb2ad19aa706eb208b6f3e39a12414901"
+    },
+    {
+      "path": "artifacts/build/connector/dist/RMLinkConnector.exe",
+      "sha256": "bc68689058779dfd6ea0c73818ce3556c51bbfdcb751d650e5e52e69aaa5214d"
+    },
+    {
+      "path": "artifacts/build/sdk/rmlink.dll",
+      "sha256": "1991ee0109696acaa54c664281a3a39609db4b923c51a20829c6ad4d132e61a2"
+    },
+    {
+      "path": "artifacts/build/sdk/rmlink-client-0.2.6.tgz",
+      "sha256": "3bd2ea3fa5e8c7c2d8adb03d87b717044a03892e764c44e375d94fbb785a5b0e"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-before-026.json",
+      "sha256": "ef3fb405f0298dd28b2d387a750b8723034914d596b3cb5223e6e1f1d7eb69be"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-after-first-026.json",
+      "sha256": "e86f4886bf348cbb1fe71972b8c872ede0022c859ba56a2007d19708b5cd38f8"
+    },
+    {
+      "path": "artifacts/logs/pointers-before-three-retry-026.json",
+      "sha256": "97255b612dc90e2094e293ef47062a739dd2d8bf90fda35946c2c93b342e0197"
+    },
+    {
+      "path": "artifacts/logs/pointers-after-three-026.json",
+      "sha256": "2bb8bdb365932718cbff30dfa0a7df61855515f3556666ea2d94fa9c02c37d5e"
+    },
+    {
+      "path": "artifacts/logs/pointer-timing-final-026.json",
+      "sha256": "b1cd6d9991dcd0558b10e7378d0912886b0eaae45759c20813f17872995702e3"
+    },
+    {
+      "path": "artifacts/logs/control-pointer4-final-026.json",
+      "sha256": "d872431d5a70d842d78b01c61be5e7982168e8003f646af0e142675588da3ead"
+    },
+    {
+      "path": "artifacts/logs/orbit-matrix-final-026-5.json",
+      "sha256": "6d01648609f001bebdbd27e86bd6e388971ff3f5c32e72da095724c2de742d2a"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-independent4-final-026.json",
+      "sha256": "dc5ff00142e8d5f772e1ef1eda624cc70535328649287d286045d0f947b979fb"
+    },
+    {
+      "path": "artifacts/logs/host-regression-026.log",
+      "sha256": "b93cf9fd8afec1172d3fd71d81287be9db73d7b342d055e5551684eece088afb"
+    },
+    {
+      "path": "artifacts/logs/capture-regression-026.log",
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1"
+    },
+    {
+      "path": "artifacts/logs/core512-pointers-026.log",
+      "sha256": "25e26c6e22bbde7994f02558aeda2b75ae9e5c89a97eadd074498033deba5714"
+    },
+    {
+      "path": "artifacts/logs/build-usb64-final-026.log",
+      "sha256": "9f0c88a2ed074fb7355313426bbd438736a57d0c8d953a83ec9b8f142b1e821b"
+    },
+    {
+      "path": "artifacts/logs/build-rtt-stop-026.log",
+      "sha256": "1044689677983750979e24c6aee579d7e5cd2b89c43935b74536bf9d7ef76107"
+    },
+    {
+      "path": "artifacts/logs/flash-rtt-stop-026.log",
+      "sha256": "bb59f13215220cea05a59e7ed7ff6e3776c004bd13cb8ae0c287f7f2cd750440"
+    },
+    {
+      "path": "artifacts/logs/rtt-stop-reproduction-026.log",
+      "sha256": "711181060ebde2b2bac9e0c2075fd5f8f5dea657d8550cc4bba650ee8f4adfac"
+    },
+    {
+      "path": "artifacts/logs/pyocd-log-collision-026.log",
+      "sha256": "ae7e01ee3cc83872c1eb6c56485130a49a5796d0c12d77c123aa8a99c31cd42a"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-600s-026.log",
+      "sha256": "0938ec4673e53165f682679c2f0de02413c6891a94f8a22eb8f4e39f8a7f766d"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-independent4-postreboot-uart-026.log",
+      "sha256": "9ed7187145b0dc6876f3867d9d6823868c8554f8449de9ff9cc6bff32ee500b2"
+    },
+    {
+      "path": "artifacts/logs/pointer-signed-offsets-026.json",
+      "sha256": "6434bdb5a06bd9cfba06a0253fa9ea61e282a46d68bd67e0d62cb5c97904710c"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-final-026-1.json",
+      "sha256": "e6c559b0dfef839916aed520e1d12c0d5819323eae61dcc09babc760a92d90bd"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-final-026-2.json",
+      "sha256": "3e99774e24306ce300d3ef104f0fc5166fdc687a57315168f16ecfc7b6e377cd"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-final-026-3.json",
+      "sha256": "ef18e315c37faa416b9cf4995ae71fc2e258be40382dcce203439d08427dbec8"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-final-026-4.json",
+      "sha256": "1215ac0fac66baf2698b5c8d04aa0a3cb471eb6f0f781eb5533687c2ffc698d5"
+    },
+    {
+      "path": "artifacts/logs/orbit-pointers-final-026-5.json",
+      "sha256": "21fc2b67fecbc90e602c2b735af60cfeabc84d4a7982f12bfd97240304f3a9c3"
+    },
+    {
+      "path": "artifacts/logs/orbit-matrix-final-026-1.json",
+      "sha256": "112edf568514acda079776ad63fa8c6d92efc762a38df49175fdbe6b4c751d28"
+    },
+    {
+      "path": "artifacts/logs/orbit-matrix-final-026-2.json",
+      "sha256": "8fbc41d07b31f69c5d3806f958e536fb41e5989ac63c90230d9c2497cedd073a"
+    },
+    {
+      "path": "artifacts/logs/orbit-matrix-final-026-3.json",
+      "sha256": "0c6e83ff2ee4d85a35e5c630cafd74e897b395732e657b1604ee5bb90f9957a8"
+    },
+    {
+      "path": "artifacts/logs/orbit-matrix-final-026-4.json",
+      "sha256": "6c3c101780a8e0b0d2ab8b76a663da3eb3ace34948247e4d61ac8e5220d37cf4"
+    },
+    {
+      "path": "artifacts/logs/orbit-matrix-final-026-5-retry.json",
+      "sha256": "9ccb44eb1a32b0ed4d8d32e552c593639e1e4c372a919242481af903a342b82e"
+    },
+    {
+      "path": "artifacts/logs/accept-virtual-final-026.json",
+      "sha256": "260ec9a17279c159745ecc3272ac8669905f12cf17fa04809792d29901ffef48"
+    },
+    {
+      "path": "artifacts/logs/pyocd-final-026.json",
+      "sha256": "42b8921ebab8d6cc57cbaad4b237e6f6bbbfcb1c3296fe66b9b77110a6ca3dbe"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-final-026.json",
+      "sha256": "7851671561537d9ec1a4269689ca85fe1b4d9fb1e3d9b36492a41bb17e32a750"
+    },
+    {
+      "path": "artifacts/logs/wired-final-026.json",
+      "sha256": "566a4cdf3f18142593275ace2b55fe773a358afe2c0588b2753b0730dbb89925"
+    },
+    {
+      "path": "artifacts/logs/orbit-node-diagnostic-026.json",
+      "sha256": "593569f48b5b9da5b4e2ae4975c07c27867214d23001db2e89bbd182e15823aa"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-independent4-postreboot-026.json",
+      "sha256": "da7e61b91fb3a21d5577bc57f36d46f7ab8618a0cd4f8a7f544def9ba59239e7"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-independent4-postreboot-rtt-026.json",
+      "sha256": "47a2e4c3b178790dc14257a9017170af84670e5c53bf608749ce1c9d8b05ddcc"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-600s-retry-026.json",
+      "sha256": "2a0917d8dd8162508a649df5bf5776e328f9ab8fcc62e474c9879187cdb81f51"
+    },
+    {
+      "path": "artifacts/logs/pointer-soak-600s-recheck-026.json",
+      "sha256": "04da6687471f495c85da991e64fd22c6ce3db9e2b5b4643b83b84948d2f6ae8a"
+    },
+    {
+      "path": "artifacts/logs/post-reboot-network-026.json",
+      "sha256": "9331cccbf073cd4035d987768c44f247d5ab0f5d0b6e875085b5752971668bac"
+    }
+  ]
+}

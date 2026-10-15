@@ -8,6 +8,7 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "debug_probe.h"
+#include "esp_cpu.h"
 
 #define GET_IDX(mask)   (__builtin_ctz(mask))
 
@@ -141,7 +142,7 @@ void debug_probe_init_swd_pins(void)
 
         s_debug_gpio_init = 1;
 
-        ESP_LOGI(TAG, "SWD GPIO init done");
+        ESP_LOGI(TAG, "SWD GPIO init done (CPU %d)", esp_cpu_get_core_id());
     }
 }
 

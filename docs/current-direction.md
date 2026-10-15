@@ -1,6 +1,6 @@
 # 当前项目方向
 
-更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，当前 0.2.5 实现与证据见 [实施记录](subscriptions-implementation.md) 和 [采样性能记录](subscription-performance-20261015.md)。
+更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，当前 0.2.6 实现与证据见 [实施记录](subscriptions-implementation.md) 和 [采样性能记录](subscription-performance-20261015.md)。
 
 RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基座，保留一套 ARM CMSIS-DAP / SWD 内核，为 Orbit 增加无线接入、板端采样和批量操作。
 
@@ -27,7 +27,7 @@ USB、网络和后台采样共用一个固定 CPU 核的目标执行器。同一
 
 三套固件参考同时保留在 reference/，固定提交见 reference-versions.json。firmware/ 为乐鑫基座的开发源码，现由根目录 Git 统一管理；参考仓库和构建产物均排除。网络能力吸收前两套的协议、单端与发现思路，保留一套 SWD 实现与第三方许可证。
 
-Orbit 的实际所有权 / 后端链已核对，实验适配位于独立工作树，通过公开 SDK 选择唯一服务 owner，Watch／Timeline／RTT 不再由主机逐样读取目标。原 Orbit 用户工作区保持原状；当前适配只经过构建及模型验证。Windows 使用 usbip-win2 + 自有本机 USB/IP / TCP DAP 代理，当前 UDE 为本地测试签名修补版本；正式签名分发与其他软件逐项验收仍待完成。
+Orbit 的实际所有权 / 后端链已核对，实验适配位于独立工作树，通过公开 SDK 选择唯一服务 owner，Watch／Timeline／RTT 不再由主机逐样读取目标。原 Orbit 用户工作区保持原状；真实调试适配器子进程已通过实际目标的表达式、三订阅与暂停／继续检查，已安装 VS Code 的界面仍未验收。Windows 使用 usbip-win2 + 自有本机 USB/IP / TCP DAP 代理，当前 UDE 为本地测试签名修补版本；正式签名分发与其他软件逐项验收仍待完成。
 
 ## 硬件
 

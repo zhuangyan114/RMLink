@@ -122,6 +122,42 @@ def slow_consumer(client,seconds):
     finally:client.unsubscribe(1)
 
 
+def rtt_reconfiguration(client,repetitions=50):
+    """Stop/recreate the same RTT slot while Timeline/Watch remain active."""
+    ids=[];frames=total_bytes=0
+    try:
+        ids.append(client.subscribe('memory_series',addresses=[0x20000100+i*64 for i in range(10)],
+                                    period_us=2000)['subscription_id'])
+        ids.append(client.subscribe('memory_snapshot',addresses=[0x20000100+i*64 for i in range(4)],
+                                    period_us=100000)['subscription_id'])
+        for iteration in range(repetitions):
+            sub=client.subscribe('rtt_stream',control_block_address=0x20000400,period_us=5000)
+            sid=sub['subscription_id'];ids.append(sid);after=sub['stream_cursor'];last_byte=None
+            deadline=time.perf_counter()+.001+(iteration*17%29)/1000
+            while time.perf_counter()<deadline:
+                batch=client.events(after,256,5);after=batch['cursor']
+                require(not batch['error'] and not batch['consumer_gap'],'RTT reconfiguration stream')
+                for row in batch['records']:
+                    sample=row['sample']
+                    if sample['capture_id']!=sub['capture_id']:continue
+                    require(last_byte is None or sample['byte_sequence']==last_byte,'RTT reconfiguration byte order')
+                    data=sample['data'];last_byte=sample['byte_sequence']+len(data)
+                    require(len(data)%16==0,'RTT fixture record boundary')
+                    for at in range(0,len(data),16):
+                        magic,seq,counter,check=struct.unpack_from('<IIII',data,at)
+                        require(magic==0x524d5254 and check==magic^seq^counter,'RTT reconfiguration payload')
+                    frames+=1;total_bytes+=len(data)
+            require(not client.subscription(sid)['failures'],'RTT reconfiguration SWD failure')
+            client.unsubscribe(sid);ids.remove(sid)
+        require(frames>0 and total_bytes>0,'RTT produced no data across replacement tasks')
+        statuses={str(sid):client.subscription(sid) for sid in ids}
+        require(all(s['state']==2 and not s['failures'] for s in statuses.values()),'Background subscriptions stopped')
+        return {'replacements':repetitions,'rttFramesChecked':frames,'rttBytesChecked':total_bytes,
+                'timelineAndWatchStayedActive':True,'statuses':statuses}
+    finally:
+        for sid in reversed(ids):client.unsubscribe(sid)
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--output',type=Path,required=True)
@@ -137,6 +173,7 @@ def main():
             report['strictOverload']=strict_overload(client)
             report['pointerFields']=pointer_fields(client)
             report['slowConsumer']=slow_consumer(client,args.seconds)
+            report['rttReconfiguration']=rtt_reconfiguration(client)
             report['stateAtEnd']=client.target('state')
             report['complete']=True
     except BaseException as error:

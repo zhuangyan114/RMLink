@@ -8,15 +8,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--port', default='COM13')
 parser.add_argument('--seconds', type=float, default=10)
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--no-reset',action='store_true',help='Observe UART passively during a live test')
 args = parser.parse_args()
 with serial.Serial(port=None, baudrate=115200, timeout=0.1) as uart:
     uart.port = args.port
     uart.dtr = False
     uart.rts = False
     uart.open()
-    uart.rts = True
-    time.sleep(0.1)
-    uart.rts = False
+    if not args.no_reset:
+        uart.rts = True
+        time.sleep(0.1)
+        uart.rts = False
     data = bytearray()
     deadline = time.monotonic() + args.seconds
     while time.monotonic() < deadline:

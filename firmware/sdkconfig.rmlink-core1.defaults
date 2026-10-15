@@ -1,0 +1,2 @@
+# Experimental only; sustained target access is not qualified on CPU1.
+CONFIG_RMLINK_EXECUTOR_CORE=1
