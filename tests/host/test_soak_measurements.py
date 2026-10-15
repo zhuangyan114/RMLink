@@ -1,6 +1,7 @@
 import unittest
 import struct
 from verify_subscription_soak import Measurements
+from inspect_fixture_recording import Audit
 
 
 class SoakMeasurementsTests(unittest.TestCase):
@@ -57,6 +58,22 @@ class SoakMeasurementsTests(unittest.TestCase):
             m.accept(sequence,dict(kind=3,sequence=sequence,timestamp_us=sequence*1000,
                 flags=0,byte_sequence=sequence*16,data=struct.pack('<IIII',magic,producer,producer,magic)))
         self.assertEqual(m.summary()['rttProducerSkipped'],0)
+
+    def test_dynamic_audit_accepts_repeated_samples_and_counter_wrap(self):
+        audit=Audit()
+        for sequence,counter in enumerate((0xffffff,0xffffff,0)):
+            sample=self.sample(sequence);sample['values']=[(i<<24)|counter for i in range(10)]
+            audit.accept(sequence,sample)
+        audit.require_dynamic_timeline()
+        self.assertEqual(audit.field_changes['1'],[1]*10)
+
+    def test_dynamic_audit_rejects_one_frozen_leaf_with_valid_identity(self):
+        audit=Audit()
+        for sequence in range(3):
+            sample=self.sample(sequence)
+            sample['values']=[(i<<24)|(0 if i==4 else sequence) for i in range(10)]
+            audit.accept(sequence,sample)
+        with self.assertRaisesRegex(AssertionError,'never changed'):audit.require_dynamic_timeline()
 
 
 if __name__=='__main__':unittest.main()

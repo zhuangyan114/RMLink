@@ -1,0 +1,895 @@
+{
+  "recordedAt": "2026-10-15T20:32:55.857958+08:00",
+  "decision": "rejected; production source and device restored to qualified 0.2.8",
+  "baseCommit": "72e7a3b5fdf33ff8e2b35a8c713ebe9a668f8223",
+  "patchAppliedToDefault": false,
+  "patchAppliesCleanly": true,
+  "conditions": {
+    "target": "STM32F103C8",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "executorCore": 0,
+    "tcpPacketBytes": 512,
+    "timelinePeriodUs": 1000,
+    "fields": 10,
+    "leafStrideBytes": 64,
+    "watchFields": 4,
+    "watchPeriodUs": 100000,
+    "rttPeriodUs": 5000,
+    "secondsPerMatrixRow": 2,
+    "repetitions": 3,
+    "rssiMeasuredDuringMatrix": false,
+    "installedVSCodeUiTested": false
+  },
+  "matrices": {
+    "028_initial": {
+      "source": "artifacts/logs/pointer-balanced-before-028.json",
+      "rows": 54,
+      "medians": {
+        "depth0-independent-solo": {
+          "effectiveHz": 930.4604817537611,
+          "medianOfFrameSpanP50Us": 704,
+          "runsHz": [
+            928.8416436054806,
+            931.0202764546748,
+            930.4604817537611
+          ]
+        },
+        "depth0-independent-coexist": {
+          "effectiveHz": 932.4636503293673,
+          "medianOfFrameSpanP50Us": 709,
+          "runsHz": [
+            932.4636503293673,
+            925.9308174076915,
+            933.1621405557305
+          ]
+        },
+        "depth1-independent-solo": {
+          "effectiveHz": 494.9326510877097,
+          "medianOfFrameSpanP50Us": 1455,
+          "runsHz": [
+            495.1808833742256,
+            494.9326510877097,
+            492.6492874324761
+          ]
+        },
+        "depth1-independent-coexist": {
+          "effectiveHz": 494.2460442304579,
+          "medianOfFrameSpanP50Us": 1473,
+          "runsHz": [
+            494.2460442304579,
+            493.51982976577966,
+            494.4197568286531
+          ]
+        },
+        "depth1-shared-solo": {
+          "effectiveHz": 877.0259350568472,
+          "medianOfFrameSpanP50Us": 838,
+          "runsHz": [
+            877.0259350568472,
+            906.2401743771943,
+            875.5328687487751
+          ]
+        },
+        "depth1-shared-coexist": {
+          "effectiveHz": 783.2900605570353,
+          "medianOfFrameSpanP50Us": 838,
+          "runsHz": [
+            783.2900605570353,
+            792.9758634353976,
+            760.7292663684833
+          ]
+        },
+        "depth2-independent-solo": {
+          "effectiveHz": 332.84516043136733,
+          "medianOfFrameSpanP50Us": 2221,
+          "runsHz": [
+            332.84516043136733,
+            332.51935878444715,
+            333.01321621715596
+          ]
+        },
+        "depth2-independent-coexist": {
+          "effectiveHz": 332.53736112594936,
+          "medianOfFrameSpanP50Us": 2225,
+          "runsHz": [
+            332.71469925118134,
+            332.5302048269385,
+            332.53736112594936
+          ]
+        },
+        "depth2-shared-solo": {
+          "effectiveHz": 653.5904360483953,
+          "medianOfFrameSpanP50Us": 981,
+          "runsHz": [
+            644.6186057500387,
+            653.5904360483953,
+            663.4475098790444
+          ]
+        },
+        "depth2-shared-coexist": {
+          "effectiveHz": 628.3931948658502,
+          "medianOfFrameSpanP50Us": 981,
+          "runsHz": [
+            628.3931948658502,
+            623.3281729935405,
+            634.3443351651581
+          ]
+        },
+        "depth3-independent-solo": {
+          "effectiveHz": 275.5452141055447,
+          "medianOfFrameSpanP50Us": 2987,
+          "runsHz": [
+            278.2606599197665,
+            275.352492036162,
+            275.5452141055447
+          ]
+        },
+        "depth3-independent-coexist": {
+          "effectiveHz": 265.4263902057662,
+          "medianOfFrameSpanP50Us": 3003,
+          "runsHz": [
+            264.89604404150975,
+            265.4263902057662,
+            266.2989740456956
+          ]
+        },
+        "depth3-shared-solo": {
+          "effectiveHz": 500.00351055624265,
+          "medianOfFrameSpanP50Us": 1083,
+          "runsHz": [
+            500.0092987914228,
+            500.00351055624265,
+            499.50302738309
+          ]
+        },
+        "depth3-shared-coexist": {
+          "effectiveHz": 499.7556857489804,
+          "medianOfFrameSpanP50Us": 1078,
+          "runsHz": [
+            499.7556857489804,
+            499.3191311939158,
+            499.7668563354668
+          ]
+        },
+        "depth4-independent-solo": {
+          "effectiveHz": 236.22834658525036,
+          "medianOfFrameSpanP50Us": 3791,
+          "runsHz": [
+            236.22834658525036,
+            236.1869891379327,
+            237.24058258035237
+          ]
+        },
+        "depth4-independent-coexist": {
+          "effectiveHz": 231.19940177738627,
+          "medianOfFrameSpanP50Us": 3801,
+          "runsHz": [
+            230.5926793138722,
+            232.4211202889291,
+            231.19940177738627
+          ]
+        },
+        "depth4-shared-solo": {
+          "effectiveHz": 499.274514598289,
+          "medianOfFrameSpanP50Us": 1204,
+          "runsHz": [
+            499.25711141529644,
+            499.7595872374456,
+            499.274514598289
+          ]
+        },
+        "depth4-shared-coexist": {
+          "effectiveHz": 499.32654815192126,
+          "medianOfFrameSpanP50Us": 1204,
+          "runsHz": [
+            499.32654815192126,
+            499.30977766029315,
+            499.76653763170634
+          ]
+        }
+      }
+    },
+    "A": {
+      "source": "artifacts/logs/pointer-balanced-after-029.json",
+      "rows": 54,
+      "medians": {
+        "depth0-independent-solo": {
+          "effectiveHz": 937.3310990071398,
+          "medianOfFrameSpanP50Us": 704,
+          "runsHz": [
+            937.3310990071398,
+            929.1256851352549,
+            937.5906561938306
+          ]
+        },
+        "depth0-independent-coexist": {
+          "effectiveHz": 918.4303326302912,
+          "medianOfFrameSpanP50Us": 704,
+          "runsHz": [
+            927.7194017568444,
+            914.2943953846196,
+            918.4303326302912
+          ]
+        },
+        "depth1-independent-solo": {
+          "effectiveHz": 495.4361438705911,
+          "medianOfFrameSpanP50Us": 1415,
+          "runsHz": [
+            493.67422873538806,
+            495.82128484344884,
+            495.4361438705911
+          ]
+        },
+        "depth1-independent-coexist": {
+          "effectiveHz": 494.24960517670024,
+          "medianOfFrameSpanP50Us": 1434,
+          "runsHz": [
+            495.5810302957122,
+            494.24960517670024,
+            494.20796585573106
+          ]
+        },
+        "depth1-shared-solo": {
+          "effectiveHz": 883.9847610594788,
+          "medianOfFrameSpanP50Us": 845,
+          "runsHz": [
+            883.9847610594788,
+            888.0529400767147,
+            869.3163252641258
+          ]
+        },
+        "depth1-shared-coexist": {
+          "effectiveHz": 770.9637186150028,
+          "medianOfFrameSpanP50Us": 850,
+          "runsHz": [
+            773.4534951320225,
+            768.3152804350774,
+            770.9637186150028
+          ]
+        },
+        "depth2-independent-solo": {
+          "effectiveHz": 333.3190845785727,
+          "medianOfFrameSpanP50Us": 2143,
+          "runsHz": [
+            333.3381715750629,
+            333.1687047951803,
+            333.3190845785727
+          ]
+        },
+        "depth2-independent-coexist": {
+          "effectiveHz": 333.0242427477476,
+          "medianOfFrameSpanP50Us": 2144,
+          "runsHz": [
+            333.0242427477476,
+            333.0294844573889,
+            332.83359204026993
+          ]
+        },
+        "depth2-shared-solo": {
+          "effectiveHz": 591.5802920971597,
+          "medianOfFrameSpanP50Us": 991,
+          "runsHz": [
+            591.5802920971597,
+            590.1648895588028,
+            592.0789601384366
+          ]
+        },
+        "depth2-shared-coexist": {
+          "effectiveHz": 569.7161947958228,
+          "medianOfFrameSpanP50Us": 991,
+          "runsHz": [
+            570.1848445702052,
+            566.6628708388238,
+            569.7161947958228
+          ]
+        },
+        "depth3-independent-solo": {
+          "effectiveHz": 304.30980662402953,
+          "medianOfFrameSpanP50Us": 2874,
+          "runsHz": [
+            305.23681755319933,
+            304.0919275444249,
+            304.30980662402953
+          ]
+        },
+        "depth3-independent-coexist": {
+          "effectiveHz": 287.83809563624953,
+          "medianOfFrameSpanP50Us": 2890,
+          "runsHz": [
+            289.3309899707954,
+            287.5130958708912,
+            287.83809563624953
+          ]
+        },
+        "depth3-shared-solo": {
+          "effectiveHz": 500.0078818976457,
+          "medianOfFrameSpanP50Us": 1092,
+          "runsHz": [
+            500.0078818976457,
+            499.7631407730063,
+            500.00907274527157
+          ]
+        },
+        "depth3-shared-coexist": {
+          "effectiveHz": 499.7777475351342,
+          "medianOfFrameSpanP50Us": 1098,
+          "runsHz": [
+            499.7743556081023,
+            499.7777475351342,
+            500.0078274470141
+          ]
+        },
+        "depth4-independent-solo": {
+          "effectiveHz": 241.34861942479597,
+          "medianOfFrameSpanP50Us": 3694,
+          "runsHz": [
+            241.18515647545283,
+            241.58963048499973,
+            241.34861942479597
+          ]
+        },
+        "depth4-independent-coexist": {
+          "effectiveHz": 237.5606576374303,
+          "medianOfFrameSpanP50Us": 3699,
+          "runsHz": [
+            237.08857015130522,
+            237.5606576374303,
+            238.737701373375
+          ]
+        },
+        "depth4-shared-solo": {
+          "effectiveHz": 499.75368555620247,
+          "medianOfFrameSpanP50Us": 1221,
+          "runsHz": [
+            499.2511233150275,
+            499.75368555620247,
+            499.75818965495506
+          ]
+        },
+        "depth4-shared-coexist": {
+          "effectiveHz": 499.5209472281704,
+          "medianOfFrameSpanP50Us": 1240,
+          "runsHz": [
+            499.54436906616803,
+            498.6220947760564,
+            499.5209472281704
+          ]
+        }
+      }
+    },
+    "C": {
+      "source": "artifacts/logs/pointer-balanced-selected-c-029.json",
+      "rows": 12,
+      "medians": {
+        "depth2-shared-solo": {
+          "effectiveHz": 630.9254114996197,
+          "medianOfFrameSpanP50Us": 983,
+          "runsHz": [
+            630.9254114996197,
+            630.9827238656144,
+            621.5363874182843
+          ]
+        },
+        "depth2-shared-coexist": {
+          "effectiveHz": 590.9921466697521,
+          "medianOfFrameSpanP50Us": 984,
+          "runsHz": [
+            590.9921466697521,
+            597.4774781294296,
+            590.4749793824651
+          ]
+        },
+        "depth3-independent-coexist": {
+          "effectiveHz": 293.2261052091548,
+          "medianOfFrameSpanP50Us": 2868,
+          "runsHz": [
+            293.7295236630139,
+            292.59816314424097,
+            293.2261052091548
+          ]
+        },
+        "depth4-independent-coexist": {
+          "effectiveHz": 240.32236730572544,
+          "medianOfFrameSpanP50Us": 3670,
+          "runsHz": [
+            240.32236730572544,
+            240.56906449344856,
+            239.69226230679058
+          ]
+        }
+      }
+    },
+    "028_interleaved_restore": {
+      "source": "artifacts/logs/pointer-balanced-rollback-028.json",
+      "rows": 12,
+      "medians": {
+        "depth2-shared-solo": {
+          "effectiveHz": 687.2908425776933,
+          "medianOfFrameSpanP50Us": 981,
+          "runsHz": [
+            694.1368201474619,
+            687.2908425776933,
+            667.825015125427
+          ]
+        },
+        "depth2-shared-coexist": {
+          "effectiveHz": 663.6514640611633,
+          "medianOfFrameSpanP50Us": 981,
+          "runsHz": [
+            663.6514640611633,
+            665.2664634332847,
+            629.076328565228
+          ]
+        },
+        "depth3-independent-coexist": {
+          "effectiveHz": 269.9702051913682,
+          "medianOfFrameSpanP50Us": 2983,
+          "runsHz": [
+            270.6845008996009,
+            269.9702051913682,
+            265.9324164858793
+          ]
+        },
+        "depth4-independent-coexist": {
+          "effectiveHz": 234.53532688361184,
+          "medianOfFrameSpanP50Us": 3782,
+          "runsHz": [
+            237.10027621133062,
+            234.53532688361184,
+            234.5139372935789
+          ]
+        }
+      }
+    },
+    "D": {
+      "source": "artifacts/logs/pointer-balanced-selected-d-029.json",
+      "rows": 12,
+      "medians": {
+        "depth2-shared-solo": {
+          "effectiveHz": 624.9486905836959,
+          "medianOfFrameSpanP50Us": 984,
+          "runsHz": [
+            610.257310496279,
+            624.9486905836959,
+            629.4723285411436
+          ]
+        },
+        "depth2-shared-coexist": {
+          "effectiveHz": 604.8567975003111,
+          "medianOfFrameSpanP50Us": 984,
+          "runsHz": [
+            602.420742711882,
+            604.8567975003111,
+            605.6208843369479
+          ]
+        },
+        "depth3-independent-coexist": {
+          "effectiveHz": 291.57339081889285,
+          "medianOfFrameSpanP50Us": 2874,
+          "runsHz": [
+            291.57339081889285,
+            291.08167202324415,
+            296.0870951578372
+          ]
+        },
+        "depth4-independent-coexist": {
+          "effectiveHz": 240.40142667319392,
+          "medianOfFrameSpanP50Us": 3661,
+          "runsHz": [
+            240.40142667319392,
+            239.01692825199603,
+            242.28990570767792
+          ]
+        }
+      }
+    },
+    "E": {
+      "source": "artifacts/logs/pointer-balanced-selected-e-029.json",
+      "rows": 12,
+      "medians": {
+        "depth2-shared-solo": {
+          "effectiveHz": 640.8307125261996,
+          "medianOfFrameSpanP50Us": 983,
+          "runsHz": [
+            629.3364192415215,
+            642.0717378962349,
+            640.8307125261996
+          ]
+        },
+        "depth2-shared-coexist": {
+          "effectiveHz": 593.9933440197889,
+          "medianOfFrameSpanP50Us": 984,
+          "runsHz": [
+            593.9933440197889,
+            618.2680682518237,
+            588.0123329678914
+          ]
+        },
+        "depth3-independent-coexist": {
+          "effectiveHz": 293.5833769855599,
+          "medianOfFrameSpanP50Us": 2870,
+          "runsHz": [
+            293.85513818866815,
+            293.5833769855599,
+            293.57293739978127
+          ]
+        },
+        "depth4-independent-coexist": {
+          "effectiveHz": 240.81072323642175,
+          "medianOfFrameSpanP50Us": 3663,
+          "runsHz": [
+            240.81072323642175,
+            241.83914254784597,
+            238.39707279659797
+          ]
+        }
+      }
+    }
+  },
+  "variantIdentity": {
+    "A": {
+      "flashedAt": "2026-10-15T20:01:14.6696925+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "622D34B0E5E44FDDA48DEC4118FFB53CA49DA7FE6AC30EAAD9C8E5FD28EA1F52",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    },
+    "B": {
+      "flashed": false,
+      "modelAndBuildOnly": true
+    },
+    "C": {
+      "flashedAt": "2026-10-15T20:10:24.6246831+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "18F48BA8875F2312A42F623C8D91EAD66B625806AA568C02CA3E92849AA3FA7E",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    },
+    "D": {
+      "flashedAt": "2026-10-15T20:15:17.2920065+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "35DB6D5233542F38E154AFCCCF22D25673151B442DD576A19B63F40D5BE684CC",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    },
+    "E": {
+      "flashedAt": "2026-10-15T20:20:14.5796305+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "E1F5659DF5F620CA78E1C2956C2FA259A8883CCB15CB7A0FC6317F1249C1BA9E",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    }
+  },
+  "functionalChecksAOnly": [
+    "pointer-watch-balanced-029.json",
+    "accept-balanced-029.json",
+    "pyocd-balanced-029.json",
+    "subscriptions-balanced-029.json",
+    "wired-balanced-029.json",
+    "control-pointer4-balanced-029.json",
+    "orbit-pointers-balanced-029-1.json",
+    "orbit-pointers-balanced-029-2.json",
+    "orbit-pointers-balanced-029-3.json",
+    "orbit-pointers-balanced-029-4.json",
+    "orbit-pointers-balanced-029-5.json"
+  ],
+  "soakA": {
+    "complete": false,
+    "intentionalCancellation": {
+      "intentional": true,
+      "at": "2026-10-15T20:08:22.553625+08:00",
+      "owner": "api-262e41cdbf42425f98f0113508113e6f",
+      "reason": "First candidate regresses shared depth-2 timing near the 1 ms deadline; end its soak before replacing it.",
+      "appSha256": "622D34B0E5E44FDDA48DEC4118FFB53CA49DA7FE6AC30EAAD9C8E5FD28EA1F52",
+      "sourceReport": "artifacts/logs/pointer-soak-independent4-balanced-029.json"
+    },
+    "countsAsTenMinuteAcceptance": false
+  },
+  "soakECompleted": false,
+  "package029Produced": false,
+  "restoredDevice": {
+    "capturedAt": "2026-10-15T20:30:08.118213+08:00",
+    "complete": true,
+    "devices": [
+      {
+        "device_id": "50787d15a924",
+        "hostname": "rmlink-15a924.local",
+        "address": "192.168.137.170",
+        "port": 3241,
+        "firmware": "0.2.8",
+        "paired": true,
+        "connected": true,
+        "packet_size": 512,
+        "transport": "wifi",
+        "owner": null
+      }
+    ],
+    "flashReceipt": {
+      "flashedAt": "2026-10-15T20:21:56.2220599+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "8ACF0AA665CCB3553CE06802E1E88DB4C8B45B85CACC4D490AC75549076C62F2",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0,
+      "restoredFromCheckpoint": "0.2.8"
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "state": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    },
+    "fixtureMagic": {
+      "address": 536870912,
+      "data": "4b4c4d52"
+    },
+    "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "after": [
+      {
+        "device_id": "50787d15a924",
+        "hostname": "rmlink-15a924.local",
+        "address": "192.168.137.170",
+        "port": 3241,
+        "firmware": "0.2.8",
+        "paired": true,
+        "connected": true,
+        "packet_size": 512,
+        "transport": "wifi",
+        "owner": null
+      }
+    ]
+  },
+  "rebuiltNotFlashed": {
+    "firmware-target-tcp512-core0": "350037586eefb10371890c2cf87b8f50575c5b3b79bc51f37f451b822d8c98d5",
+    "firmware-target-core0": "4970754f7be8cb01b3a7b3e71caba39f8f910eb3a3330d67030b9f3da3249d46"
+  },
+  "offlineAudit": {
+    "source": "artifacts/logs/pointer-soak-all-fields-final-audit-028.json",
+    "recordingSha256": "57a0c7b7f586b85b9ce637bfaeebac3318667940d7d899e67fd950df57e89d1e",
+    "frames": 197303,
+    "timelineSamplingHz": 235.18045270134346,
+    "observedValueChangesHz": 90.7253618229287,
+    "fieldChangeCounts": {
+      "1": [
+        54449,
+        54449,
+        54449,
+        54449,
+        54449,
+        54449,
+        54449,
+        54449,
+        54449,
+        54449
+      ],
+      "2": [
+        6001,
+        6001,
+        6001,
+        6001
+      ]
+    },
+    "timelineMissedSlots": 459008,
+    "timelineBudgetFlagFrames": 141145,
+    "rttProducerSkipped": 21,
+    "allTimelineFieldsChanged": true,
+    "hostTests": 81
+  },
+  "limits": [
+    "The isolated cause of shared-plan regression was not determined.",
+    "Short matrix medians are not guaranteed throughput or signal bandwidth.",
+    "No full PC reboot/silent TCP blackhole, physical NRST, actual SWCLK or installed UI acceptance."
+  ],
+  "evidence": {
+    "artifacts/logs/accept-balanced-029.json": {
+      "sha256": "7778693327a2c0d5f6df3e5ae06772f4ad24864ea8384c88fa90ff86cc3d0d8e",
+      "bytes": 3605
+    },
+    "artifacts/logs/balanced-a-cancel-029.json": {
+      "sha256": "9f87340b1d0faa7cbe774cec95933d5721bea6c7062ada25bd172e51ad9ad8fb",
+      "bytes": 413
+    },
+    "artifacts/logs/build-balanced-029.log": {
+      "sha256": "b931e97319c02a6a136d215302c2c543eb8af51cbd006997f0c8b17e6251dd2b",
+      "bytes": 12845
+    },
+    "artifacts/logs/build-balanced-b-029.log": {
+      "sha256": "4aee3730d96bcd0168d087ba0f67002a668a5af6129d91a2219b2ce6ecb45269",
+      "bytes": 2965
+    },
+    "artifacts/logs/build-balanced-c-029.log": {
+      "sha256": "adb06eada006f10894979b5f31533300eef450fca294ea135410284a6abc0754",
+      "bytes": 2965
+    },
+    "artifacts/logs/build-balanced-d-029.log": {
+      "sha256": "b957bdb010596876396814bdc25544be5ccf2bf0e274e235720073c851e29ce8",
+      "bytes": 2965
+    },
+    "artifacts/logs/build-balanced-d-usb64-029.log": {
+      "sha256": "1be4ec7fb886f168dc01a45e5e95deff9c3dacfb0ca2d693445088650dc05d8d",
+      "bytes": 2899
+    },
+    "artifacts/logs/build-balanced-e-029.log": {
+      "sha256": "7aa71de81b71dbef6e9a4f065ce39c1f161107cd8861754dd5998db857c3348b",
+      "bytes": 2965
+    },
+    "artifacts/logs/build-balanced-usb64-029.log": {
+      "sha256": "735022538957d614669e4941be79a20c269907a1c891ec9c8de7e2309429346d",
+      "bytes": 12754
+    },
+    "artifacts/logs/build-restored-source-028.log": {
+      "sha256": "a968785f32431f12f4964a2062d52bee04afa921d2ffcdb3d2547c8b4561a2b1",
+      "bytes": 12845
+    },
+    "artifacts/logs/build-restored-usb64-source-028.log": {
+      "sha256": "36ded21ed9017ca3dd0e218bbe4c01f3ae85427a2907a1762c752053e85d852e",
+      "bytes": 12754
+    },
+    "artifacts/logs/capture-balanced-029.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-balanced-b-029.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-balanced-c-029.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-balanced-d-029.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-balanced-e-029.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-balanced-negative-029.json": {
+      "sha256": "8574ed9f0c1e2cb0123fbf20d1a58d3c31fc26c9caedaa04e0a0869d6dd91a2b",
+      "bytes": 79
+    },
+    "artifacts/logs/capture-restored-028.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/control-pointer4-balanced-029.json": {
+      "sha256": "7ade855499be2e210ff5b26a68e71cad422a1310c52f3f51babab0f910d49c42",
+      "bytes": 4896
+    },
+    "artifacts/logs/host-final-audit-028.log": {
+      "sha256": "0522c2c3f17aca40e328f0a5ee84f86a8193f5c5442976383aa09c75704e1735",
+      "bytes": 186
+    },
+    "artifacts/logs/orbit-pointers-balanced-029-1.json": {
+      "sha256": "8528115e5b63c8db402745a955ef50d9f72882877f391e4a4a3ca4ab5fad481b",
+      "bytes": 18750
+    },
+    "artifacts/logs/orbit-pointers-balanced-029-2.json": {
+      "sha256": "9b8094603bb00918d79d8895b9a5d8bedd5b92dcf5a1a2e5d0bd7af667e98923",
+      "bytes": 18751
+    },
+    "artifacts/logs/orbit-pointers-balanced-029-3.json": {
+      "sha256": "15ed530056f657a016caffcb2393a49935ee5773f7fd9643315bbc0a0b6bfdc5",
+      "bytes": 18753
+    },
+    "artifacts/logs/orbit-pointers-balanced-029-4.json": {
+      "sha256": "c4d0a22fce2c65ad6c6586ff4b25415cdb965ba451c285d1d4437318263dd0f8",
+      "bytes": 18754
+    },
+    "artifacts/logs/orbit-pointers-balanced-029-5.json": {
+      "sha256": "26997911eb3d721b28db09166edc5639eeca15b77caf27bb973f21e178dc37a7",
+      "bytes": 18751
+    },
+    "artifacts/logs/pointer-balanced-after-029.json": {
+      "sha256": "6ebc9dccb35182426745601b929d22e871ddb6c677ff0d9c533668338a2bd80b",
+      "bytes": 58017
+    },
+    "artifacts/logs/pointer-balanced-after-identity-029.json": {
+      "sha256": "9e953a20aabc8b3bcfdef62df69faa51c685dc45a349f38d9309a4f18eec668c",
+      "bytes": 883
+    },
+    "artifacts/logs/pointer-balanced-before-028.json": {
+      "sha256": "5dab57d0bb1019ae41afaa258e9cf6bb16a6faf1a20a3b958cfcbfb85cbf04e6",
+      "bytes": 58059
+    },
+    "artifacts/logs/pointer-balanced-before-identity-028.json": {
+      "sha256": "79abd23224f85c09f5de11dc985ff8a232552b8cf94a8ce382e4f4d6e37ae796",
+      "bytes": 917
+    },
+    "artifacts/logs/pointer-balanced-rollback-028.json": {
+      "sha256": "3dfe38e9e10a17cefa0df17a71bb535e3e79a960b473d3f8aaf1b67a8259ba8c",
+      "bytes": 12913
+    },
+    "artifacts/logs/pointer-balanced-selected-c-029.json": {
+      "sha256": "e654e1046be394331fcbbbc4e9a70b30a47d13d33dce3d2bdd7f998bf947c5a5",
+      "bytes": 12867
+    },
+    "artifacts/logs/pointer-balanced-selected-d-029.json": {
+      "sha256": "e76ca5fb62f45afd9061be97d97b68f898cd18a5c0915f125e683cfd36e11656",
+      "bytes": 12866
+    },
+    "artifacts/logs/pointer-balanced-selected-e-029.json": {
+      "sha256": "2ac6b41cfb7808c4dbbe9bbd8791863cf2501da6b4012303282db01038fc87e5",
+      "bytes": 12870
+    },
+    "artifacts/logs/pointer-soak-all-fields-final-audit-028.json": {
+      "sha256": "644a9028f622658b2b76af3d1884a9602368d36d4e5bad629bbf19270b94e627",
+      "bytes": 2441
+    },
+    "artifacts/logs/pointer-soak-independent4-balanced-029.json": {
+      "sha256": "cecd5b1a4e8bc3b7269f7862d49c5d4375c823b0d4d471328369ff860d86e3d1",
+      "bytes": 3051
+    },
+    "artifacts/logs/pointer-soak-independent4-watch-028.json": {
+      "sha256": "66389f69b61f3758d103eafe901a76dee0c900b0fc5ad4f1f43cc49c05c74c5c",
+      "bytes": 30296
+    },
+    "artifacts/logs/pointer-watch-balanced-029.json": {
+      "sha256": "ed73e672cc9b0d87d0d6f55dcba545a471ad16d43be6b6e02e5129271e1f0df4",
+      "bytes": 6840
+    },
+    "artifacts/logs/pointer-watch-restored-028.json": {
+      "sha256": "72545f393c095b9591abbe8c403bd68b3944e8fa3ef0a0a83eefd025a3068fa3",
+      "bytes": 6844
+    },
+    "artifacts/logs/pyocd-balanced-029.json": {
+      "sha256": "7781091f979a346adfd4840a78fb01ba79cade176c53393b9168fca132b558de",
+      "bytes": 278
+    },
+    "artifacts/logs/pyocd-restored-028.json": {
+      "sha256": "4ea9606b2cb15d3d4dcb80eb3d7d9a94c2c8d2f4eca85d2b105364665f0f18bd",
+      "bytes": 278
+    },
+    "artifacts/logs/restored-028-final-identity.json": {
+      "sha256": "13fe8ae3b6c62aa0e1cc4a0a501927af1d87ee04a54b75686e5ec8fc71d40cef",
+      "bytes": 1653
+    },
+    "artifacts/logs/subscriptions-balanced-029.json": {
+      "sha256": "9304533a554503b28ab59378fd3f8b6fecd5409e069b668ff9a27731f9473b5d",
+      "bytes": 5221
+    },
+    "artifacts/logs/wired-balanced-029.json": {
+      "sha256": "e3ab10e7637873c5423230ca50687e6f47344871dd4221143de3f65235bd8382",
+      "bytes": 1487
+    },
+    "docs/experiments/balanced-pointer-scheduler.patch": {
+      "sha256": "e73dea6dc6f7fa3c28dca78ce81fc6cd91487323bd2e867d9f847d02165e6c7d",
+      "bytes": 7432
+    },
+    "scripts/inspect_fixture_recording.py": {
+      "sha256": "7e927ce9a1bcf7eaffc8585edb240e41e01eb7b4f7855f05ae2fd87bd0ccc690",
+      "bytes": 4796
+    },
+    "tests/host/test_soak_measurements.py": {
+      "sha256": "f1267735c2b24ded33b73c3d5b08b806daae5abc46903246192d3a1ce9e042cd",
+      "bytes": 4070
+    }
+  }
+}

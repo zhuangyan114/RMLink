@@ -1,7 +1,8 @@
-"""Re-read a completed F103 soak recording and locate producer RTT sequence gaps.
+"""Re-read a completed F103 soak and audit dynamic fields and RTT sequence gaps.
 
 Runs offline: no connector, USB, SWD or target access. Distinguishes producer
 publication skips from a discontinuity in the probe's committed byte stream.
+Repeated memory values are allowed; all ten dynamic fixture leaves must change.
 """
 import argparse
 import json
@@ -17,8 +18,27 @@ class Audit(Measurements):
         self.first_rtt_timestamp = None
         self.producer_gaps = []
         self.producer_gap_events = 0
+        self.field_first = {}
+        self.field_last = {}
+        self.field_changes = {}
+
+    def require_dynamic_timeline(self):
+        require(len(self.field_changes.get('1', [])) == 10 and
+                all(count > 0 for count in self.field_changes['1']),
+                'A dynamic Timeline fixture field never changed')
 
     def accept(self, cursor, sample):
+        if sample['kind'] in (1, 2):
+            kind = str(sample['kind'])
+            values = sample['values']
+            if kind not in self.field_last:
+                self.field_first[kind] = list(values)
+                self.field_changes[kind] = [0] * len(values)
+            else:
+                require(len(values) == len(self.field_last[kind]), 'Field plan changed within soak')
+                for index, value in enumerate(values):
+                    self.field_changes[kind][index] += value != self.field_last[kind][index]
+            self.field_last[kind] = list(values)
         if sample['kind'] == 3:
             if self.first_rtt_timestamp is None:
                 self.first_rtt_timestamp = sample['timestamp_us']
@@ -54,10 +74,13 @@ def main():
         require(parsed['sha256'] == recording['sha256'], 'Recording hash changed')
         require(not audit.rtt_pending, 'Recording ended within a fixture RTT record')
         require(audit.summary() == source['disk'], 'Offline measurements differ from completed soak')
+        audit.require_dynamic_timeline()
         result.update(recordingSha256=parsed['sha256'], frames=recording['frames'],
                       validated=audit.summary(), producerGaps=audit.producer_gaps,
                       producerGapEvents=audit.producer_gap_events,
                       producerGapListTruncated=audit.producer_gap_events > len(audit.producer_gaps),
+                      fieldChangeCounts=audit.field_changes, firstFieldValues=audit.field_first,
+                      lastFieldValues=audit.field_last, allTimelineFieldsChanged=True,
                       note='Producer sequence gaps, committed byte continuity and missed poll deadlines are separate.',
                       complete=True)
     except BaseException as error:

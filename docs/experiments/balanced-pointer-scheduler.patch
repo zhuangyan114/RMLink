@@ -1,0 +1,142 @@
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+index 94d5f5d..b49dd39 100644
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -14,5 +14,5 @@ if(NOT RMLINK_DAP_PACKET_SIZE MATCHES "^(64|128|256|512)$")
+     message(FATAL_ERROR "RMLINK_DAP_PACKET_SIZE must be 64, 128, 256 or 512")
+ endif()
+ add_compile_definitions(RMLINK_PACKET_SIZE=${RMLINK_DAP_PACKET_SIZE})
+-set(PROJECT_VER "0.2.8")
++set(PROJECT_VER "0.2.9")
+ project(rmlink)
+diff --git a/firmware/components/debug_probe/rmlink_capture.c b/firmware/components/debug_probe/rmlink_capture.c
+index 86b49af..0cd2cf5 100644
+--- a/firmware/components/debug_probe/rmlink_capture.c
++++ b/firmware/components/debug_probe/rmlink_capture.c
+@@ -46,6 +46,7 @@ typedef struct {
+     uint32_t budget_overrun;
+     uint8_t pending[256];
+     bool rtt_pending, rtt_commit_unknown;
++    bool balanced;
+ } subscription_t;
+ static subscription_t s_sub[SLOTS];
+ static uint8_t s_transport;
+@@ -266,8 +267,9 @@ static bool cached_word(subscription_t *s,uint32_t address,uint32_t *value) {
+ /* Advance every field using this frame's cache. Each unresolved chain contributes
+  * only its next dependency. Deduplicate shared roots/suffixes before physical IO.
+  * Range checks apply before queueing, so invalid branches cannot poison peers. */
+-static unsigned resolve_fields(subscription_t *s,uint32_t missing[8]) {
+-    unsigned count=0;
++static inline __attribute__((always_inline)) unsigned resolve_fields_impl(subscription_t *s,uint32_t missing[8],bool balanced) {
++    uint8_t pending_depth[8];
++    unsigned count=0,deepest=0;
+     for(unsigned i=0;i<s->count;i++) {
+         uint32_t bit=1u<<i,a=s->resolve_address[i],value=0;
+         if(s->resolved&bit)continue;
+@@ -297,14 +299,43 @@ valid:
+ invalid:
+         s->failures++;s->resolved|=bit;continue;
+ pending:;
+-        unsigned j=0;for(;j<count;j++)if(missing[j]==a)break;
+-        if(j==count && count<8)missing[count++]=a;
++        /* Shared prefixes already progress together. Preserve their small
++         * collector so plans close to a period boundary do not pay for ranks. */
++        if(!balanced) {
++            unsigned j=0;for(;j<count;j++)if(missing[j]==a)break;
++            if(j==count && count<8)missing[count++]=a;
++            continue;
++        }
++        unsigned depth=s->resolve_depth[i],j=0;
++        for(;j<count;j++)if(missing[j]==a)break;
++        if(j<count) {
++            if(depth<pending_depth[j])pending_depth[j]=depth;
++        }else if(count<8) {
++            missing[count]=a;pending_depth[count++]=depth;
++            if(depth>deepest)deepest=depth;
++        }else if(depth<deepest) {
++            /* Keep the least advanced eight dependencies. Replace the last
++             * deepest entry so equal-depth plans retain their original order. */
++            unsigned worst=0;
++            for(unsigned k=1;k<8;k++)if(pending_depth[k]>=pending_depth[worst])worst=k;
++            deepest=pending_depth[worst];
++            if(depth<deepest) {missing[worst]=a;pending_depth[worst]=depth;}
++        }
+     }
+     s->index=__builtin_popcount(s->resolved);
+     return count;
+ }
++/* Constant arguments let the compiler remove ranking storage and operations
++ * completely from the shared-plan collector, while keeping one resolver body. */
++static unsigned resolve_fields(subscription_t *s,uint32_t missing[8]) {
++    return resolve_fields_impl(s,missing,false);
++}
++static unsigned resolve_fields_balanced(subscription_t *s,uint32_t missing[8]) {
++    return resolve_fields_impl(s,missing,true);
++}
+ static bool dynamic_step(subscription_t *s) {
+-    uint32_t addresses[8],values[8];unsigned count=resolve_fields(s,addresses);
++    unsigned (*resolve)(subscription_t *,uint32_t *)=s->balanced?resolve_fields_balanced:resolve_fields;
++    uint32_t addresses[8],values[8];unsigned count=resolve(s,addresses);
+     if(!count)return true;
+     /* At most eight physical reads per executor turn. Never replay a partial
+      * response; a failure pauses capture just as it does for static fields. */
+@@ -317,7 +348,7 @@ static bool dynamic_step(subscription_t *s) {
+     for(unsigned i=0;i<count;i++) {
+         s->cache_address[s->cache_count]=addresses[i];s->cache_value[s->cache_count++]=values[i];
+     }
+-    resolve_fields(s,addresses);return true;
++    resolve(s,addresses);return true;
+ }
+ static bool rtt_run(subscription_t *s,unsigned id) {
+     /* F103 32-bit RTT descriptor: name,buffer,size,WrOff,RdOff,flags. */
+@@ -534,6 +565,13 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
+         if(s->state!=1 || s->supplied!=(s->count==32?~0u:((1u<<s->count)-1))) return 3;
+         for(unsigned i=0;i<s->count;i++)
+             if((s->depth[i] && (s->address[i]&3)) || (!s->depth[i] && (s->address[i]%s->width[i] || !memory(s->address[i],s->width[i],false)))) return 3;
++        unsigned roots=0;bool pointers=false;
++        for(unsigned i=0;i<s->count;i++) {
++            pointers|=s->depth[i]!=0;
++            unsigned j=0;for(;j<i;j++)if(s->address[j]==s->address[i])break;
++            if(j==i)roots++;
++        }
++        s->balanced=pointers && roots>8;
+         s->capture=++s_capture; s->state=2; s->next=esp_timer_get_time(); s->seq=0;
+         atomic_store(&s_stream_failed,false); break;
+     case 4: /* STOP retains statistics */
+diff --git a/firmware/components/debug_probe/swd.c b/firmware/components/debug_probe/swd.c
+index b685071..584da75 100644
+--- a/firmware/components/debug_probe/swd.c
++++ b/firmware/components/debug_probe/swd.c
+@@ -75,7 +75,7 @@ static size_t process(const request_t *job, uint8_t *out)
+         if (job->len >= 2 && r[1] == 0) {
+             memset(out, 0, RMLINK_PACKET_SIZE);
+             out[0] = 0x80; out[2] = 0; out[3] = 1;
+-            out[5] = 2; out[6] = 8; /* firmware 0.2.8: pointer Watch reuse */
++            out[5] = 2; out[6] = 9; /* firmware 0.2.9: balanced pointer batches */
+             out[7] = 1; /* USB */
+ #if CONFIG_RMLINK_WIFI_ENABLED
+             out[7] |= 6; /* TCP + USB provisioning */
+diff --git a/tests/capture/capture_test.c b/tests/capture/capture_test.c
+index d9acb9b..150e84c 100644
+--- a/tests/capture/capture_test.c
++++ b/tests/capture/capture_test.c
+@@ -149,6 +149,19 @@ int main(void) {
+     assert(frame[48]==255 && frame[49]==255 && frame[50]==255 && frame[51]==255 && frame[52]==0);
+     for(unsigned i=0;i<32;i++){memcpy(&v,frame+56+i*4,4);assert(v==0x5000+i);}
+     rmlink_capture_closed(2,7);
++    /* Ten independent four-level chains: start later roots before finishing
++     * the first eight chains. Fifty reads should fit seven bounded batches. */
++    prepare(1,1,10);
++    for(unsigned i=0;i<10;i++) {
++        address(1,i,0x20000000+i*16);pointer(i,4,0);
++        for(unsigned d=0;d<4;d++)ram[i*4+d]=d<3?0x20000000+i*16+(d+1)*4:0x20001000+i*4;
++        ram[1024+i]=0x6000+i;
++    }
++    action(3,1);before=reads;before_commands=commands;
++    assert(next_record(frame)==96 && reads==before+50 && commands-before_commands==7);
++    assert(frame[48]==255 && frame[49]==3 && frame[52]==0);
++    for(unsigned i=0;i<10;i++){memcpy(&v,frame+56+i*4,4);assert(v==0x6000+i);}
++    rmlink_capture_closed(2,7);
+     /* Watch reuses an identical pointer expression without rereading its chain,
+      * but a faster Watch takes over when the Timeline result is too old. */
+     prepare_period(1,1,4,10000);ram[0]=0x20000004;ram[1]=0x20000008;ram[2]=0x20001000;
