@@ -185,4 +185,20 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.broker.owner)
         await self.connector.close_session(sid) # repeated close is harmless
 
+    async def test_public_recording_api_writes_an_independently_validated_container(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]})
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        code,recording=await self.http('POST',root+'/recordings',{})
+        self.assertEqual(code,200)
+        captures=self.connector.sessions[session['session_id']]['captures']
+        captures.accept_frames([record(i) for i in range(10,15)])
+        code,status=await self.http('POST',root+'/recordings/'+recording['recording_id'],{'action':'stop'})
+        self.assertEqual((code,status['frames'],status['phase']),(200,5,'complete'))
+        from rmlink_connector.recording_reader import inspect_recording
+        self.assertEqual(inspect_recording(status['path'])['sha256'],status['sha256'])
+        self.assertEqual((await self.http('DELETE',root))[0],200)
+
 if __name__=='__main__':unittest.main()

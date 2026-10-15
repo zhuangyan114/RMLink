@@ -21,10 +21,11 @@ def capture(client,addresses,period,seconds,coexist):
     if coexist:
         ids.append(client.subscribe('memory_snapshot',addresses=addresses[:4],period_us=100000)['subscription_id'])
         ids.append(client.subscribe('rtt_stream',control_block_address=0x20000400,period_us=5000)['subscription_id'])
-    after=-1;rows=[];begin=time.perf_counter();errors=[]
+    after=sub['stream_cursor'];rows=[];begin=time.perf_counter();errors=[];consumer_gap=0
     try:
         while time.perf_counter()-begin<seconds:
             batch=client.events(after,256,1000);after=batch['cursor']
+            consumer_gap+=batch['consumer_gap']
             if batch['error']:raise RuntimeError(batch['error'])
             for entry in batch['records']:
                 sample=entry['sample']
@@ -46,7 +47,7 @@ def capture(client,addresses,period,seconds,coexist):
         'effective_hz':(len(times)-1)*1e6/duration if duration else None,
         'interval_p50_us':quantile(intervals,.5),'interval_p95_us':quantile(intervals,.95),
         'interval_p99_us':quantile(intervals,.99),'duration_p99_us':quantile([r['duration_us'] for r in rows],.99),
-        'statuses':status,'errors':errors,'first_sequence':rows[0]['sequence'] if rows else None,
+        'statuses':status,'errors':errors,'consumer_gap':consumer_gap,'first_sequence':rows[0]['sequence'] if rows else None,
         'last_sequence':rows[-1]['sequence'] if rows else None}
 
 def poll_baseline(client,addresses,seconds):
@@ -74,6 +75,12 @@ def main():
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,'requestedClockHz':4000000,
         'actualClockMeasured':False,'fixtureRetained':True,'addresses':addresses,'rows':[]}
     try:
+        discovery=ApiClient();ready_deadline=time.perf_counter()+30
+        while time.perf_counter()<ready_deadline:
+            devices=discovery.request('GET','/v1/status')['devices']
+            if any(d['device_id']==args.device_id and d['connected'] for d in devices):break
+            time.sleep(.5)
+        else:raise ConnectionError('Probe did not become ready within 30 seconds')
         with ApiClient().open(args.device_id) as client:
             report['target']=client.target('connect')
             # Verify fixture identity before interpreting dynamic data.

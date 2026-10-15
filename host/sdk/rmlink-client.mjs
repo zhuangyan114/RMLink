@@ -1,6 +1,5 @@
-/** Local Orbit integration foundation. One instance per physical target owner.
- * Keep Orbit's SessionTargetSelector/NativeScheduler; route CMSIS-DAP through
- * this client instead of creating a second physical probe connection.
+/** Public connector SDK. One instance per physical target owner.
+ * Target control, subscriptions and recording use the shared local service.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -38,6 +37,7 @@ export class RMLinkClient {
     this.session = null;
     this.timer = null;
     this.packetSize = 64;
+    this.streamCursor=null;
   }
   async request(method, path, body, timeoutMs = 30000) {
     const response = await fetch(this.base + path, {
@@ -117,16 +117,20 @@ export class RMLinkClient {
     return this.request('POST',path,{action:'commit'},180000);
   }
   async subscribe(kind, parameters = {}) {
-    return this.request('POST', `/sessions/${this.session}/subscriptions`, {kind, ...parameters});
+    const result=await this.request('POST', `/sessions/${this.session}/subscriptions`, {kind, ...parameters});
+    this.streamCursor??=result.stream_cursor ?? -1;
+    return result;
   }
   async subscription(id, action = 'status') {
     return this.request(action === 'status' ? 'GET' : 'POST', `/sessions/${this.session}/subscriptions/${id}`,
       action === 'status' ? undefined : {action});
   }
   async unsubscribe(id) { return this.request('DELETE', `/sessions/${this.session}/subscriptions/${id}`); }
-  async *stream({signal} = {}) {
+  async startRecording(options = {}) {return this.request('POST',`/sessions/${this.session}/recordings`,options);}
+  async recording(id, stop = false) {return this.request(stop?'POST':'GET',`/sessions/${this.session}/recordings/${id}`,stop?{action:'stop'}:undefined);}
+  async *stream({signal,after=this.streamCursor ?? -1} = {}) {
     if (!this.session) throw new Error('RMLink session closed');
-    const response = await fetch(this.base + `/sessions/${this.session}/stream`, {
+    const response = await fetch(this.base + `/sessions/${this.session}/stream?after=${after}`, {
       headers: {Authorization: `Bearer ${this.token}`}, signal,
     });
     if (!response.ok) throw new Error(`RMLink stream HTTP ${response.status}`);
@@ -141,6 +145,7 @@ export class RMLinkClient {
           if (pending.length < 12 + size) break;
           const cursor = pending.readBigUInt64LE(0);
           const frame = Buffer.from(pending.subarray(12,12+size));
+          this.streamCursor=cursor;
           yield {cursor, frame, sample:decodeCaptureFrame(frame)};
           pending = pending.subarray(12+size);
         }
@@ -152,6 +157,7 @@ export class RMLinkClient {
   async close() {
     clearInterval(this.timer); this.timer = null;
     const session = this.session; this.session = null;
+    this.streamCursor=null;
     if (session) await this.request('DELETE', `/sessions/${session}`);
   }
 }

@@ -48,9 +48,7 @@ class FlashProgrammer:
         self.check_cancel();target=self.target
         await target.write_word(0xe000edf0,0xa05f0003)
         await target.poll_word(0xe000edf0,0x20000,0x20000)
-        for i,value in enumerate(args):await target.register(i,value)
-        for i,value in ((9,BASE),(13,STACK),(14,BASE+0x501),(15,BASE+entry+1),(16,0x01000000)):
-            await target.register(i,value)
+        await target.write_registers(list(enumerate(args))+[(9,BASE),(13,STACK),(14,BASE+0x501),(15,BASE+entry+1),(16,0x01000000)])
         await target.write_word(0xe000ed30,0x1f) # Clear old stop reasons, not target Flash.
         await target.write_word(0xe000edf0,0xa05f0001)
         deadline=asyncio.get_running_loop().time()+timeout
@@ -60,7 +58,7 @@ class FlashProgrammer:
             if state&0x20000:break
             if asyncio.get_running_loop().time()>deadline:raise TimeoutError('RAM Flash algorithm deadline')
             await asyncio.sleep(.001)
-        pc=await target.register(15);result=await target.register(0)
+        pc,result=await target.read_registers([15,0])
         if pc&~1 not in (BASE+0x500,BASE+0x502):raise RuntimeError(f'Unexpected algorithm stop PC {pc:#x}')
         if result:raise RuntimeError(f'Flash algorithm returned {result} at entry {entry:#x}')
 

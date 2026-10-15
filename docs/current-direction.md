@@ -1,6 +1,6 @@
 # 当前项目方向
 
-更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，当前实现与证据见 [0.2.0 实施记录](subscriptions-implementation.md)。
+更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，当前 0.2.3 实现与证据见 [实施记录](subscriptions-implementation.md) 和 [采样性能记录](subscription-performance-20261015.md)。
 
 RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基座，保留一套 ARM CMSIS-DAP / SWD 内核，为 Orbit 增加无线接入、板端采样和批量操作。
 
@@ -8,9 +8,9 @@ RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基�
 
 RMLink 驱动配套组件面向所有前端：以内核虚拟 USB + 用户态服务/通用目标引擎 + 公开 SDK 统一分发。通用设备管理、目标控制、计划编译、订阅、缓存和数据分发放在组件中；Orbit 通过公开接口适配，核心能力不依赖 Orbit。标准软件继续走虚拟 USB，采用增强 API 的其他前端可获得板端订阅能力。
 
-默认请求 SWD **4000 kHz（4 MHz）**已统一到固件、目标引擎、SDK 和主要验收脚本；用户显式设置优先，第三方标准时钟命令仍按其请求执行。当前 STM32 返回 NO_ACK，4 MHz 全流程验收待目标恢复后重跑，实际 SWCLK 另行量测。
+默认请求 SWD **4000 kHz（4 MHz）**已统一到固件、目标引擎、SDK 和主要验收脚本；用户显式设置优先，第三方标准时钟命令仍按其请求执行。STM32 接线恢复后已完成该请求时钟下的虚拟 USB 全流程与增强 Flash、有效采样验收，实际 SWCLK 另行量测。
 
-STM32 测试默认保留新 fixture，旧备份及历史恢复证据保留。验收脚本已将恢复旧程序改为显式 --restore-original，并以指定 fixture 为数据预期。本轮目标失联发生在擦写前，没有烧录新 fixture。
+STM32 测试默认保留新 fixture，旧备份及历史恢复证据保留。验收脚本将恢复旧程序设为显式 --restore-original；当前目标已烧录新的 64 KiB 采样／RTT fixture，以其字段标识、指针链和二进制 RTT 校验数据为预期。
 
 ## 协议与传输
 

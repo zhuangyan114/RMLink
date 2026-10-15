@@ -66,16 +66,22 @@ class ApiClient:
         for offset in range(0,len(data),4096):self.request('POST',path,{'action':'chunk','offset':offset,'data':data[offset:offset+4096].hex()})
         return self.request('POST',path,{'action':'commit'})
     def subscribe(self, kind, **parameters):
-        return self.request('POST',f'/v1/sessions/{self.session}/subscriptions',{'kind':kind,**parameters})
+        result=self.request('POST',f'/v1/sessions/{self.session}/subscriptions',{'kind':kind,**parameters})
+        if not hasattr(self,'_stream_cursor'):self._stream_cursor=result.get('stream_cursor',-1)
+        return result
     def subscription(self, sid, action='status'):
         return self.request('GET' if action=='status' else 'POST',f'/v1/sessions/{self.session}/subscriptions/{sid}',None if action=='status' else {'action':action})
+    def start_recording(self,**options):return self.request('POST',f'/v1/sessions/{self.session}/recordings',options)
+    def recording(self,recording_id,stop=False):
+        return self.request('POST' if stop else 'GET',f'/v1/sessions/{self.session}/recordings/{recording_id}',{'action':'stop'} if stop else None)
     def unsubscribe(self,sid): return self.request('DELETE',f'/v1/sessions/{self.session}/subscriptions/{sid}')
     def events(self,after=-1,limit=128,wait_ms=1000):
         result=self.request('POST',f'/v1/sessions/{self.session}/events',{'after':after,'limit':limit,'wait_ms':wait_ms})
         for row in result['records']: row['sample']=decode_record(bytes.fromhex(row['frame']))
         return result
-    def stream(self):
-        req=urllib.request.Request(f'http://127.0.0.1:{self.port}/v1/sessions/{self.session}/stream',headers={'Authorization':'Bearer '+self.token})
+    def stream(self,after=None):
+        if after is None:after=getattr(self,'_stream_cursor',-1)
+        req=urllib.request.Request(f'http://127.0.0.1:{self.port}/v1/sessions/{self.session}/stream?after={after}',headers={'Authorization':'Bearer '+self.token})
         with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req,timeout=30) as reply:
             def exact(n):
                 data=bytearray()
@@ -88,6 +94,7 @@ class ApiClient:
                 cursor,size=struct.unpack('<QI',exact(12))
                 if size==0: continue
                 if not 56<=size<=384: raise ValueError('Local capture frame bound')
+                self._stream_cursor=cursor
                 yield {'cursor':cursor,**decode_record(exact(size))}
 
     def exchange(self, request): return self.exchange_many([request])[0]
@@ -98,6 +105,7 @@ class ApiClient:
     def heartbeat(self): return self.request('POST', f'/v1/sessions/{self.session}/heartbeat')
     def close(self):
         self._stop.set()
+        if hasattr(self,'_stream_cursor'):del self._stream_cursor
         if self._heartbeat: self._heartbeat.join(timeout=1)
         if self.session:
             self.request('DELETE', f'/v1/sessions/{self.session}'); self.session = None

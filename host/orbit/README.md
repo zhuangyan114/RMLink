@@ -19,6 +19,6 @@ Orbit 源码在忽略的独立工作树 `artifacts/worktrees/orbit-rmlink`，原
 }
 ```
 
-型号和设备 ID 应按实际修改；ELF 继续使用 Orbit 现有配置。增强 Flash 实板验收未完成，当前示例采用 attach 行为；需要测试增强烧录时显式启用 flashBeforeDebug。Timeline/Watch/RTT 使用板端订阅；step-over/step-out 尚未实现。
+型号和设备 ID 应按实际修改；ELF 继续使用 Orbit 现有配置。增强 Flash 服务已通过F103C8完整镜像验收，当前示例采用attach行为；需要烧录时显式启用flashBeforeDebug。Timeline/Watch/RTT 使用板端订阅；step-over/step-out 和二维数组快速采样表达式规划尚未实现。
 
-验证为隔离工作树的类型检查、构建和模型回归，未安装至用户 VS Code。Orbit 原许可继续适用，SDK 自身为 Apache-2.0；补丁仅作本地可复现开发记录，未推送上游。
+隔离工作树通过类型检查、构建、76文件/1053项测试（另1跳过）；真实调试适配器子进程经公开服务完成启动、三标量Timeline、Watch、RTT和暂停/继续，尚未安装至用户VS Code。实测条件与限制见docs/subscription-performance-20261015.md。Orbit原许可继续适用，SDK自身为Apache-2.0；补丁仅作本地可复现开发记录，未推送上游。

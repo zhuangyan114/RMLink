@@ -4,10 +4,11 @@
 #include "rmlink_capture.h"
 uint64_t host_clock=1000000;
 static uint32_t ram[5120], reads, writes;
+static uint32_t operation_us=20;
 static bool fail;
 uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
     assert(r[0]==5 && r[3]==8 && r[8]==1);
-    host_clock+=20;
+    host_clock+=operation_us;
     out[0]=5; out[1]=fail?0:r[2]; out[2]=fail?4:1;
     if(fail) return 3;
     unsigned pos=3,n=3;uint32_t address=0;
@@ -121,6 +122,17 @@ int main(void) {
     usb_pull[2]=2;usb_pull[6]=0;assert(usb_command(usb_pull,sizeof(usb_pull))==12 && out[11]==0);
     usb_pull[2]=3;assert(usb_command(usb_pull,sizeof(usb_pull))==3 && out[2]==1);
     rmlink_capture_closed(1,7);owner.transport=2;
+    uint8_t realtime[18]={0x81,1,1,1,1};uint32_t realtime_period=1000;memcpy(realtime+5,&realtime_period,4);
+    command(realtime,sizeof(realtime));assert(out[2]==0);address(1,0,0x20000000);action(3,1);
+    operation_us=1200;assert(rmlink_capture_run());action(7,1);
+    assert(out[3]==2 && out[46]==1 && out[50]==0); // report an overrun, keep realtime capture alive
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==60 && (frame[52]&2));
+    host_clock+=800;assert(rmlink_capture_run());
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==60);memcpy(&v,frame+32,4);assert(v==2); // skipped deadline is visible
+    rmlink_capture_closed(2,7);
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);assert(rmlink_capture_run());action(7,1);
+    assert(out[3]==3 && out[50]==6); // old 17-byte PREPARE keeps strict deadline semantics
+    operation_us=20;rmlink_capture_closed(2,7);
     uint32_t seed=0x718293a4;uint8_t fuzz[512];
     for(unsigned iteration=0;iteration<20000;iteration++) {
         seed=seed*1664525u+1013904223u;unsigned length=seed%sizeof(fuzz);

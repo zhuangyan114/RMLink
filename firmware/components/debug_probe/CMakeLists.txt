@@ -51,3 +51,7 @@ idf_component_register(
     LDFRAGMENTS
         "noflash.lf"
 )
+
+# The appliance's SWD loops need predictable optimized code, independent of the
+# main application's debug build. Keep the original CMSIS-DAP executor/kernel.
+target_compile_options(${COMPONENT_LIB} PRIVATE -O2)

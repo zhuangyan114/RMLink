@@ -34,6 +34,7 @@ RM_API int rm_target_connect(rm_client *client,uint32_t clock_hz,char *out,size_
 RM_API int rm_subscribe(rm_client *client,const char *json_configuration,char *out,size_t size);
 RM_API int rm_subscription_action(rm_client *client,unsigned id,const char *action,char *out,size_t size);
 RM_API int rm_stream(rm_client *client,rm_record_callback callback,void *context);
+RM_API int rm_stream_after(rm_client *client,int64_t after,rm_record_callback callback,void *context);
 RM_API void rm_stream_cancel(rm_client *client);
 #ifdef __cplusplus
 }

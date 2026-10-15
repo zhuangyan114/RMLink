@@ -35,6 +35,7 @@ typedef struct {
     unsigned cache_count;
     uint64_t next, started, timestamp, last_timestamp, frames, missed, dropped, failures;
     bool reused;
+    bool strict_deadlines;
     uint32_t rtt_channel, rtt_bytes, rtt_pending_rd, rtt_old_rd;
     uint32_t budget_overrun;
     uint8_t pending[256];
@@ -46,6 +47,7 @@ static uint32_t s_session, s_capture;
 static bool s_barrier;
 static uint64_t s_lease;
 static esp_timer_handle_t s_timer;
+static uint64_t s_timer_due;
 static void (*s_wake)(void);
 static RingbufHandle_t s_records[SLOTS];
 static portMUX_TYPE s_stream_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -76,7 +78,7 @@ static bool memory(uint32_t a, size_t n, bool write) {
 }
 static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count) {
     /* Bound bad-address WAIT handling, keep asynchronous Abort effective. */
-    DAP_TransferDeadline(500);
+    DAP_TransferDeadline(2000);
     size_t n=DAP_ProcessCommand(request,out)&0xffff;
     return n>=3 && out[0]==5 && out[1]==count && out[2]==1;
 }
@@ -102,8 +104,8 @@ static bool block(uint32_t address,uint32_t *values,unsigned count) {
     return true;
 }
 static bool scattered(const uint32_t *addresses,uint32_t *values,unsigned count) {
-    uint8_t request[48]={5,0,0,8},reply[24];
-    if(!count || count>4)return false;
+    uint8_t request[64]={5,0,0,8},reply[40];
+    if(!count || count>8)return false;
     w32(request+4,0);request[8]=1;w32(request+9,0x23000052);
     size_t p=13;
     for(unsigned i=0;i<count;i++) { request[p++]=5;w32(request+p,addresses[i]);p+=4;request[p++]=15; }
@@ -134,11 +136,24 @@ static bool bytes_read(uint32_t addr,uint8_t *out,size_t n) {
 }
 static void timer_cb(void *unused) { (void)unused; if(s_wake) s_wake(); }
 static void timer_refresh(void) {
-    bool active=false;
-    for(unsigned i=0;i<SLOTS;i++) if(s_sub[i].state==2) active=true;
+    uint64_t due=UINT64_MAX;
+    bool in_flight=false;
+    for(unsigned i=0;i<SLOTS;i++) if(s_sub[i].state==2) {
+        if(s_sub[i].started)in_flight=true;
+        if(s_sub[i].next<due)due=s_sub[i].next;
+    }
     bool running=esp_timer_is_active(s_timer);
-    if(active && !running) esp_timer_start_periodic(s_timer,100);
-    if(!active && running) esp_timer_stop(s_timer);
+    /* The executor immediately continues partial frames. A 10 kHz periodic
+     * timer otherwise preempts every SWD block even for a 10 Hz subscription. */
+    if(in_flight || due==UINT64_MAX) {
+        if(running)esp_timer_stop(s_timer);
+        return;
+    }
+    if(running && due==s_timer_due)return;
+    if(running)esp_timer_stop(s_timer);
+    uint64_t now=esp_timer_get_time(),delay=due>now?due-now:1;
+    s_timer_due=due;
+    esp_timer_start_once(s_timer,delay<20?20:delay);
 }
 esp_err_t rmlink_capture_init(void (*wake)(void)) {
     s_wake=wake;
@@ -203,7 +218,14 @@ static void sample_finish(subscription_t *s,unsigned id) {
     emit(s,id,s->timestamp,duration,values,s->count*4,s->valid,(s->valid==all?0:1)|(overrun?2:0)|(s->reused?4:0));
     s->last_timestamp=s->timestamp;
     s->frames++; s->index=0; s->started=0; s->seq++;
-    if(overrun) { s->budget_overrun++; s->state=3; s->reason=6; }
+    if(overrun) {
+        s->budget_overrun++;
+        if(s->strict_deadlines) {s->state=3;s->reason=6;}
+    }
+    if(!s->strict_deadlines && ended>=s->next) {
+        uint64_t skipped=(ended-s->next)/s->period+1;
+        s->next+=skipped*s->period;s->missed+=skipped;s->seq+=(uint32_t)skipped;
+    }
     if(s->limit && s->frames>=s->limit) { s->state=3; s->reason=7; }
 }
 static bool reuse_timeline(uint32_t address,uint32_t *value) {
@@ -294,11 +316,12 @@ bool rmlink_capture_run(void) {
             s->cache_count=0;
         }
         if(s->kind==3) { rtt_run(s,k+1); s->started=0; timer_refresh(); return true; }
-        unsigned end=s->index+4; if(end>s->count) end=s->count;
+        unsigned end=s->index+(s->kind==1?8:4); if(end>s->count) end=s->count;
         bool failed=false;
         uint64_t block_start=esp_timer_get_time();
         bool static_group=s->kind==1;
         for(unsigned i=s->index;i<end;i++)if(s->depth[i] || s->width[i]!=4)static_group=false;
+        if(!static_group && end>s->index+4u)end=s->index+4u;
         if(static_group) {
             bool contiguous=true;
             for(unsigned i=s->index+1;i<end;i++)if(s->address[i]!=s->address[i-1]+4)contiguous=false;
@@ -349,7 +372,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
-        w32(out+20,7); /* bit0 TIME_SYNC, bit1 realtime drop-old, bit2 USB pull */
+        w32(out+20,15); /* time sync, drop-old, USB pull, deadline policy */
         return 24;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
@@ -400,14 +423,14 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
         while(done<count && esp_timer_get_time()-start<500000) {
             unsigned j=done%fields,chunk=fields-j;
             if(chunk>count-done)chunk=count-done;
-            if(chunk>(stride==4?8u:4u))chunk=stride==4?8:4;
+            if(chunk>8)chunk=8;
             uint32_t values[8];bool ok;
             if(stride==4) {
                 unsigned boundary=(0x400-((addr+j*stride)&0x3ff))/4;
                 if(chunk>boundary)chunk=boundary;
                 ok=block(addr+j*stride,values,chunk);
             }else {
-                uint32_t addresses[4];for(unsigned i=0;i<chunk;i++)addresses[i]=addr+(j+i)*stride;
+                uint32_t addresses[8];for(unsigned i=0;i<chunk;i++)addresses[i]=addr+(j+i)*stride;
                 ok=scattered(addresses,values,chunk);
             }
             if(!ok)break;
@@ -425,6 +448,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
         uint32_t period=u32(r+5); if(period<200 || period>10000000) return 3;
         if(s->state==2 || s->rtt_pending) { out[2]=3; return 3; }
         memset(s,0,sizeof(*s)); s->kind=r[3]; s->count=r[4]; s->period=period;
+        s->strict_deadlines=len<18 || r[17]!=0; /* old clients retain strict behavior */
         memset(s->width,4,sizeof(s->width));
         s->limit=u32(r+9); s->rtt_channel=u32(r+13); s->state=1; s->revision=1; break;
     case 2: /* ADD: id,offset,count,addresses32 */

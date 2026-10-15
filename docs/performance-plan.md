@@ -2,7 +2,7 @@
 
 日期：2026-10-14。用户已授权按阶段实施、刷写 ESP32 和对 STM32F103 进行烧录 / 调试。每个阶段完成后记录源码、主机检查、构建、实板功能和性能五类状态；不把计划目标写成已测结果。
 
-当前实施：默认请求4 MHz和显式恢复选项已落地，0.2.0实现三类板端订阅、独立数据流、通用API／SDK和Orbit实验适配，见 [实施记录](subscriptions-implementation.md)。STM32当前NO_ACK，有效采样与增强Flash性能不能记为完成。后续按 [订阅方案](subscription-design.md) 的P0–P5补齐验收。以下历史实验保留原始时钟、路径和恢复记录。
+当前实施：0.2.3已完成默认请求4 MHz、三类板端订阅、原始录制、通用API／SDK和Orbit实验适配。STM32接线恢复后，标准虚拟USB全流程、增强Flash及有效采样实板对照通过，见 [最新性能](subscription-performance-20261015.md) 和 [实施记录](subscriptions-implementation.md)。继续提高离散读取效率、减少调试监控对订阅的干扰，并按 [订阅方案](subscription-design.md) 的P0–P5补齐长稳和产品验收。以下历史实验保留原始时钟、路径和恢复记录。
 
 ## 基线与比较条件
 

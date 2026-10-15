@@ -27,6 +27,7 @@ static inline int64_t esp_timer_get_time(void) { return host_clock; }
 static inline int esp_timer_create(const esp_timer_create_args_t *args,esp_timer_handle_t *out) { (void)args; *out=calloc(1,sizeof(**out)); return *out?0:-1; }
 static inline bool esp_timer_is_active(esp_timer_handle_t t) { return t->active; }
 static inline void esp_timer_start_periodic(esp_timer_handle_t t,unsigned n) { (void)n; t->active=true; }
+static inline void esp_timer_start_once(esp_timer_handle_t t,uint64_t n) { (void)n; t->active=true; }
 static inline void esp_timer_stop(esp_timer_handle_t t) { t->active=false; }
 static inline void esp_fill_random(void *out,size_t n) { static uint8_t seed; memset(out,++seed,n); }
 typedef struct node { struct node *next; size_t len; uint8_t data[]; } node_t;

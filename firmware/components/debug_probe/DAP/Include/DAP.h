@@ -330,8 +330,17 @@
  #define DELAY_SLOW_CYCLES       3U      // Number of cycles for one iteration
  #endif
  __STATIC_FORCEINLINE void PIN_DELAY_SLOW (uint32_t delay) {
+#if defined(__XTENSA__)
+   // Keep the delay counter in a register on the ESP32-S3. A volatile stack
+   // loop expands each bit into repeated memory operations, especially at -Og.
+   if (delay > 1U) {
+     delay--;
+     __asm__ volatile ("1: addi %0, %0, -1\n bnez %0, 1b\n" : "+a" (delay));
+   }
+#else
    volatile uint32_t count = delay;
    while (--count);
+#endif
  }
  
  // Fixed delay for fast clock generation
@@ -356,4 +365,4 @@
  
  
  #endif  /* __DAP_H__ */
- 
+

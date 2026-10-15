@@ -1,0 +1,915 @@
+{
+  "date": "2026-10-15",
+  "profile": "STM32F103C8 + ESP32-S3 + PC 2.4GHz hotspot",
+  "requested_clock_hz": 4000000,
+  "actual_clock_measured": false,
+  "fixture_sha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+  "baseline_four_word_blocks": [
+    {
+      "period_us": 10000,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 100.00023952153178,
+      "effective_hz_min": 99.9998643412693,
+      "effective_hz_max": 100.0004048599387,
+      "received": 2516,
+      "valid": 2516,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 10000,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 99.99980430566671,
+      "effective_hz_min": 99.98986563064014,
+      "effective_hz_max": 100.0002879086984,
+      "received": 2587,
+      "valid": 2587,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 2000,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 499.9991948483175,
+      "effective_hz_min": 499.8016292768215,
+      "effective_hz_max": 500.00233077697766,
+      "received": 12441,
+      "valid": 12441,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 2000,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 499.8064541920462,
+      "effective_hz_min": 499.5955654945996,
+      "effective_hz_max": 500.0020475902885,
+      "received": 12691,
+      "valid": 12691,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 1000,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 935.6382733403249,
+      "effective_hz_min": 926.1330562450722,
+      "effective_hz_max": 937.4130860290835,
+      "received": 23252,
+      "valid": 23252,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 1000,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 783.5145736818348,
+      "effective_hz_min": 772.1932242488222,
+      "effective_hz_max": 791.191983405275,
+      "received": 20156,
+      "valid": 20156,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 200,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 1121.547313885153,
+      "effective_hz_min": 1118.3217076674746,
+      "effective_hz_max": 1125.9867405147334,
+      "received": 28020,
+      "valid": 28020,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    },
+    {
+      "period_us": 200,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 1020.6388454752788,
+      "effective_hz_min": 1016.3094578867981,
+      "effective_hz_max": 1023.7485492672167,
+      "received": 26360,
+      "valid": 26360,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": null
+    }
+  ],
+  "current_eight_word_blocks": [
+    {
+      "period_us": 2000,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 500.00130313090233,
+      "effective_hz_min": 499.9953094252409,
+      "effective_hz_max": 500.00353252394797,
+      "received": 12481,
+      "valid": 12481,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": 0
+    },
+    {
+      "period_us": 2000,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 499.81091351829986,
+      "effective_hz_min": 499.60884473605756,
+      "effective_hz_max": 500.00058502408547,
+      "received": 12865,
+      "valid": 12865,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": 0
+    },
+    {
+      "period_us": 1000,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 941.9077312439191,
+      "effective_hz_min": 931.8467343016796,
+      "effective_hz_max": 943.6014946679792,
+      "received": 23421,
+      "valid": 23421,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": 0
+    },
+    {
+      "period_us": 1000,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 834.2753253019856,
+      "effective_hz_min": 831.9998621492344,
+      "effective_hz_max": 851.985421235238,
+      "received": 21538,
+      "valid": 21538,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": 0
+    },
+    {
+      "period_us": 200,
+      "coexist": false,
+      "repetitions": 5,
+      "effective_hz_median": 1173.4300524164416,
+      "effective_hz_min": 1170.5840017660464,
+      "effective_hz_max": 1175.887880850872,
+      "received": 29252,
+      "valid": 29252,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": 0
+    },
+    {
+      "period_us": 200,
+      "coexist": true,
+      "repetitions": 5,
+      "effective_hz_median": 1050.6403572880506,
+      "effective_hz_min": 1044.7376233046373,
+      "effective_hz_max": 1054.980038046351,
+      "received": 26914,
+      "valid": 26914,
+      "errors": 0,
+      "probe_failures": 0,
+      "probe_ring_dropped": 0,
+      "consumer_gap": 0
+    }
+  ],
+  "local_continuous": {
+    "reads": 10000,
+    "elapsed_us": 357188,
+    "checksum": 228,
+    "clock_hz": 4000000,
+    "actual_clock_measured": false
+  },
+  "local_discrete": {
+    "reads": 7190,
+    "elapsed_us": 500017,
+    "checksum": 16777219,
+    "clock_hz": 4000000,
+    "actual_clock_measured": false
+  },
+  "host_api_polling_scope": "local API host batch polling; not actual Orbit baseline",
+  "host_api_polling_hz_median": 16.127499150115277,
+  "virtual_usb": {
+    "complete": true,
+    "openocd_ms": 5271.73,
+    "readback_ms": 1104.34,
+    "pyocd": true,
+    "option_bytes_unchanged": true,
+    "fixture_retained": true
+  },
+  "recording": {
+    "capturedAt": "2026-10-15T10:42:59.212576+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "strictThreeSubscriptions": {
+      "recording": {
+        "recording_id": "31e34c1cc270431db0634fad32365e73",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\31e34c1cc270431db0634fad32365e73.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2023,
+        "bytes": 208916,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "60a017c98ea11defdcd8b47b4c37f13d44b7ed0ffb946965ce1f1a7e0830d928",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1007,
+        "2": 100,
+        "3": 916
+      },
+      "watchReusedFrames": 100,
+      "rttBytesVerified": 14816,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "pointerFields": {
+      "samples": 8,
+      "threeLevelPointer": true,
+      "widths": [
+        1,
+        2,
+        4
+      ],
+      "invalidFieldIsolated": true,
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 5,
+        "capture_id": 64,
+        "last_sequence": 8,
+        "completed": 8,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 8,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowConsumer": {
+      "recording": {
+        "recording_id": "ce0c6801b10246e0b7c12b56c49391bf",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\ce0c6801b10246e0b7c12b56c49391bf.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 10022,
+        "bytes": 721584,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "c6aa43f6d85cb3d036aeabe5a929ead38fe4971ed95b5cf4f8cd805a995b1ad5",
+        "queued_frames": 0
+      },
+      "consumerGap": 5954,
+      "hostHistoryEvicted": 8037,
+      "status": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 1,
+        "capture_id": 65,
+        "last_sequence": 10111,
+        "completed": 10111,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 8097,
+        "host_dropped": 8097,
+        "stream_error": null
+      },
+      "recorderIndependentOfHistory": true
+    },
+    "stateAtEnd": {
+      "dhcsr": 16842753,
+      "state": "Running"
+    }
+  },
+  "controls": {
+    "capturedAt": "2026-10-15T10:44:40.207328+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "idleControls": {
+      "loaded": false,
+      "rows": [
+        {
+          "halt_ms": 78.5325000033481,
+          "run_ms": 16.36020000296412
+        },
+        {
+          "halt_ms": 136.21240000065882,
+          "run_ms": 64.93809999665245
+        },
+        {
+          "halt_ms": 67.36939999973401,
+          "run_ms": 10.076200000185054
+        },
+        {
+          "halt_ms": 82.73979999648873,
+          "run_ms": 13.264699999126606
+        },
+        {
+          "halt_ms": 98.01059999881545,
+          "run_ms": 14.155800003209151
+        },
+        {
+          "halt_ms": 59.81949999841163,
+          "run_ms": 68.88610000169137
+        },
+        {
+          "halt_ms": 70.54939999943599,
+          "run_ms": 14.779500001168344
+        },
+        {
+          "halt_ms": 79.43800000066403,
+          "run_ms": 71.8163999990793
+        },
+        {
+          "halt_ms": 50.6318999978248,
+          "run_ms": 118.77779999485938
+        },
+        {
+          "halt_ms": 10.508100000151899,
+          "run_ms": 57.38790000032168
+        },
+        {
+          "halt_ms": 101.22099999716738,
+          "run_ms": 69.5934000032139
+        },
+        {
+          "halt_ms": 39.90959999646293,
+          "run_ms": 39.09350000321865
+        },
+        {
+          "halt_ms": 80.35050000034971,
+          "run_ms": 62.150899997504894
+        },
+        {
+          "halt_ms": 53.162199998041615,
+          "run_ms": 11.864899999636691
+        },
+        {
+          "halt_ms": 44.40700000122888,
+          "run_ms": 68.67549999878975
+        },
+        {
+          "halt_ms": 72.32659999863245,
+          "run_ms": 13.51289999729488
+        },
+        {
+          "halt_ms": 89.32439999625785,
+          "run_ms": 42.62349999771686
+        },
+        {
+          "halt_ms": 17.201900001964532,
+          "run_ms": 45.758599997498095
+        },
+        {
+          "halt_ms": 74.24639999953797,
+          "run_ms": 25.991199996497016
+        },
+        {
+          "halt_ms": 34.49769999861019,
+          "run_ms": 35.87840000545839
+        }
+      ],
+      "median_halt_ms": 71.43799999903422,
+      "max_halt_ms": 136.21240000065882,
+      "median_run_ms": 40.85850000046776,
+      "max_run_ms": 118.77779999485938,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "loadedControls": {
+      "loaded": true,
+      "rows": [
+        {
+          "halt_ms": 98.55870000319555,
+          "run_ms": 80.87939999677474
+        },
+        {
+          "halt_ms": 72.32809999550227,
+          "run_ms": 57.53920000279322
+        },
+        {
+          "halt_ms": 84.46289999847068,
+          "run_ms": 54.61720000312198
+        },
+        {
+          "halt_ms": 45.12110000359826,
+          "run_ms": 55.475100001785904
+        },
+        {
+          "halt_ms": 72.46329999907175,
+          "run_ms": 39.17899999942165
+        },
+        {
+          "halt_ms": 57.437299998127855,
+          "run_ms": 80.8988999997382
+        },
+        {
+          "halt_ms": 88.29510000214214,
+          "run_ms": 69.80480000493117
+        },
+        {
+          "halt_ms": 70.41800000297371,
+          "run_ms": 66.98579999647336
+        },
+        {
+          "halt_ms": 58.19369999517221,
+          "run_ms": 20.827599997573998
+        },
+        {
+          "halt_ms": 76.27230000070995,
+          "run_ms": 42.44170000310987
+        },
+        {
+          "halt_ms": 62.40409999736585,
+          "run_ms": 28.838799997174647
+        },
+        {
+          "halt_ms": 84.72700000129407,
+          "run_ms": 61.56290000217268
+        },
+        {
+          "halt_ms": 92.67350000300212,
+          "run_ms": 44.13319999730447
+        },
+        {
+          "halt_ms": 111.39450000337092,
+          "run_ms": 75.88750000286382
+        },
+        {
+          "halt_ms": 39.10799999721348,
+          "run_ms": 84.55310000135796
+        },
+        {
+          "halt_ms": 82.42880000034347,
+          "run_ms": 65.44749999738997
+        },
+        {
+          "halt_ms": 57.449300002190284,
+          "run_ms": 81.36620000004768
+        },
+        {
+          "halt_ms": 72.7171000035014,
+          "run_ms": 58.42370000027586
+        },
+        {
+          "halt_ms": 71.3642000046093,
+          "run_ms": 39.458300001570024
+        },
+        {
+          "halt_ms": 87.66820000164444,
+          "run_ms": 40.43490000185557
+        }
+      ],
+      "median_halt_ms": 72.59020000128658,
+      "max_halt_ms": 111.39450000337092,
+      "median_run_ms": 57.98145000153454,
+      "max_run_ms": 84.55310000135796,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "cSdk": {
+      "samples": 40,
+      "crcVerified": true,
+      "cursorResumeWithoutReplay": true,
+      "firstCursor": 0,
+      "lastCursor": 39,
+      "captureId": 67
+    }
+  },
+  "identities": {
+    "firmware": {
+      "flashedAt": "2026-10-15T10:38:33.4390646+08:00",
+      "profile": "firmware-target-tcp512",
+      "port": "COM13",
+      "binarySha256": "715A6B35B4BFEF822B8B978C18319D67BDD71465AEDE5AD8727412F3DEC286A4",
+      "sdkconfigSha256": "7E5BE91FD22347151BAECFF1FB41AF7B8B6C4BF00B6CF10A1DE740D53AF9C4DC",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512
+    },
+    "connector_sha256": "5c157de16686c337a4c14429b5d470db71cee22429b6eee33491b71712534790",
+    "sdk_dll_sha256": "9b7160119091cbfd6fb66c3cf99d6ddd9c1e72a00fee14528c8dc82eb07d2316"
+  },
+  "sources": [
+    {
+      "path": "artifacts/logs/subscriptions-20261015/subscriptions-swd023-five-runs.json",
+      "sha256": "5b2ba0fbcbc26c0f55c6f441108f90e657f9d57357664f2f46047a1361d99374"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/subscriptions-batch8-five-runs.json",
+      "sha256": "4a0af85e7e5a00c1de887e1190f3edf50c653f45038a659225a2ce84169cf53c"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/recording-target-023.json",
+      "sha256": "2f44f741cf6d0ddd0935b782738877b2f6cad95b263e627463efb2cc93b9ad56"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/controls-c-sdk-023.json",
+      "sha256": "201a20d929b6dcb4a1f939ac571402b1b494287a847d58ca6fa6270fad7c9875"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/accept-4mhz-batch8.json",
+      "sha256": "90f618a72c99ba40cc5d0891ee02146b7328eb34e924ed3ae1b343931c756beb"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/pyocd-batch8.json",
+      "sha256": "20f72b55591882686b535d2dd25df906a8133a4748353f4d8ac67b5198bddafc"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/enhanced-flash-full-baseline.json",
+      "sha256": "ae5be26c3c8e2190f00e886bd24c20bc35035fbfbf98bc57f05eaaccd6ea2545"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/enhanced-flash-register-batched.json",
+      "sha256": "bf2cf92f69facd968b973ac66385b237ccf9dd9c18b2ac58c7ba2e0f611f912b"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-adapter-scalars-023.json",
+      "sha256": "b2b531429408a0b20140406d4efad877e945b77b0b3cc5b263835cdbb9852576"
+    }
+  ],
+  "checkpoint_connector_sha256": "ad1814d6d3978323e44750d0e7223ef4525d97a9f5a0f59e9dd81f35794eb75d",
+  "orbit_adapter": {
+    "capturedAt": "2026-10-15T10:49:05.623239+08:00",
+    "complete": true,
+    "scope": "real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded",
+    "fixtureRetained": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "initialize": {
+      "supportsConfigurationDoneRequest": true,
+      "supportsConditionalBreakpoints": false,
+      "supportsHitConditionalBreakpoints": false,
+      "supportsEvaluateForHovers": true,
+      "supportsStepBack": false,
+      "supportsSetVariable": false,
+      "supportsRestartFrame": false,
+      "supportsGotoTargetsRequest": false,
+      "supportsStepInTargetsRequest": false,
+      "supportsCompletionsRequest": false,
+      "supportsRestartRequest": true,
+      "supportsExceptionOptions": false,
+      "supportTerminateDebuggee": false,
+      "supportsLogPoints": false,
+      "supportsDataBreakpoints": false,
+      "supportsReadMemoryRequest": true,
+      "supportsWriteMemoryRequest": true,
+      "supportsDisassembleRequest": false,
+      "supportsCancelRequest": false,
+      "supportsBreakpointLocationsRequest": false,
+      "supportsSteppingGranularity": true,
+      "supportsInstructionBreakpoints": false,
+      "supportsRTOS": true,
+      "rtosName": ""
+    },
+    "launch": null,
+    "samplingStart": {
+      "ok": true,
+      "planned": [
+        {
+          "expression": "fixture_state.counter",
+          "spec": {
+            "expression": "fixture_state.counter",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536870920
+          }
+        },
+        {
+          "expression": "fixture_state.boots",
+          "spec": {
+            "expression": "fixture_state.boots",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536870916
+          }
+        },
+        {
+          "expression": "fixture_state.guard",
+          "spec": {
+            "expression": "fixture_state.guard",
+            "size": 4,
+            "typeName": "uint32_t",
+            "isFloat": false,
+            "signed": false,
+            "format": {
+              "kind": "base",
+              "encoding": "7\t(unsigned)",
+              "name": "long unsigned int",
+              "typeName": "uint32_t"
+            },
+            "address": 536870924
+          }
+        }
+      ],
+      "activeExpressions": [
+        "fixture_state.counter",
+        "fixture_state.boots",
+        "fixture_state.guard"
+      ],
+      "intervalMs": 2
+    },
+    "watch": {
+      "results": [
+        {
+          "expression": "fixture_state.counter",
+          "value": 12006,
+          "display": "12006",
+          "hex": "0x2ee6",
+          "typeName": "uint32_t"
+        },
+        {
+          "expression": "fixture_state.boots",
+          "value": 1,
+          "display": "1",
+          "hex": "0x1",
+          "typeName": "uint32_t"
+        },
+        {
+          "expression": "fixture_state.guard",
+          "value": 324508639,
+          "display": "324508639",
+          "hex": "0x13579bdf",
+          "typeName": "uint32_t"
+        }
+      ]
+    },
+    "samplingStop": {
+      "ok": true,
+      "targetReadGate": {
+        "sampling": {
+          "attempts": 0,
+          "gateDeferred": 0,
+          "readsCompleted": 0,
+          "samplesAccepted": 13881,
+          "samplesSent": 13881,
+          "commitMs": {
+            "count": 0,
+            "retainedCount": 0,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "queueWaitMs": {
+          "count": 0,
+          "retainedCount": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "gateHoldMs": {
+          "count": 0,
+          "retainedCount": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "handoffGapMs": {
+          "count": 0,
+          "retainedCount": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "byPriority": {
+          "foreground": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "watch": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "timeline": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "background": {
+            "queueWaitMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "gateHoldMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "handoffGapMs": {
+              "count": 0,
+              "retainedCount": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        },
+        "acquisitionsByPriority": {
+          "foreground": 0,
+          "watch": 0,
+          "timeline": 0,
+          "background": 0
+        },
+        "queuedWaiters": 0,
+        "activeWaiterTimers": 0,
+        "controlWaiters": 0,
+        "gateOwned": false,
+        "activePriority": null
+      },
+      "performanceMetrics": {
+        "owner": "sessionTarget/cmsis-dap",
+        "fastSampling": {
+          "captures": 0,
+          "batchRequests": 0,
+          "fallbackReads": 0,
+          "cacheHits": 0,
+          "readMs": {
+            "count": 0,
+            "retainedCount": 0,
+            "p50": null,
+            "p95": null,
+            "max": null
+          },
+          "formatMs": {
+            "count": 0,
+            "retainedCount": 0,
+            "p50": null,
+            "p95": null,
+            "max": null
+          }
+        },
+        "planner": {
+          "planCacheHit": 1,
+          "planCacheMiss": 1,
+          "planCacheInvalidation": 2,
+          "planBuildElapsed": {
+            "count": 1,
+            "retainedCount": 1,
+            "p50": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "cacheEntries": 1,
+          "symbolGeneration": 1,
+          "sessionGeneration": 1
+        },
+        "transport": "rmlink-service",
+        "boardSubscriptions": true,
+        "rttCacheDroppedBytes": 0
+      }
+    },
+    "timeline": {
+      "samplesPerExpression": {
+        "fixture_state.counter": 4627,
+        "fixture_state.boots": 4627,
+        "fixture_state.guard": 4627
+      },
+      "effectiveHz": 457.56509710736435,
+      "timestampSpanMs": 10110.036865234375,
+      "events": 358
+    },
+    "rttOutputEvents": 16,
+    "pauseContinue": true,
+    "adapterExitCode": 0,
+    "stderrTail": "",
+    "eventKinds": [
+      "continued",
+      "initialized",
+      "orbitAutomationLifecycle",
+      "output",
+      "ozoneDataSamples",
+      "ozoneRttOutput",
+      "ozoneRttStarted",
+      "stopped"
+    ]
+  }
+}

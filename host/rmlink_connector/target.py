@@ -30,8 +30,8 @@ class TargetEngine:
         request=bytearray([5,0,len(operations)]); reads=0
         for flags,value in operations:
             request.append(flags)
-            if flags&2: reads+=1
-            else: request.extend(struct.pack('<I',value))
+            if flags&2 and not flags&0x10:reads+=1
+            else:request.extend(struct.pack('<I',value))
         if len(request)>self.broker.packet_size or 3+4*reads>self.broker.packet_size: raise ValueError('Transfer budget')
         reply=await self.packet(request)
         if len(reply)!=3+4*reads or reply[:3]!=bytes([5,len(operations),1]):
@@ -49,7 +49,7 @@ class TargetEngine:
             try:
                 await self.exact(b'\x11'+struct.pack('<I',clock_hz),b'\x11\x00')
                 await self.exact(b'\x02\x01',b'\x02\x01')
-                await self.exact(b'\x04\x02\x64\x00\x00\x00',b'\x04\x00')
+                await self.exact(b'\x04\x02\x64\x00\xe8\x03',b'\x04\x00')
                 await self.exact(b'\x13\x00',b'\x13\x00')
                 for data,bits in ((b'\xff'*7,56),(b'\x9e\xe7',16),(b'\xff'*7,56),(b'\x00',8)):
                     await self.exact(bytes([0x12,bits])+data,b'\x12\x00')
@@ -111,6 +111,29 @@ class TargetEngine:
         await self.poll_word(0xe000edf0,0x10000,0x10000)
         return await self.read_word(0xe000edf8)
 
+    async def write_registers(self,registers):
+        for index,value in registers:
+            if type(index) is not int or index not in (*range(19),20) or type(value) is not int or not 0<=value<=0xffffffff:
+                raise ValueError('Core register/value invalid')
+        count=max(1,(self.broker.packet_size-18)//30)
+        for offset in range(0,len(registers),count):
+            operations=[(8,0),(1,0x23000042),(0x20,0x10000)]
+            for index,value in registers[offset:offset+count]:
+                operations.extend([(5,0xe000edf8),(13,value),(5,0xe000edf4),(13,index|0x10000),
+                    (5,0xe000edf0),(0x1f,0x10000)])
+            await self.transfer(operations) # value-match polls S_REGRDY on the probe
+
+    async def read_registers(self,indices):
+        if any(type(i) is not int or i not in (*range(19),20) for i in indices):raise ValueError('Core register invalid')
+        count=max(1,(self.broker.packet_size-18)//26);values=[]
+        for offset in range(0,len(indices),count):
+            operations=[(8,0),(1,0x23000042),(0x20,0x10000)]
+            for index in indices[offset:offset+count]:
+                operations.extend([(5,0xe000edf4),(13,index),(5,0xe000edf0),(0x1f,0x10000),
+                    (5,0xe000edf8),(15,None)])
+            values.extend(await self.transfer(operations))
+        return values
+
     async def poll_word(self,address,mask,expected,timeout=1):
         deadline=asyncio.get_running_loop().time()+timeout
         while True:
@@ -119,12 +142,35 @@ class TargetEngine:
             if asyncio.get_running_loop().time()>=deadline:raise TimeoutError('Target status deadline')
             await asyncio.sleep(.001)
 
-    async def read_range(self,address,size):
+    @staticmethod
+    def check_range(address,size):
         if type(address) is not int or type(size) is not int or address<0 or size<1 or size>4096 or address+size>2**32:
             raise ValueError('Memory range invalid')
         if (address%4 or size%4) and not (
             0x20000000<=address and address+size<=0x20005000 or 0x08000000<=address and address+size<=0x08010000):
             raise ValueError('Subword reads require known RAM/Flash; peripheral widening is not automatic')
+
+    async def read_batch(self,reads):
+        if not isinstance(reads,list) or not 1<=len(reads)<=32 or any(not isinstance(r,dict) for r in reads):
+            raise ValueError('Expected 1..32 memory ranges')
+        if any(type(r.get('byte_length')) is not int or r['byte_length']<1 for r in reads) or sum(r['byte_length'] for r in reads)>4096:
+            raise ValueError('Batch byte budget')
+        words=[];ranges=[]
+        for r in reads:
+            address,size=r.get('address'),r['byte_length'];self.check_range(address,size)
+            ranges.append((address,size,len(words)*4+(address&3)))
+            # Preserve repeated accesses, including peripheral side effects.
+            words.extend(range(address&~3,(address+size+3)&~3,4))
+        values=[];count=min((self.broker.packet_size-13)//6,(self.broker.packet_size-3)//4)
+        for offset in range(0,len(words),count):
+            operations=[(8,0),(1,0x23000052)]
+            for a in words[offset:offset+count]:operations.extend([(5,a),(15,None)])
+            values.extend(await self.transfer(operations))
+        raw=struct.pack('<'+'I'*len(values),*values)
+        return {'reads':[{'address':a,'data':raw[offset:offset+n].hex()} for a,n,offset in ranges]}
+
+    async def read_range(self,address,size):
+        self.check_range(address,size)
         data=bytearray()
         words=list(range(address&~3,(address+size+3)&~3,4))
         # Each packet establishes SELECT, CSW and every TAR independently.
@@ -143,12 +189,7 @@ class TargetEngine:
                 address,size=body.get('address'),body.get('byte_length')
                 return await self.read_range(address,size)
             if command=='read_batch':
-                reads=body.get('reads')
-                if not isinstance(reads,list) or not 1<=len(reads)<=32 or any(not isinstance(r,dict) for r in reads):
-                    raise ValueError('Expected 1..32 memory ranges')
-                if any(type(r.get('byte_length')) is not int or r['byte_length']<1 for r in reads) or sum(r['byte_length'] for r in reads)>4096:
-                    raise ValueError('Batch byte budget')
-                return {'reads':[await self.read_range(r.get('address'),r['byte_length']) for r in reads]}
+                return await self.read_batch(body.get('reads'))
             if command=='write_memory':
                 address=body.get('address'); data=bytes.fromhex(body.get('data',''))
                 if type(address) is not int or address<0 or address%4 or not data or len(data)%4 or len(data)>4096 or address+len(data)>2**32:
@@ -163,7 +204,7 @@ class TargetEngine:
                     await self.write_word(0xe000edf0,0xa05f000b)
                 await self.write_word(0xe000edf0,{'halt':0xa05f0003,'run':0xa05f0001,'step':0xa05f000d}[command])
                 value=await self.poll_word(0xe000edf0,0x20000,0 if command=='run' else 0x20000)
-                return {'command':command,'dhcsr':value}
+                return {'command':command,'dhcsr':value,'state':'Halted' if value&0x20000 else 'Running'}
             if command in ('read_register','write_register'):
                 index=body.get('index')
                 if type(index) is not int or index not in (*range(19),20):raise ValueError('Core register index invalid')
@@ -196,7 +237,9 @@ class TargetEngine:
                 return {'cleared':index}
             if command=='reset':
                 await self.write_word(0xe000ed0c,0x05fa0004)
-                return {'requested':True,'physical_nrst':False}
+                value=await self.poll_word(0xe000edf0,0x02000000,0)
+                return {'requested':True,'physical_nrst':False,'dhcsr':value,
+                    'state':'Halted' if value&0x20000 else 'Running'}
             if command=='benchmark_local':
                 a,stride,count,fields=[body.get(k) for k in ('address','stride','read_count','field_count')]
                 if any(type(v) is not int for v in (a,stride,count,fields)): raise ValueError('Benchmark integers required')

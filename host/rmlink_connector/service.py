@@ -6,6 +6,7 @@ import json
 import time
 import uuid
 import struct
+from urllib.parse import parse_qs
 
 from . import __version__
 from .broker import Broker, PRIORITIES
@@ -124,13 +125,15 @@ class Connector:
 
     async def route(self, method, path, body):
         if method=='GET' and path=='/v1/capabilities':
-            return {'api_version':{'major':1,'minor':1},'default_clock_hz':4000000,
+            return {'api_version':{'major':1,'minor':2},'default_clock_hz':4000000,
                 'enhanced_profile':'stm32f103-medium-density','subscription_kinds':['memory_series','memory_snapshot','rtt_stream'],
                 'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
                 'capture_wire_version':1,'flash_api':True,'flash_profile':'stm32f103c8-page-images','source_stepping':False,
                 'time_sync':True,'memory_overflow_policy':'drop_old_bounded',
-                'validation':'development; target throughput and full 4 MHz acceptance pending'}
+                'recording':{'format':'rmlrec','version':1,'strict_gap_detection':True,
+                    'scope':'existing subscriptions in one owner session','acknowledged_retransmission':False},
+                'validation':'development; F103C8 virtual USB 4 MHz acceptance measured; physical NRST and other target families pending'}
         if method == 'GET' and path == '/v1/status': return self.snapshot()
         if method == 'GET' and path == '/v1/devices': return self.snapshot()['devices']
         if method=='POST' and path=='/v1/transport':
@@ -195,11 +198,19 @@ class Connector:
                 if session.get('captures'): await session['captures'].heartbeat()
                 return {'alive': True}
             if method == 'POST' and len(parts) == 5 and parts[4] == 'abort': return {'accepted': await broker.abort(sid)}
-            if len(parts)>=5 and parts[4] in ('target','subscriptions','events','flash'):
+            if len(parts)>=5 and parts[4] in ('target','subscriptions','events','flash','recordings'):
                 if 'target' not in session:
                     session['target']=TargetEngine(broker,sid)
                     session['captures']=Subscriptions(session['target'])
                 target,captures=session['target'],session['captures']
+                if parts[4]=='recordings':
+                    if len(parts)==5 and method=='POST':return await captures.start_recording(self.state.directory/'recordings',body)
+                    if len(parts)==5 and method=='GET':return [captures.recording.status()] if captures.recording else []
+                    if len(parts)==6:
+                        recording=captures.recording
+                        if not recording or recording.id!=parts[5]:raise ValueError('Unknown recording')
+                        if method=='GET':return recording.status()
+                        if method=='POST' and body.get('action')=='stop':return await recording.stop()
                 if parts[4]=='flash' and len(parts)==5:
                     flash=session.setdefault('flash',FlashProgrammer(target))
                     if method=='GET':return dict(flash.progress,busy=flash.busy)
@@ -263,14 +274,18 @@ class Connector:
                 data = await asyncio.wait_for(reader.readexactly(length), 3)
                 body = json.loads(data) if data else {}
                 if not isinstance(body, dict): raise ValueError('Expected JSON object')
-                if method=='GET' and path.startswith('/v1/sessions/') and path.endswith('/stream'):
-                    parts=path.split('/')
+                route_path,_,query=path.partition('?')
+                if method=='GET' and route_path.startswith('/v1/sessions/') and route_path.endswith('/stream'):
+                    parts=route_path.split('/')
                     if len(parts)!=5: raise ValueError('Stream path invalid')
                     session=self.sessions.get(parts[3])
                     if not session or session['lost'] or not session.get('captures'): raise ConnectionError('Capture session unavailable')
+                    values=parse_qs(query,strict_parsing=True)
+                    if set(values)-{'after'} or len(values.get('after',[]))>1:raise ValueError('Invalid stream cursor')
+                    cursor=int(values.get('after',['-1'])[0])
+                    if not -1<=cursor<2**63:raise ValueError('Stream cursor range')
                     streaming=True
                     writer.write(b'HTTP/1.1 200 OK\r\nContent-Type: application/vnd.rmlink.stream\r\nTransfer-Encoding: chunked\r\nCache-Control: no-store\r\n\r\n')
-                    cursor=-1
                     while not writer.is_closing() and not self.stopping.is_set() and self.sessions.get(parts[3]) is session and not session['lost']:
                         rows=await session['captures'].read(cursor,128,1000)
                         if rows['error']: break

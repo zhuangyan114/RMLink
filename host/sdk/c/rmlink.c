@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0. Windows WinHTTP wrapper, no Python dependency. */
 #define RMLINK_BUILD
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0601
+#endif
 #include "rmlink.h"
 #include <windows.h>
 #include <winhttp.h>
@@ -11,6 +14,7 @@ struct rm_client {
     HINTERNET http; INTERNET_PORT port;
     wchar_t auth[160]; char session[80];
     HANDLE stop,heartbeat; volatile LONG cancel;
+    SRWLOCK cursor_lock;bool has_cursor;int64_t stream_cursor;
 };
 static int wide(const char *src,wchar_t *out,unsigned n) {
     return MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,src,-1,out,(int)n);
@@ -67,6 +71,7 @@ rm_client *rm_open(const char *device,uint16_t port,const char *provided) {
     else if(!token_from_state(token,sizeof(token)))return NULL;
     if(!*token || strspn(token,"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-")!=strlen(token))return NULL;
     rm_client *c=calloc(1,sizeof(*c));if(!c)return NULL;c->port=port?port:3243;
+    InitializeSRWLock(&c->cursor_lock);
     char auth[160];snprintf(auth,sizeof(auth),"Authorization: Bearer %s",token);memset(token,0,sizeof(token));wide(auth,c->auth,160);
     c->http=WinHttpOpen(L"RMLink SDK/1",WINHTTP_ACCESS_TYPE_NO_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);
     if(!c->http){free(c);return NULL;}
@@ -109,7 +114,19 @@ int rm_target_connect(rm_client *c,uint32_t clock,char *out,size_t size) {
     char body[128];snprintf(body,sizeof(body),"{\"command\":\"connect\",\"clock_hz\":%lu}",(unsigned long)(clock?clock:4000000));
     return rm_call(c,"POST","/target",body,out,size,NULL);
 }
-int rm_subscribe(rm_client *c,const char *json,char *out,size_t size) { return rm_call(c,"POST","/subscriptions",json,out,size,NULL); }
+int rm_subscribe(rm_client *c,const char *json,char *out,size_t size) {
+    int result=rm_call(c,"POST","/subscriptions",json,out,size,NULL);
+    if(result==200) {
+        char *p=strstr(out,"\"stream_cursor\"");
+        if(p && (p=strchr(p,':'))) {
+            int64_t cursor=strtoll(p+1,NULL,10);
+            AcquireSRWLockExclusive(&c->cursor_lock);
+            if(!c->has_cursor){c->stream_cursor=cursor;c->has_cursor=true;}
+            ReleaseSRWLockExclusive(&c->cursor_lock);
+        }
+    }
+    return result;
+}
 int rm_subscription_action(rm_client *c,unsigned id,const char *action,char *out,size_t size) {
     if(!action || (strcmp(action,"stop") && strcmp(action,"pause") && strcmp(action,"resume") && strcmp(action,"status")))return -87;
     char suffix[80],body[80];snprintf(suffix,sizeof(suffix),"/subscriptions/%u",id);snprintf(body,sizeof(body),"{\"action\":\"%s\"}",action);
@@ -122,9 +139,15 @@ static bool exact(HINTERNET request,uint8_t *out,unsigned count,rm_client *c) {
     return count==0;
 }
 int rm_stream(rm_client *c,rm_record_callback callback,void *context) {
-    if(!c || !c->session[0] || !callback)return -87;
+    if(!c)return -87;
+    AcquireSRWLockShared(&c->cursor_lock);int64_t after=c->has_cursor?c->stream_cursor:-1;ReleaseSRWLockShared(&c->cursor_lock);
+    return rm_stream_after(c,after,callback,context);
+}
+int rm_stream_after(rm_client *c,int64_t after,rm_record_callback callback,void *context) {
+    if(!c || !c->session[0] || !callback || after< -1)return -87;
     InterlockedExchange(&c->cancel,0);
-    char path[256];snprintf(path,sizeof(path),"/v1/sessions/%s/stream",c->session);
+    char path[256],number[32];_i64toa(after,number,10);
+    snprintf(path,sizeof(path),"/v1/sessions/%s/stream?after=%s",c->session,number);
     HINTERNET conn=NULL,r=request(c,"GET",path,NULL,&conn);if(!r){if(conn)WinHttpCloseHandle(conn);return -(int)GetLastError();}
     DWORD status=0,n=sizeof(status);WinHttpQueryHeaders(r,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,NULL,&status,&n,NULL);
     int result=(int)status;
@@ -134,6 +157,7 @@ int rm_stream(rm_client *c,rm_record_callback callback,void *context) {
         if(!size)continue;
         if(size<56 || size>384){result=-13;break;}
         if(!exact(r,frame,size,c)){result=-1;break;}
+        AcquireSRWLockExclusive(&c->cursor_lock);c->stream_cursor=(int64_t)cursor;c->has_cursor=true;ReleaseSRWLockExclusive(&c->cursor_lock);
         if(callback(cursor,frame,size,context))break;
     }
     WinHttpCloseHandle(r);WinHttpCloseHandle(conn);return result;

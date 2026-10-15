@@ -1,17 +1,18 @@
 {
   "repository": "https://github.com/zhuangyan114/Orbit",
   "base_commit": "3928bbb6f4990ff336dfbe71f745f5f593b12e48",
-  "implementation_commit": "01316ccd57f66b2ed16ab4562c02eba2b7fad9e7",
+  "implementation_commit": "37dca90f58957d13d1e580ab393a158d6e284367",
   "branch": "rmlink/subscriptions-20261014",
   "patch": "orbit-rmlink-subscriptions.patch.gz",
-  "sha256": "8c98fca41ba7a82e835d55bf32e806f1d973a833424b3dc91e4a6192efc1acc5",
+  "sha256": "767158a018eecfea279d34e6b4468823af3923329137c146d70a6b9b2ef4b593",
   "validation": {
     "typecheck": true,
     "build": true,
     "test_files": 76,
-    "tests_passed": 1052,
+    "tests_passed": 1053,
     "tests_skipped": 1,
-    "hardware": false,
+    "hardware": true,
+    "hardware_scope": "real debug adapter child: 3 scalar Timeline, Watch, RTT, halt/run",
     "installed_vscode": false
   }
 }

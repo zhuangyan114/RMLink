@@ -1,6 +1,6 @@
-# RMLink 公开连接组件 API v1.1（开发版）
+# RMLink 公开连接组件 API v1.2（开发版）
 
-适用于固件/服务 0.2.2。三订阅、高层控制和烧录已实现源码与主机模型；真实 ESP32 的流绑定/错误路径、时间同步及有线分片回传已验证。当前 STM32 无应答，4 MHz 全流程、新采样率和新烧录引擎尚未通过实板验收。标准虚拟 USB 的历史验收不等同于本版增强能力验收。
+适用于固件/服务/SDK 0.2.3。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
 
 ## 接入与能力
 
@@ -48,9 +48,9 @@
 
 固定字段可用 addresses（默认 32-bit）；fields 支持 byte_length 1/2/4 和最多 4 层 offsets。每层读取当前地址的 ptr32，再加该 offset；到最后地址读取字段。指针存储地址须 4 字节对齐，最终值按宽度对齐。只在一帧内复用相同指针前缀，下一帧重新解析；空指针/越界字段无效但其他字段继续，SWD 通信错误则暂停任务。
 
-当前固定槽：Timeline=1、Watch=2、RTT channel0=3、第二个 RTT channel=4。每类槽只允许一个订阅，字段最多 32，周期 200..10000000 us；这些是输入范围，不保证对应采样率。完整帧执行超过周期时暂停并报告 budget_overrun。
+当前固定槽：Timeline=1、Watch=2、RTT channel0=3、第二个 RTT channel=4。每类槽只允许一个订阅，字段最多 32，周期 200..10000000 us；这些是输入范围，不保证对应采样率。`strict_deadlines` 默认 false：来不及执行的周期增加序号与 deadline_missed，完整采样继续回传，预算超限保留 flags bit1。true 时完整帧执行超过周期便暂停并报告 budget_overrun。旧版未带该字段的板端 PREPARE 命令保持严格行为。
 
-返回 subscription_id、capture_id、接受的配置。`GET .../subscriptions/{id}` 返回 state、kind、completed、deadline_missed、ring_dropped、failures、budget_overrun、stop_reason 和服务缓存状态。completed 对内存订阅为已生成帧数（含 partial），RTT 为已提交字节数。
+返回 subscription_id、capture_id、stream_cursor 和接受的配置。stream_cursor 是启动新任务前的服务游标，用于排除历史任务。`GET .../subscriptions/{id}` 返回 state、kind、completed、deadline_missed、ring_dropped、failures、budget_overrun、stop_reason 和服务缓存状态。completed 对内存订阅为已生成帧数（含 partial），RTT 为已提交字节数。
 
 `POST .../subscriptions/{id}` 支持 action=stop/pause/resume；`DELETE` 停止并移除服务注册。配置更新首版采用停止/删除/重新创建，不提供运行中原子 PATCH。重新创建产生新的 capture_id；不能把旧缓存的帧当作新任务数据。
 
@@ -58,7 +58,9 @@ Watch 静态 32-bit 重合字段复用正在运行的 Timeline；Timeline 停止
 
 ## 二进制流与缓存
 
-`GET /v1/sessions/{id}/stream` 使用相同 Authorization，返回 HTTP chunked 的 `application/vnd.rmlink.stream`。每个本地记录是 cursor(uint64 LE) + frame_length(uint32 LE) + frame；length=0 是保活，不是样本。帧最大 384 B，慢消费者可从 cursor 跳变识别服务缓存缺口。
+`GET /v1/sessions/{id}/stream?after={cursor}` 使用相同 Authorization，返回 HTTP chunked 的 `application/vnd.rmlink.stream`。每个本地记录是 cursor(uint64 LE) + frame_length(uint32 LE) + frame；length=0 是保活，不是样本。帧最大 384 B，慢消费者可从 cursor 跳变识别服务缓存缺口。Python/Node/C SDK 默认保存启动游标并在消费后推进；显式 after 用于有界历史补读，不会让板端重放目标操作。
+
+`POST .../events` 提供 JSON 拉取：after、limit=1..256、wait_ms=0..5000；返回 records、cursor、consumer_gap 和 host_history_evicted。后者是服务历史队列累计淘汰数，包含已经被消费者读取的旧记录，不能当作丢样数；旧名称 host_dropped 保留为同值兼容别名。consumer_gap 表示该次请求的游标已落后于保留窗口。板端序号缺口、deadline_missed、ring_dropped 和每消费者缺口须分别分析。
 
 板端独立数据连接为 TCP3244，RMS1 + 一次性随机票据绑定控制会话；公开 SDK 由服务代为处理，前端无需直接连接。错误票据、重复绑定和 owner 释放后的连接被拒绝/关闭。
 
@@ -66,7 +68,7 @@ Watch 静态 32-bit 重合字段复用正在运行的 Timeline；Timeline 停止
 
 帧头为 32 B：RML1、version、kind、subscription_id、flags、capture_id、revision、sequence、payload_len、record_count、header_len、payload CRC32。内存样本头为 24 B：seq32、timestamp_us64、duration_us32、valid_bitmap32、sample_flags16、data_len16，之后是每字段 uint32 原始值。sample_flags：bit0 partial、bit1 执行预算超限、bit2 Watch 复用。RTT 数据部分为 channel32 + byte_sequence64 + length32 + bytes。
 
-每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算，不是已测采样率。探针缓存：Timeline48 KiB、Watch4 KiB、两个 RTT 各6 KiB，总64 KiB。0.2.1的内存缓存满时有界丢旧并计数，最多回收8条；若并发发送仍占用空间则丢新，绝不阻塞SWD。RTT无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。严格录制和应用确认重传尚未实现。
+每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算。探针缓存：Timeline48 KiB、Watch4 KiB、两个 RTT 各6 KiB，总64 KiB。内存缓存满时有界丢旧并计数，最多回收8条；若并发发送仍占用空间则丢新，绝不阻塞SWD。RTT无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。服务端原始录制见下文；应用确认重传尚未实现。
 
 timestamp表示探针单调时基，duration是采集跨度，变量不是原子快照。Orbit实验分支用首帧对齐主机时间并保留探针间隔；SDK提供TIME_SYNC映射供其他客户端使用，Orbit尚未使用其绝对时间映射。断电/断线末尾丢失可能无法精确计数。
 
@@ -83,10 +85,20 @@ timestamp表示探针单调时基，duration是采集跨度，变量不是原子
 
 提交后 complete/failed/cancelled 的上传不能再次 commit，必须 begin 一个新操作。HTTP 超时不代表操作未执行；查询状态后决定下一步。算法从 Orbit 固定提交独立构建，来源和 MIT 许可在 `host/algorithms/stm32f103c8/`。
 
+## 服务端录制
+
+`POST .../recordings`：`{"subscription_ids":[1,2,3],"strict":true}`；订阅须已存在，省略 subscription_ids 选择当前全部订阅，strict 默认 true。返回 recording_id、path、phase、frames、bytes、gaps、invalid_samples、error、finalized。每个会话最多一个正在录制或收尾的文件；生成文件名位于当前用户 `.rmlink/recordings`，客户端不能指定覆盖其他文件。
+
+`GET .../recordings` 返回会话当前/最近一次录制，`GET .../recordings/{id}` 查询状态；`POST .../recordings/{id}` 的 `{"action":"stop"}` 排空已接收队列、写入尾部并执行 fsync。应先停止录制，再删除订阅或关闭会话。界面无需持续读 events，原始帧在服务历史淘汰前送给独立录制器。
+
+严格模式遇到板端序号缺口、RTT 字节序号缺口、partial/预算超限样本即失败，暂停所选运行任务；写队列满、存储失败、采集流失败和会话关闭也明确失败，不自动补写或重放目标操作。文件 finalized=true 只表示容器完整结束；还须 phase=complete、error=null 才能作为成功录制。strict=false 保留带缺口/无效标记的实时数据，仍记录统计，存储异常仍失败。
+
+RMLR v1 文件保存配置、原始 RML1 帧与服务游标以及最终统计。`scripts/inspect_recording.py FILE` 流式检查长度、每帧 CRC、完整尾部及帧数，给出整个文件 SHA256。详见 [录制格式](recording-format.md)。当前录制窗口始于订阅已经启动之后，结束于停止入口前已被服务接收的记录；不保证订阅第一帧或停止时仍在网络/探针中的末尾数据。TCP 可靠传输不等于断电后完整录制，尚无应用确认、断线续传或文件分段轮转。
+
 ## SDK 与验证范围
 
 - Python：`host/rmlink_connector/client.py`；示例 `host/examples/capture.py`。flash_image(data) 封装上传与提交。
 - Node/TypeScript：`host/sdk/` 的 `@rmlink/client`；订阅、取消、二进制帧 CRC 与 typed sample；flashImage(data) 走同一公开API。
 - C ABI：`host/sdk/c/rmlink.h`，Build-Sdk.ps1 生成 DLL、MinGW import library、DEF 和头文件。MSVC 可用 `lib /def:rmlink.def /machine:x64 /out:rmlink.lib` 生成导入库。rm_open(NULL,...) 配合 rm_devices／rm_capabilities 查询设备，不创建会话或占用目标；传 device_id 才建立带心跳的会话。回调帧内存只在回调期间有效；取消流后需等待流线程结束再关闭句柄。rm_call 公开通用目标和烧录路由，输出缓冲不足不重放请求。
 
-当前证据分开记录：主机协议/模型/实际WinHTTP SDK、ESP32构建/刷写/启动、真实ESP32错误路径与USB取消、Orbit独立工作树构建及回归。STM32纯SWD极限、1 kHz和三订阅共存、增强烧录、安装后的VSCode实际运行均待验证。
+当前证据分开记录：主机协议/模型/实际WinHTTP SDK、ESP32构建/刷写/启动、真实 STM32 采样/烧录/标准调试、Orbit独立工作树构建及回归。已测的 ESP32 本地 SWD 吞吐是该实现、该请求时钟下的结果；安装后的 VS Code 界面、物理 NRST、其他芯片、Keil/IAR 与正式签名分发仍须独立验收。

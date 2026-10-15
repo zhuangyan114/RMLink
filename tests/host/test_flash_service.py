@@ -20,6 +20,9 @@ class AlgorithmTarget:
     async def register(self,index,value=None):
         if value is not None:self.regs[index]=value
         return self.regs.get(index,0)
+    async def write_registers(self,registers):
+        for index,value in registers:await self.register(index,value)
+    async def read_registers(self,indices):return [await self.register(i) for i in indices]
     async def write_word(self,address,value):
         if address==0xe000edf0 and value==0xa05f0003:self.stops+=1
         if address==0xe000edf0 and value==0xa05f0001 and 15 in self.regs:

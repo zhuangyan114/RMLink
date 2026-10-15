@@ -1,0 +1,130 @@
+"""Exercise the built experimental Orbit DAP adapter against the real RMLink.
+
+This checks a child debug adapter over stdio, not installed VS Code or its UI.
+"""
+import argparse
+from datetime import datetime
+import json
+from pathlib import Path
+import queue
+import subprocess
+import threading
+import time
+
+ROOT=Path(__file__).resolve().parents[1]
+
+
+class Adapter:
+    def __init__(self,worktree):
+        self.stderr=bytearray();self.messages=queue.Queue();self.events=[];self.seq=0
+        self.child=subprocess.Popen(['node',str(worktree/'dist/debugadapter.js')],cwd=worktree,
+            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        def reader():
+            try:
+                while True:
+                    header=self.child.stdout.readline()
+                    if not header:break
+                    if not header.startswith(b'Content-Length: '):raise ValueError('Adapter stdout framing')
+                    size=int(header.split(b':',1)[1]);assert 0<size<=4*1024*1024
+                    assert self.child.stdout.readline()==b'\r\n'
+                    payload=bytearray()
+                    while len(payload)<size:
+                        part=self.child.stdout.read(size-len(payload))
+                        if not part:raise EOFError('Adapter truncated response')
+                        payload.extend(part)
+                    self.messages.put(json.loads(payload))
+            except BaseException as error:self.messages.put(error)
+            finally:self.messages.put(EOFError('Adapter exited'))
+        def errors():
+            while True:
+                part=self.child.stderr.read(1024)
+                if not part:break
+                self.stderr.extend(part)
+        threading.Thread(target=reader,daemon=True).start();threading.Thread(target=errors,daemon=True).start()
+
+    def next(self,timeout):
+        message=self.messages.get(timeout=timeout)
+        if isinstance(message,BaseException):raise message
+        if message.get('type')=='event':self.events.append(message)
+        return message
+
+    def request(self,command,args=None,timeout=30):
+        self.seq+=1;seq=self.seq
+        data=json.dumps({'type':'request','seq':seq,'command':command,'arguments':args or {}},ensure_ascii=True).encode()
+        self.child.stdin.write(f'Content-Length: {len(data)}\r\n\r\n'.encode()+data);self.child.stdin.flush()
+        end=time.perf_counter()+timeout
+        while time.perf_counter()<end:
+            message=self.next(max(.01,end-time.perf_counter()))
+            if message.get('type')=='response' and message.get('request_seq')==seq:
+                if not message.get('success'):raise RuntimeError(f'{command}: {message}')
+                return message.get('body')
+        raise TimeoutError(command)
+
+    def collect(self,seconds):
+        deadline=time.perf_counter()+seconds
+        while time.perf_counter()<deadline:
+            try:self.next(min(.5,deadline-time.perf_counter()))
+            except queue.Empty:pass
+
+    def close(self):
+        try:
+            if self.child.poll() is None:self.request('disconnect',{'terminateDebuggee':False},timeout=15)
+            self.child.wait(timeout=10)
+        except Exception:
+            self.child.kill();self.child.wait(timeout=5)
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--worktree',type=Path,default=ROOT/'artifacts/worktrees/orbit-rmlink')
+    p.add_argument('--device-id',default='50787d15a924');p.add_argument('--seconds',type=float,default=10)
+    p.add_argument('--output',type=Path,required=True);args=p.parse_args()
+    if not 2<=args.seconds<=300:p.error('seconds must be 2..300')
+    report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
+        'scope':'real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded',
+        'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False}
+    adapter=Adapter(args.worktree)
+    try:
+        report['initialize']=adapter.request('initialize',{'adapterID':'ozone','clientID':'rmlink-acceptance','linesStartAt1':True})
+        report['launch']=adapter.request('launch',{'device':'STM32F103C8','probe':'cmsis-dap',
+            'rmlinkDeviceId':args.device_id,'program':str(ROOT/'artifacts/build/stm32-fixture/fixture.elf'),
+            'flashBeforeDebug':False,'runToEntryPoint':False,'speedKHz':4000,'loggingEnabled':False,
+            'rttLogEnabled':True,'rttControlBlockAddress':'0x20000400','rttStripAnsi':False})
+        adapter.request('configurationDone');adapter.request('continue',{'threadId':1})
+        # Current Orbit planner supports scalar struct members, not 2D arrays.
+        # The separate service benchmark uses all ten discrete capture words.
+        expressions=['fixture_state.counter','fixture_state.boots','fixture_state.guard']
+        report['samplingStart']=adapter.request('dataSamplingStart',{'expressions':expressions,'sampleIntervalMs':2,'sendIntervalMs':16})
+        assert len(report['samplingStart']['activeExpressions'])==3,report['samplingStart']
+        adapter.request('watchEvaluate',{'expressions':expressions[:4]});adapter.collect(args.seconds)
+        report['watch']=adapter.request('watchEvaluate',{'expressions':expressions[:4]})
+        for i,value in enumerate(report['watch']['results']):
+            assert not value.get('error'),value
+            assert int(value['value'])>0 if i==0 else int(value['value'])==[0,1,0x13579bdf][i],value
+        report['samplingStop']=adapter.request('dataSamplingStop')
+        rows={expression:[] for expression in expressions}
+        for event in adapter.events:
+            if event['event']=='ozoneDataSamples':
+                for row in event['body']['snapshots']:rows[row['expression']].extend(row['data'])
+        for i,expression in enumerate(expressions):
+            assert rows[expression],f'No samples: {expression}'
+            if i:assert all(int(point['value'])==[0,1,0x13579bdf][i] for point in rows[expression]),f'Field identity: {expression}'
+        assert int(rows[expressions[0]][-1]['value'])>int(rows[expressions[0]][0]['value']),'Counter did not run'
+        first=rows[expressions[0]];span=first[-1]['timestamp']-first[0]['timestamp']
+        report['timeline']={'samplesPerExpression':{key:len(value) for key,value in rows.items()},
+            'effectiveHz':(len(first)-1)*1000/span,'timestampSpanMs':span,
+            'events':sum(event['event']=='ozoneDataSamples' for event in adapter.events)}
+        report['rttOutputEvents']=sum(event['event']=='ozoneRttOutput' for event in adapter.events)
+        assert report['rttOutputEvents']>0,'No RTT output in the actual adapter'
+        adapter.request('pause',{'threadId':1});adapter.request('continue',{'threadId':1})
+        report['pauseContinue']=True;report['complete']=True
+    except BaseException as error:report['failure']=f'{type(error).__name__}: {error}';raise
+    finally:
+        adapter.close();report['adapterExitCode']=adapter.child.returncode
+        report['stderrTail']=adapter.stderr[-2000:].decode(errors='replace')
+        report['eventKinds']=sorted(set(event['event'] for event in adapter.events))
+        args.output.parent.mkdir(parents=True,exist_ok=True)
+        args.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report),flush=True)
+
+
+if __name__=='__main__':main()

@@ -2,15 +2,13 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
-2026-10-15 开发版本：固件、连接服务和 SDK 均为 0.2.0。已实现默认请求 SWD 4000 kHz、Watch／Timeline／RTT 板端订阅、独立数据流、通用目标控制和 F103C8 页镜像烧录接口。Orbit 在独立工作树通过公开 SDK 接入；主机模型与构建通过，真实 ESP32 的协议、错误路径和虚拟 USB 回归通过。STM32 当前返回 NO_ACK，4 MHz 完整烧录、有效采样率和增强烧录实板验收尚未通过，详见 [实施记录](docs/subscriptions-implementation.md)。
+2026-10-15 当前开发版本：固件、连接服务和 SDK 均为 **0.2.3**。接线恢复后，STM32F103C8 已通过请求 SWD 4000 kHz 的虚拟 USB 完整烧录与调试验收；64 KiB 烧录／校验约 5.65 秒，独立回读与选项字节核对通过。板端 Watch／Timeline／RTT 已输出有效样本；10 个离散变量在 500 Hz 档基本跟随周期，更高频率及共存对照见 [采样性能记录](docs/subscription-performance-20261015.md)。实际 SWCLK 尚未仪表量测。
 
 标准 CMSIS-DAP 以虚拟 USB 为主入口，测试 STM32 默认保留新程序。完整架构、协议、调度和实施验收见 [订阅采集与 Orbit 接入方案](docs/subscription-design.md)；第三方接入见 [公开 API 与 SDK](docs/api-v1.md)。
 
 连接组件按通用平台设计：虚拟 USB 驱动、用户态服务/目标引擎、公开 API 和 SDK 统一提供，第三方前端无需依赖 Orbit 即可接入；通用订阅与数据管理集中在组件中。
 
-后续0.2.1已完成TIME_SYNC、实时缓存有界丢旧及旧capture隔离；真实ESP32时间映射和无Orbit的C SDK查询通过，见实施记录中的后续检查点。STM32有效采样与增强烧录仍待实板验收。
-
-0.2.2继续补齐原生USB数据拉取和同一组件的有线／无线传输选择：61项主机测试、真实ESP32有线分片、切换互斥、Wi-Fi恢复和虚拟USB回归通过。当前运行版本为0.2.2；高层目标验收仍受STM32 NO_ACK阻塞。
+TIME_SYNC、实时缓存有界丢旧、旧 capture 隔离、原生 USB 数据拉取和同一组件的有线／无线选择均已实现。增强 Flash 经寄存器批量操作，64 KiB 同镜像实测约 104.35 → 21.89 秒；标准虚拟 USB 仍是普通调试软件的入口。服务现提供独立原始录制、严格缺口检测及 Python／Node／C 公共接入，详见 [API](docs/api-v1.md) 和 [实施记录](docs/subscriptions-implementation.md)。
 
 2026-10-14 历史性能基线：固件 0.1.6 / 服务 0.1.4，TCP / 无线虚拟 USB 为 512 字节，原生 USB 为 64。相同会话交替比较，64 KiB 回读约 6.29 → 2.45 秒；虚拟 OpenOCD 全流程烧录 / 校验约 7.28 秒。该结果对应请求 2 MHz，不能替代 0.2.0 的 4 MHz 或订阅验收。范围与原始证据见 [提速结果](docs/performance-results.md)。
 
@@ -37,7 +35,8 @@
 - [STM32 烧录 / 调试验收](docs/stm32-acceptance.md)
 - [当前项目方向](docs/current-direction.md)
 - [Watch / Timeline / RTT 订阅完整方案](docs/subscription-design.md)
-- [0.2.0 实施与分层验证](docs/subscriptions-implementation.md)
+- [实现检查点与分层验证](docs/subscriptions-implementation.md)
+- [最新订阅性能与实板证据](docs/subscription-performance-20261015.md)
 - [公开 API 与 SDK](docs/api-v1.md)
 - [构建、连接与接线](docs/quickstart.md)
 - [已实现的开发协议](docs/protocol-v1.md)
@@ -55,7 +54,7 @@
 
 2026-10-13：当前固件 0.1.4。USB / Wi-Fi 三线 SWD 已完成烧录、64 KiB 回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT、软件复位及异常恢复，原主 Flash 已恢复。新增 Windows 连接服务与 usbip-win2 虚拟 USB 封装，OpenOCD 通过虚拟 CMSIS-DAP 经 Wi-Fi 完成同样的实板验收，64 KiB 烧录 / 校验约 11.3 秒且无 Error 行。NRST 缺线；直接 OpenOCD TCP 的旧验收仍有兼容模式 / 主机报错限制，详见 [实板验收](docs/stm32-acceptance.md) 与 [连接组件](docs/windows-connector.md)。
 
-连接服务已实现 mDNS 发现、明确配对、后台重连、自动重挂载、本机 API 与虚拟 USB / API 会话互斥；独立 EXE 无需安装 Python。此前无 OTG 启动与 0.1.1 测速是独立历史证据。0.2.0 已增加采样与 Orbit 实验适配，实际 STM32 与已安装 VS Code 验收仍待完成；HID、统一产品安装界面和更多软件兼容性另行验证。
+连接服务已实现 mDNS 发现、明确配对、后台重连、自动重挂载、本机 API 与虚拟 USB / API 会话互斥；独立 EXE 无需安装 Python。此前无 OTG 启动与 0.1.1 测速是独立历史证据。Orbit 实验适配位于隔离工作树；已安装 VS Code 界面、HID、统一产品安装界面和更多软件兼容性仍须分别验证。
 
 2026-10-14：固件 0.1.5 / 服务 0.1.1 补齐 Connect 前设置时钟的会话规则。修补 UDE 已通过本地测试签名加载，虚拟 USB 空读取消和 pyOCD 0.45.1 的目标识别、暂停、读 PC、继续运行均通过。OpenOCD 经虚拟 USB / Wi-Fi 完成 64 KiB 烧录、校验约 12.85 秒及三线调试验收；原 Flash 已恢复，完整回读匹配备份，选项字节未变。API / 虚拟 USB 互斥和 STA 断连自动恢复也通过，重挂载后再次验收空读及 pyOCD 成功。证据见 [Windows 连接组件](docs/windows-connector.md) 和 [驱动取消问题](docs/virtual-usb-cancellation.md)。
 

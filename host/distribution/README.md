@@ -6,7 +6,7 @@
 
 已有开发服务在线时不应启动第二份服务；安装脚本不会替换正在运行的已安装EXE。配对／目标会话沿用当前用户`.rmlink`状态，公共API和SDK用法见docs/api-v1.md。SDK包含Node／TypeScript包及独立WinHTTP C DLL，前端不需要Orbit或Python。
 
-当前增强目标profile限于STM32F103中容量Cortex-M3，Flash接口进一步限于F103C8的64 KiB。Watch／Timeline／RTT板端订阅、有线分片、无线流和错误处理已经实现；有效采样率和增强烧录尚未在当前STM32完成验收，详见实施记录。默认请求4 MHz不等于已量测的SWCLK。
+当前增强目标profile限于STM32F103中容量Cortex-M3，Flash接口进一步限于F103C8的64 KiB。Watch／Timeline／RTT板端订阅、有线分片、无线流、独立录制和错误处理已经实现；真实F103C8有效采样、增强烧录及标准虚拟USB调试已验收，性能与条件见随包文档。默认请求4 MHz不等于已量测的SWCLK，其他目标和已安装VS Code界面仍需单独验证。
 
 firmware/rmlink.bin是已确认开发板GPIO4=SWDIO、GPIO5=SWCLK、GPIO6=预留NRST的应用镜像；不能直接套用于不同GPIO的成品调试器。完整ESP32烧录需要固定基座的bootloader／partition配置和源仓库构建脚本。
 

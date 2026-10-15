@@ -4,6 +4,7 @@ import struct
 from collections import deque
 from .capture_protocol import FrameDecoder, KINDS, decode_record
 from .usb_capture import UsbCaptureReader
+from .recording import Recording
 
 
 def compile_config(body):
@@ -38,7 +39,9 @@ def compile_config(body):
     if type(channel) is not int or not 0<=channel<16: raise ValueError('RTT channel invalid')
     sid={'memory_series':1,'memory_snapshot':2,'rtt_stream':3}[kind]
     if kind=='rtt_stream' and channel: sid=4
-    return dict(subscription_id=sid,kind=kind,addresses=addresses,fields=fields,period_us=period,sample_limit=limit,channel=channel)
+    strict=body.get('strict_deadlines',False)
+    if type(strict) is not bool:raise ValueError('strict_deadlines must be boolean')
+    return dict(subscription_id=sid,kind=kind,addresses=addresses,fields=fields,period_us=period,sample_limit=limit,channel=channel,strict_deadlines=strict)
 
 
 class Subscriptions:
@@ -49,6 +52,27 @@ class Subscriptions:
         self.condition=asyncio.Condition()
         self.next_sequence=0; self.host_dropped=0; self.error=None
         self.paused_for_control=set()
+        self.recording=None
+
+    def accept_frames(self,frames):
+        for frame in frames:
+            cursor=self.next_sequence
+            if self.recording:self.recording.offer(cursor,frame)
+            if len(self.records)==self.records.maxlen:self.host_dropped+=1
+            self.records.append((cursor,frame));self.next_sequence+=1
+
+    async def start_recording(self,directory,body):
+        if self.recording and self.recording.task and not self.recording.task.done():raise ValueError('Recording already active or finalizing')
+        ids=body.get('subscription_ids',list(self.configs));strict=body.get('strict',True)
+        if type(strict) is not bool or not isinstance(ids,list) or not ids or any(type(i) is not int or i not in self.configs for i in ids) or len(set(ids))!=len(ids):
+            raise ValueError('Existing subscription_ids and boolean strict required')
+        configs={i:self.configs[i] for i in ids}
+        async def failed():
+            for sid in ids:
+                if sid not in self.configs:continue
+                if (await self.action(sid,'status'))['state']==2:await self.action(sid,'pause')
+        recording=Recording(directory,self.target.broker.device_id,configs,failed,strict)
+        result=await recording.start();self.recording=recording;return result
 
     async def _stream(self):
         decoder=FrameDecoder()
@@ -58,13 +82,12 @@ class Subscriptions:
                 if not data: raise ConnectionError('Probe capture stream closed')
                 frames=decoder.feed(data)
                 async with self.condition:
-                    for frame in frames:
-                        if len(self.records)==self.records.maxlen: self.host_dropped+=1
-                        self.records.append((self.next_sequence,frame)); self.next_sequence+=1
+                    self.accept_frames(frames)
                     self.condition.notify_all()
         except asyncio.CancelledError: pass
         except Exception as exc:
             self.error=f'{type(exc).__name__}: {exc}'
+            if self.recording and self.recording.accepting:self.recording.fail('capture_stream_failed')
             async with self.condition: self.condition.notify_all()
 
     async def _usb_stream(self):
@@ -77,13 +100,12 @@ class Subscriptions:
                 if data is None:await asyncio.sleep(.001);continue
                 frames=decoder.feed(data)
                 async with self.condition:
-                    for frame in frames:
-                        if len(self.records)==self.records.maxlen:self.host_dropped+=1
-                        self.records.append((self.next_sequence,frame));self.next_sequence+=1
+                    self.accept_frames(frames)
                     self.condition.notify_all()
         except asyncio.CancelledError:pass
         except Exception as exc:
             self.error=f'{type(exc).__name__}: {exc}'
+            if self.recording and self.recording.accepting:self.recording.fail('capture_stream_failed')
             async with self.condition:self.condition.notify_all()
 
     async def ensure_stream(self):
@@ -106,8 +128,8 @@ class Subscriptions:
             await self.ensure_stream()
             sid=config['subscription_id']
             if sid in self.configs: raise ValueError('Subscription slot already exists; stop/dispose it first')
-            await self.target.vendor(1,struct.pack('<BBBIII',sid,KINDS[config['kind']],len(config['addresses']),
-                config['period_us'],config['sample_limit'],config['channel']))
+            await self.target.vendor(1,struct.pack('<BBBIIIB',sid,KINDS[config['kind']],len(config['addresses']),
+                config['period_us'],config['sample_limit'],config['channel'],int(config['strict_deadlines'])))
             chunk=(self.target.broker.packet_size-5)//4
             for i in range(0,len(config['addresses']),chunk):
                 addresses=config['addresses'][i:i+chunk]
@@ -116,6 +138,7 @@ class Subscriptions:
                 for i,f in enumerate(config['fields']):
                     offsets=f.get('offsets',[])
                     await self.target.vendor(15,bytes([sid,i,len(offsets),f.get('byte_length',4)])+struct.pack('<'+'i'*len(offsets),*offsets))
+            config['stream_cursor']=self.next_sequence-1
             await self.target.vendor(3,bytes([sid]))
             stats=await self.target.vendor(7,bytes([sid]))
             config['capture_id']=int.from_bytes(stats[3:7],'little')
@@ -133,10 +156,13 @@ class Subscriptions:
             return dict(state=state,kind=kind,field_count=count,capture_id=capture,last_sequence=seq,
                 completed=frames,deadline_missed=missed,ring_dropped=dropped,failures=failures,
                 stop_reason={0:None,1:'paused',2:'stopped',3:'swd_failure',4:'lease_expired',5:'stream_lost',6:'budget_overrun',7:'sample_limit'}.get(reason,'unknown'),
-                budget_overrun=overrun,host_dropped=self.host_dropped,stream_error=self.error)
+                budget_overrun=overrun,host_history_evicted=self.host_dropped,
+                host_dropped=self.host_dropped,stream_error=self.error)
         return {'subscription_id':sid,'action':action}
 
     async def delete(self,sid):
+        if self.recording and self.recording.accepting and str(sid) in self.recording.configs:
+            self.recording.fail('subscription_removed')
         await self.action(sid,'stop'); self.configs.pop(sid,None)
         self.paused_for_control.discard(sid)
         return {'disposed':sid}
@@ -161,6 +187,7 @@ class Subscriptions:
             gap=self.records[0][0]-after-1 if self.records and after>=0 else 0
             return {'records': rows,
                     'cursor':rows[-1][0] if rows else after,'consumer_gap':max(0,gap),
+                    'host_history_evicted':self.host_dropped,
                     'host_dropped':self.host_dropped,'error':self.error}
 
     async def poll(self,after=-1,limit=128,wait_ms=1000):
@@ -173,6 +200,9 @@ class Subscriptions:
             async with self.target.lock: await self.target.vendor(12)
 
     async def close(self):
+        if self.recording:
+            if self.recording.accepting:self.recording.fail('session_closed')
+            await self.recording.stop()
         for sid in list(self.configs):
             try: await self.action(sid,'stop')
             except Exception: pass

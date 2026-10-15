@@ -17,7 +17,8 @@ def main():
     add('bin/RMLinkConnector.exe',ROOT/'artifacts/build/connector/dist/RMLinkConnector.exe')
     for name in ('rmlink.dll','rmlink.h','rmlink.def','librmlink.a',f'rmlink-client-{version}.tgz'):
         add('sdk/'+name,ROOT/'artifacts/build/sdk'/name)
-    for name in ('api-v1.md','subscriptions-implementation.md','quickstart.md'):
+    for name in ('api-v1.md','subscriptions-implementation.md','quickstart.md','recording-format.md',
+                 'subscription-performance-20261015.md','subscription-performance-20261015.json'):
         add('docs/'+name,ROOT/'docs'/name)
     for name in ('Start.ps1','Install.ps1','README.md'):
         add(name,ROOT/'host/distribution'/name)
@@ -26,7 +27,7 @@ def main():
     add('licenses/Firmware-LICENSE',ROOT/'firmware/LICENSE')
     add('firmware/rmlink.bin',ROOT/'artifacts/build/firmware-target-tcp512/rmlink.bin')
     manifest={'version':version,'source_commit':commit,'source_clean':clean,
-        'scope':'development; enhanced STM32 sampling and Flash hardware validation pending',
+        'scope':'development; F103C8 target, subscriptions and recording measured; installed VS Code and other targets pending',
         'kernel_driver_included':False,'files':[{'path':name,'size':len(data),'sha256':hashlib.sha256(data).hexdigest()} for name,data in sorted(files.items())]}
     files['manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode()
     output=ROOT/'artifacts/packages';output.mkdir(parents=True,exist_ok=True)
