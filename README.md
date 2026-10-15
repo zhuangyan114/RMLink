@@ -6,6 +6,8 @@
 
 标准 CMSIS-DAP 以虚拟 USB 为主入口，测试 STM32 默认保留新程序。完整架构、协议、调度和实施验收见 [订阅采集与 Orbit 接入方案](docs/subscription-design.md)；第三方接入见 [公开 API 与 SDK](docs/api-v1.md)。
 
+后续网络恢复候选固件 **0.2.7** 已刷入，服务／SDK 仍为 0.2.6：健康空闲 20 秒、五轮仅 STA 重连期间 USB 调试、连接服务恢复及标准接口回归通过。完整电脑重启／静默失联仍待验证，见 [网络恢复记录](docs/network-recovery-027.md)。已封存的 0.2.6 包不覆盖。
+
 连接组件按通用平台设计：虚拟 USB 驱动、用户态服务/目标引擎、公开 API 和 SDK 统一提供，第三方前端无需依赖 Orbit 即可接入；通用订阅与数据管理集中在组件中。
 
 TIME_SYNC、实时缓存有界丢旧、旧 capture 隔离、原生 USB 数据拉取和同一组件的有线／无线选择均已实现。增强 Flash 经寄存器批量操作，64 KiB 同镜像实测约 104.35 → 21.89 秒；标准虚拟 USB 仍是普通调试软件的入口。服务现提供独立原始录制、严格缺口检测及 Python／Node／C 公共接入，详见 [API](docs/api-v1.md) 和 [实施记录](docs/subscriptions-implementation.md)。

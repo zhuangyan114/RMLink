@@ -75,7 +75,7 @@ static size_t process(const request_t *job, uint8_t *out)
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 2; out[6] = 6; /* firmware 0.2.6: isolated executor CPU */
+            out[5] = 2; out[6] = 7; /* firmware 0.2.7: TCP peer/STA recovery */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */

@@ -6,6 +6,8 @@
 
 用户决定：默认请求 SWD 4000 kHz，标准 CMSIS-DAP 主线为虚拟 USB，STM32 测试后无需恢复旧程序；Watch、Timeline、RTT 全部板端订阅，优先提高 Timeline 采样率。已形成 [完整设计与 P0–P5 验收方案](subscription-design.md)，默认和恢复脚本已调整；下文历史测量和恢复记录保留原条件。
 
+后续固件候选 0.2.7 已刷入，服务／SDK 仍为 0.2.6。增加 TCP 保活和 STA generation，避免瞬态 down/up 掩盖旧连接失效。健康空闲 20 秒、五轮网络重连期间 USB owner 保留、连接服务恢复、虚拟 USB 全流程／pyOCD／三订阅回归通过。Orbit 子进程交替矩阵／三级指针共 20 次短启动通过，但此前 0xC0000409 原因未查明，不能说已修复。真正电脑重启、静默半断连和本候选十分钟测试未进行，见 [网络恢复检查点](network-recovery-027.md)。
+
 ## 2026-10-14 及以前的阶段记录
 
 以下保留当时条件：固件 0.1.6，连接服务 0.1.4，TCP / 无线虚拟 USB 512 字节、原生 USB 64 字节。128 / 256 / 512 三档编译、刷写、启动和实板验收完成；最终原生 USB 和虚拟 USB 的完整烧录 / 校验 / 三线调试通过，当时恢复了原 Flash。直接 OpenOCD TCP 功能完成但仍有旧版 Windows socket 错误，NRST 缺线。历史性能和范围见 [提速结果](performance-results.md)。

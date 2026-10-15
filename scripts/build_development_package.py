@@ -27,6 +27,9 @@ def main():
         add('licenses/'+source.name,source)
     add('licenses/Firmware-LICENSE',ROOT/'firmware/LICENSE')
     firmware=ROOT/'artifacts/build/firmware-target-tcp512-core0'
+    description=json.loads((firmware/'project_description.json').read_text())
+    if description['project_version']!=version:
+        raise RuntimeError('Firmware and SDK versions differ; do not replace a qualified package with a development firmware')
     if 'CONFIG_RMLINK_EXECUTOR_CORE=0' not in (firmware/'sdkconfig').read_text():
         raise RuntimeError('Only the qualified CPU0 firmware may be packaged')
     add('firmware/rmlink.bin',firmware/'rmlink.bin')
@@ -36,6 +39,8 @@ def main():
     files['manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode()
     output=ROOT/'artifacts/packages';output.mkdir(parents=True,exist_ok=True)
     path=output/f'RMLink-{version}-windows-x64-dev.zip'
+    if path.exists():
+        raise RuntimeError('Versioned package already exists; preserve it and use a new version for a new checkpoint')
     with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
         for name,data in sorted(files.items()):
             info=zipfile.ZipInfo(name,(2026,1,1,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED

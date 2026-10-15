@@ -38,6 +38,9 @@ static bool s_field_set[2];
 static portMUX_TYPE s_config_mux = portMUX_INITIALIZER_UNLOCKED;
 static atomic_uint s_revision;
 static atomic_bool s_up;
+/* A brief down/up transition can fit between TCP task polls. Keep its history
+ * so old sockets cannot survive across STA associations or DHCP changes. */
+static atomic_uint s_network_generation;
 static atomic_bool s_connecting;
 static TaskHandle_t s_manager;
 static esp_netif_t *s_sta;
@@ -54,9 +57,11 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         atomic_store(&s_up, false);
+        atomic_fetch_add(&s_network_generation, 1);
         atomic_store(&s_connecting, false);
         ESP_LOGI("rmlink_wifi", "Disconnected; USB and target executor remain active");
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+        atomic_fetch_add(&s_network_generation, 1);
         atomic_store(&s_up, true);
         atomic_store(&s_connecting, false);
         ip_event_got_ip_t *ip = data;
@@ -120,15 +125,36 @@ static bool send_exact(int fd, const uint8_t *buf, size_t n)
 typedef struct { size_t len; uint8_t data[RMLINK_PACKET_SIZE]; } tcp_reply_t;
 typedef struct {
     int fd;
+    unsigned network_generation;
     QueueHandle_t replies;
     SemaphoreHandle_t stopped;
     atomic_bool closing;
 } tcp_connection_t;
 
+static bool network_current(unsigned generation)
+{
+    return atomic_load(&s_up) && generation == atomic_load(&s_network_generation);
+}
+
+static bool tcp_keepalive(int client)
+{
+    /* Probe the TCP peer, without expiring healthy idle CMSIS-DAP sessions or
+     * adding target commands. ESP-IDF 5.1 lwIP supports these seconds options. */
+    int enabled = 1, idle = 5, interval = 2, count = 3;
+    if (setsockopt(client, SOL_SOCKET, SO_KEEPALIVE, &enabled, sizeof(enabled)) ||
+        setsockopt(client, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle)) ||
+        setsockopt(client, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval)) ||
+        setsockopt(client, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count))) {
+        ESP_LOGW("rmlink_wifi", "TCP keepalive configuration failed: %d", errno);
+        return false;
+    }
+    return true;
+}
+
 static void tcp_reply(void *arg, const uint8_t *data, size_t len)
 {
     tcp_connection_t *c = arg;
-    if (atomic_load(&c->closing)) return;
+    if (atomic_load(&c->closing) || !network_current(c->network_generation)) return;
     tcp_reply_t reply = { .len = len };
     memcpy(reply.data, data, len);
     if (xQueueSend(c->replies, &reply, pdMS_TO_TICKS(100)) != pdTRUE) {
@@ -140,8 +166,9 @@ static void tcp_send_task(void *arg)
 {
     tcp_connection_t *c = arg;
     tcp_reply_t reply;
-    while (!atomic_load(&c->closing)) {
+    while (!atomic_load(&c->closing) && network_current(c->network_generation)) {
         if (xQueueReceive(c->replies, &reply, pdMS_TO_TICKS(100)) != pdTRUE) continue;
+        if (!network_current(c->network_generation)) break;
         uint8_t frame[RMLINK_TCP_HEADER_SIZE + RMLINK_PACKET_SIZE];
         rmlink_tcp_header_encode(frame, reply.len);
         memcpy(frame + RMLINK_TCP_HEADER_SIZE, reply.data, reply.len);
@@ -149,6 +176,8 @@ static void tcp_send_task(void *arg)
             atomic_store(&c->closing, true); shutdown(c->fd, SHUT_RDWR);
         }
     }
+    atomic_store(&c->closing, true);
+    shutdown(c->fd, SHUT_RDWR); /* Wake RX even after a short STA down/up. */
     xSemaphoreGive(c->stopped);
     vTaskDelete(NULL);
 }
@@ -157,6 +186,7 @@ static void tcp_task(void *arg)
     uint32_t session = 1;
     for (;;) {
         while (!atomic_load(&s_up)) vTaskDelay(pdMS_TO_TICKS(250));
+        unsigned network_generation = atomic_load(&s_network_generation);
         int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (listener < 0) { vTaskDelay(pdMS_TO_TICKS(1000)); continue; }
         int reuse = 1;
@@ -166,19 +196,21 @@ static void tcp_task(void *arg)
         if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) || listen(listener, 1)) {
             close(listener); vTaskDelay(pdMS_TO_TICKS(1000)); continue;
         }
-        while (atomic_load(&s_up)) {
+        while (network_current(network_generation)) {
             fd_set fds; FD_ZERO(&fds); FD_SET(listener, &fds);
             struct timeval poll = { .tv_usec = 250000 };
             if (select(listener + 1, &fds, NULL, NULL, &poll) <= 0) continue;
             int client = accept(listener, NULL, NULL);
             if (client < 0) continue;
+            if (!network_current(network_generation)) { close(client); break; }
+            if (!tcp_keepalive(client)) { close(client); continue; }
             if (++session == 0) ++session;
             struct timeval timeout = { .tv_sec = 2 };
             setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
             int no_delay = 1;
             setsockopt(client, IPPROTO_TCP, TCP_NODELAY, &no_delay, sizeof(no_delay));
-            tcp_connection_t connection = { .fd = client };
+            tcp_connection_t connection = { .fd = client, .network_generation = network_generation };
             connection.replies = xQueueCreate(8, sizeof(tcp_reply_t));
             connection.stopped = xSemaphoreCreateBinary();
             if (!connection.replies || !connection.stopped ||
@@ -188,7 +220,7 @@ static void tcp_task(void *arg)
                 close(client); continue;
             }
             rmlink_tcp_session_open(session);
-            while (atomic_load(&s_up) && !atomic_load(&connection.closing)) {
+            while (network_current(network_generation) && !atomic_load(&connection.closing)) {
                 FD_ZERO(&fds); FD_SET(client, &fds); poll = (struct timeval){ .tv_usec = 250000 };
                 int ready = select(client + 1, &fds, NULL, NULL, &poll);
                 if (ready < 0) break;
@@ -197,6 +229,7 @@ static void tcp_task(void *arg)
                 size_t len = 0;
                 if (!recv_exact(client, header, sizeof(header)) || !rmlink_tcp_header_decode(header, &len)
                     || !recv_exact(client, request, len)) break;
+                if (!network_current(network_generation) || atomic_load(&connection.closing)) break;
                 if (rmlink_submit_tcp(session, request, len, tcp_reply, &connection) != ESP_OK) break;
             }
             atomic_store(&connection.closing, true);
