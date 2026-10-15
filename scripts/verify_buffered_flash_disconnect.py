@@ -2,6 +2,7 @@
 
 Disconnect is an actual socket close without DAP_Disconnect, not a mocked error.
 It does not emulate a silent network blackhole or loss of target power.
+Stop Connector before running: the probe accepts one physical TCP connection.
 """
 import argparse
 from datetime import datetime

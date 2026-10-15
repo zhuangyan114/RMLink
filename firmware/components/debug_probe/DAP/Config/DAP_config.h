@@ -61,7 +61,13 @@ This information includes:
 /// require 2 processor cycles for a I/O Port Write operation.  If the Debug Unit uses
 /// a Cortex-M0+ processor with high-speed peripheral I/O only 1 processor cycle might be
 /// required.
+#if defined(__XTENSA__)
+// Conservative fixed half-period cost (GPIO + delay setup/branch), calibrated
+// using the S3 RMT pad trace. The variable delay loop costs four CPU cycles.
+#define IO_PORT_WRITE_CYCLES    4U
+#else
 #define IO_PORT_WRITE_CYCLES    1U              ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
+#endif
 
 /// Indicate that Serial Wire Debug (SWD) communication mode is available at the Debug Access Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.

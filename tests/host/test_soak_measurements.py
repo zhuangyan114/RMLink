@@ -82,6 +82,17 @@ class SoakMeasurementsTests(unittest.TestCase):
             audit.accept(sequence,sample)
         with self.assertRaisesRegex(AssertionError,'never changed'):audit.require_dynamic_timeline()
 
+    def test_soak_requires_changes_in_every_timeline_leaf(self):
+        for frozen in (False,True):
+            measurements=Measurements()
+            for sequence in range(3):
+                sample=self.sample(sequence)
+                sample['values']=[(i<<24)|(0 if frozen and i==4 else sequence) for i in range(10)]
+                measurements.accept(sequence,sample)
+            if frozen:
+                with self.assertRaisesRegex(AssertionError,'never changed'):measurements.require_dynamic_timeline()
+            else:measurements.require_dynamic_timeline()
+
     def run_loss_case(self,corrupt_recording=False):
         class Client:
             now=0;next_id=0;unsubscribed=[];recording_stopped=False
@@ -90,6 +101,7 @@ class SoakMeasurementsTests(unittest.TestCase):
             def __exit__(self,*args):pass
             def exchange(self,request):return b'\x80\x04\x00\x00\x01\xe0\x00\x00\x00\x00'
             def device_health(self,device_id):return {'supported':True,'last_capture_io_failure':None}
+            def request(self,method,path):return {'devices':[{'device_id':'50787d15a924','firmware':'model'}]}
             def target(self,action,**options):
                 if action=='read_memory':return {'data':'4b4c4d52'}
                 return {'state':'Running'}

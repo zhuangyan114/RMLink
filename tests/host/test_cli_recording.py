@@ -16,11 +16,12 @@ class OfflineRecordingCliTests(unittest.IsolatedAsyncioTestCase):
             rec=Recording(directory,'model',{1:{'capture_id':7,'addresses':[0x20000100,0x20000104]}},failed)
             await rec.start();rec.offer(0,record(0));status=await rec.stop()
             output=io.StringIO()
-            with patch('sys.argv',['rmlink','inspect-recording',str(rec.path)]),patch(
+            with patch('sys.argv',['rmlink','inspect-recording',str(rec.path),'--anomalies']),patch(
                     'rmlink_connector.__main__.ApiClient',side_effect=AssertionError('Offline command opened API')),contextlib.redirect_stdout(output):
                 main()
             parsed=json.loads(output.getvalue())
             self.assertEqual(parsed['sha256'],status['sha256']);self.assertEqual(parsed['frames'],1)
+            self.assertEqual(parsed['analysis']['bad_data_samples'],0)
             rec.path.write_bytes(b'RMLR')
             with patch('sys.argv',['rmlink','inspect-recording',str(rec.path)]),contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:main()

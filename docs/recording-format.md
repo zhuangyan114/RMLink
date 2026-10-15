@@ -25,3 +25,9 @@
 窗口从服务收到 startRecording 后的新匹配帧开始，可能不包含任务第一帧；停止后不再接收新帧，仅排空队列。尾部 `window_end=last_received_record` 明确这一边界。尚未实现覆盖订阅整个生命周期的停止栅栏、应用 ACK、重传、断线续录、分段轮转或绝对时间漂移补偿。
 
 服务0.2.8新增 `invalid_data_samples`（有效位不全或 partial 标志）和 `budget_overrun_samples`（超预算标志）两个独立计数。历史 `invalid_samples` 保持原来的并集语义；有效数据也可能因耗时超预算而计入此旧字段。严格模式继续拒绝其中任一种，不改变旧行为。旧录制缺少新字段时必须从原始帧重算，不能将缺失当作0。
+
+`RMLinkConnector.exe inspect-recording FILE --anomalies`无需在线服务，可从原始帧重算无效数据、预算超限、请求序号跳过和乱序，保留最多16个异常及前四帧上下文。容器、CRC和截断检查依旧严格；有完整容器不等于采样全部有效。分析接口也可通过Python `recording_audit.audit_recording`调用。
+
+footer计数包括检测到但被严格模式拒绝的第一条问题帧，而离线analysis只统计实际保存在文件中的帧；严格失败文件的两组计数可能不同，须结合phase/error分析。
+
+服务0.2.8在Flash替换采集对象时保持同一owner的本地游标单调递增，并把清理旧历史计入history_evicted。旧客户端重新订阅后可继续使用其游标；新的capture_id仍用于隔离目标采样代际。游标跳过不表示重放或补采。

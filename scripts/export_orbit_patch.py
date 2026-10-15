@@ -23,7 +23,7 @@ def main():
         'implementation_commit':head,'branch':'rmlink/subscriptions-20261014','patch':name,
         'sha256':hashlib.sha256(payload).hexdigest(),'validation':{
             'typecheck':True,'build':True,'test_files':76,'tests_passed':1055,'tests_skipped':1,
-            'hardware':True,'hardware_scope':'real debug adapter child: 10 discrete matrix words, Watch, RTT, halt/run',
+            'hardware':True,'hardware_scope':'real debug adapter child: buffered 64KiB prelaunch Flash, matrix and shared pointer Timeline, Watch, RTT, halt/run; SDK 0.2.8, firmware 0.2.17',
             'installed_vscode':False}}
     (out/'provenance.json').write_text(json.dumps(record,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(record))

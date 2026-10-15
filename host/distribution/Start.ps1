@@ -14,5 +14,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot protect connector state permissions' }
 if ($Foreground) { & $exe serve; exit $LASTEXITCODE }
 $logs = Join-Path $env:LOCALAPPDATA 'RMLink\logs'
 New-Item -ItemType Directory -Force $logs | Out-Null
-Start-Process -FilePath $exe -ArgumentList @('serve') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'service.log') -RedirectStandardError (Join-Path $logs 'service-error.log') | Out-Null
+$process=Start-Process -FilePath $exe -ArgumentList @('serve') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $logs 'service.log') -RedirectStandardError (Join-Path $logs 'service-error.log')
+& (Join-Path $PSScriptRoot 'Wait-Ready.ps1') -ServiceProcessId $process.Id
 Write-Output 'RMLink component started; API: http://127.0.0.1:3243/v1'

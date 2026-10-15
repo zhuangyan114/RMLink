@@ -8,7 +8,7 @@
 
 当前增强目标profile限于STM32F103中容量Cortex-M3，Flash接口进一步限于F103C8的64 KiB。Watch／Timeline／RTT板端订阅、有线分片、无线流、独立录制和错误处理已经实现；真实F103C8有效采样、增强烧录及标准虚拟USB调试已验收，性能与条件见随包文档。默认请求4 MHz不等于已量测的SWCLK，其他目标和已安装VS Code界面仍需单独验证。
 
-firmware/rmlink.bin是已确认开发板GPIO4=SWDIO、GPIO5=SWCLK、GPIO6=预留NRST的应用镜像；不能直接套用于不同GPIO的成品调试器。完整ESP32烧录需要固定基座的bootloader／partition配置和源仓库构建脚本。
+firmware/包含已确认开发板GPIO4=SWDIO、GPIO5=SWCLK、GPIO6=预留NRST的应用镜像、bootloader、分区表和flasher_args.json；仅适用本轮已验证的ESP32-S3、16MB Flash／8MB Octal PSRAM开发板。不能直接套用于不同GPIO或内存的成品调试器。请从源仓库构建／刷写脚本操作；manifest分别记录组件版本、固件版本、实际刷入profile和配置哈希，二者版本号不要求相同。
 
 本包不安装、替换或改变内核驱动、启动配置。当前开发电脑使用本地测试签名的usbip-win2 UDE修补驱动；正式微软签名和Keil／IAR等兼容性尚未验收。上游签名版本0.9.8.1在本机仍有已记录的WinUSB空读取消问题；仅安装该版本不能等价于本机修补驱动验收结果。
 

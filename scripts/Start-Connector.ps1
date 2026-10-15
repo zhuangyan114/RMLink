@@ -15,4 +15,5 @@ if ($Foreground) { & $exe serve; exit $LASTEXITCODE }
 $out = Join-Path $root 'artifacts\logs\connector-service.log'
 $err = Join-Path $root 'artifacts\logs\connector-service-error.log'
 $process = Start-Process -FilePath $exe -ArgumentList @('serve') -WindowStyle Hidden -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+& (Join-Path $root 'host\distribution\Wait-Ready.ps1') -ServiceProcessId $process.Id
 Write-Output "RMLink connector started, PID $($process.Id); log $out"

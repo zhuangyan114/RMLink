@@ -13,7 +13,7 @@ if (-not $Install) { Write-Output 'Add -Install to copy the component; -StartAtL
 $running = Get-Process -Name RMLinkConnector -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $target 'bin\RMLinkConnector.exe') }
 if ($running) { throw 'Stop the currently installed RMLink service before upgrading it.' }
 New-Item -ItemType Directory -Force $target | Out-Null
-foreach ($name in @('bin','sdk','docs','licenses','firmware','Start.ps1','Install.ps1','manifest.json','README.md')) {
+foreach ($name in @('bin','sdk','docs','licenses','firmware','Start.ps1','Wait-Ready.ps1','Install.ps1','manifest.json','README.md')) {
     Copy-Item -LiteralPath (Join-Path $package $name) -Destination $target -Recurse -Force
 }
 if ($StartAtLogon) {

@@ -224,4 +224,25 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         await rec.stop()
         self.assertFalse(any(p[:2]==b'\x81\x05' for p in self.probe.requests[before:]))
 
+    async def test_flash_replacement_preserves_owner_stream_cursor(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('GET',root+'/flash')
+        owner=self.connector.sessions[session['session_id']]
+        previous=owner['captures'];previous.accept_frames([record(i) for i in range(5)])
+        previous.host_dropped=7
+        class CompletedFlash:
+            busy=False
+            async def commit(self,before_commit):
+                await before_commit();return {'phase':'complete','verified':True}
+        owner['flash']=CompletedFlash()
+        code,result=await self.http('POST',root+'/flash',{'action':'commit'})
+        self.assertEqual((code,result['phase']),(200,'complete'))
+        replacement=owner['captures'];self.assertIsNot(replacement,previous)
+        replacement.accept_frames([record(0)])
+        code,result=await self.http('POST',root+'/events',{'after':4,'wait_ms':0})
+        self.assertEqual((code,result['cursor'],result['consumer_gap']),(200,5,0))
+        self.assertEqual(result['host_history_evicted'],12)
+        self.assertEqual(len(result['records']),1)
+
 if __name__=='__main__':unittest.main()

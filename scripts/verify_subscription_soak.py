@@ -23,6 +23,11 @@ class Measurements:
         self.rtt_pending=bytearray();self.rtt_next=None;self.rtt_records=0;self.rtt_bytes=0
         self.rtt_last_sequence=None;self.rtt_producer_skipped=0
         self.first_invalid=None
+        self.dynamic_last={};self.dynamic_changes={}
+
+    def require_dynamic_timeline(self):
+        require(len(self.dynamic_changes.get('1',[]))==10 and all(self.dynamic_changes['1']),
+                'A dynamic Timeline fixture field never changed')
 
     def accept(self,cursor,sample):
         kind=sample['kind'];m=self.kinds[kind];seq=sample['sequence'];stamp=sample['timestamp_us']
@@ -41,6 +46,11 @@ class Measurements:
             require(sample['valid_bitmap']==(1<<len(values))-1,'Invalid field bitmap')
             require(len(values)==(10 if kind==1 else 4),'Fixture field count')
             for i,value in enumerate(values):require(value>>24==i,f'Wrong field identity {i}')
+            key=str(kind)
+            if key not in self.dynamic_last:self.dynamic_changes[key]=[0]*len(values)
+            else:
+                for i,value in enumerate(values):self.dynamic_changes[key][i]+=value!=self.dynamic_last[key][i]
+            self.dynamic_last[key]=list(values)
             return
         require(self.rtt_next is None or sample['byte_sequence']==self.rtt_next,'RTT byte stream gap')
         data=sample['data'];self.rtt_next=sample['byte_sequence']+len(data);self.rtt_bytes+=len(data)
@@ -76,6 +86,7 @@ def main():
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--seconds',type=float,default=600)
     p.add_argument('--pointer-depth',type=int,choices=range(5),default=3)
     p.add_argument('--independent',action='store_true');p.add_argument('--period-us',type=int,default=1000)
+    p.add_argument('--direct-fields',type=int,choices=range(11),default=0,help='Replace the final N fields with direct dynamic fixture leaves')
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 10<=args.seconds<=86400:p.error('seconds must be 10..86400')
     if not 200<=args.period_us<=10000000:p.error('Invalid period')
@@ -83,10 +94,12 @@ def main():
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
             'requestedSeconds':args.seconds,'pointerDepth':args.pointer_depth,'shared':not args.independent,
             'requestedPeriodUs':args.period_us,'requestedClockHz':4000000,'actualClockMeasured':False,
+            'directFields':args.direct_fields,'pointerFields':10-args.direct_fields if args.pointer_depth else 0,
             'scope':'public service + real F103 fixture + independent recording; installed VS Code UI excluded',
             'fixtureFlashRetained':True,'progress':[]}
     try:
         with ApiClient().open(args.device_id) as client:
+            report['device']=next(d for d in client.request('GET','/v1/status')['devices'] if d['device_id']==args.device_id)
             # Raw DAP is allowed only before the high-level target session owns
             # target state. Read the probe-only status before that transition.
             network=client.exchange(b'\x80\x04')
@@ -98,6 +111,9 @@ def main():
             report['healthBefore']=client.device_health(args.device_id)
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             image,fields=layout(args.pointer_depth,not args.independent)
+            if args.direct_fields:
+                for i in range(10-args.direct_fields,10):fields[i]={'address':0x20000100+i*64,'offsets':[]}
+            report['fields']=fields
             client.target('write_memory',address=0x20001000,data=image.hex())
             ids=[];recording=None;begin=None;live=Measurements();after=-1;consumer_gap=0
             try:
@@ -137,6 +153,8 @@ def main():
                 require(all(m['frames'] for m in disk.kinds.values()),'A subscription produced no records')
                 require(not disk.rtt_pending,'RTT ended inside a fixture record')
                 require(all(not s['ring_dropped'] and not s['failures'] for s in report['statuses'].values()),'Probe data loss')
+                live.require_dynamic_timeline();disk.require_dynamic_timeline()
+                report['diskDynamicFieldChanges']=disk.dynamic_changes
                 report['complete']=True
             finally:
                 report['finalStatuses']={}
@@ -148,6 +166,7 @@ def main():
                 if begin is not None:
                     report.setdefault('elapsedSeconds',time.perf_counter()-begin)
                 report.setdefault('live',live.summary())
+                report['liveDynamicFieldChanges']=live.dynamic_changes
                 report.setdefault('consumerGap',consumer_gap)
                 if recording:
                     try:report['failedRecording']=client.recording(recording['recording_id'],stop=True)

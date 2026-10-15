@@ -22,3 +22,5 @@ Orbit 源码在忽略的独立工作树 `artifacts/worktrees/orbit-rmlink`，原
 型号和设备 ID 应按实际修改；ELF 继续使用 Orbit 现有配置。增强 Flash 服务已通过F103C8完整镜像验收，当前示例采用attach行为；需要烧录时显式启用flashBeforeDebug。Timeline/Watch/RTT 使用板端订阅；step-over/step-out 尚未实现。二维静态数组维度、行跨度及各维度越界检查已补齐，十个基准变量已通过真实适配器。
 
 隔离工作树通过类型检查、构建、76文件/1055项测试（另1跳过）；真实调试适配器子进程经公开服务完成启动、十个离散二维数组字段的Timeline、Watch、RTT和暂停/继续，尚未安装至用户VS Code。五轮各档实测条件与限制见docs/subscription-performance-20261015.md。Orbit原许可继续适用，SDK自身为Apache-2.0；补丁仅作本地可复现开发记录，未推送上游。
+
+2026-10-16独立工作树更新公共SDK至0.2.8，删除重复取消路径，使用SDK的取消/终态等待；烧录后停止旧本地流并可重新订阅。模型覆盖烧录前后RTT恢复及结构化取消，完整测试/构建再次通过。真实适配器完成同一全密度64KiB ELF的启动前烧录，服务终态backend=probe、verification=probe_full_compare，随后矩阵和共享三级链Timeline/Watch/RTT及暂停继续通过，完整Flash读回SHA256保持一致。约997Hz属于共享连续字段短测，不能替代五条独立三级链＋五个离散普通变量的约676Hz结果。

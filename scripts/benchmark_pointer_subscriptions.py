@@ -162,6 +162,8 @@ def main():
             'timingScope':'probe frame span includes SWD plus executor scheduling; last 8192 frames, not pure SWCLK time'}
     try:
         with ApiClient().open(args.device_id) as client:
+            report['device']=next(d for d in client.request('GET','/v1/status')['devices'] if d['device_id']==args.device_id)
+            report['healthBefore']=client.device_health(args.device_id)
             report['target']=client.target('connect')
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             for repetition in range(args.repetitions):
@@ -171,7 +173,8 @@ def main():
                             row=capture(client,depth,shared,args.seconds,args.period_us,coexist)
                             row['repetition']=repetition+1;report['rows'].append(row);print(json.dumps(row),flush=True)
             report['retarget']=retarget(client)
-            report['signedOffsetsAndWidths']=signed_offsets_and_widths(client);report['complete']=True
+            report['signedOffsetsAndWidths']=signed_offsets_and_widths(client)
+            report['healthAfter']=client.device_health(args.device_id);report['complete']=True
     except BaseException as error:report['failure']=f'{type(error).__name__}: {error}';raise
     finally:
         args.output.parent.mkdir(parents=True,exist_ok=True)

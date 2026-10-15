@@ -1,10 +1,10 @@
 {
   "repository": "https://github.com/zhuangyan114/Orbit",
   "base_commit": "3928bbb6f4990ff336dfbe71f745f5f593b12e48",
-  "implementation_commit": "db81bf17e864150fad7034084fc7377c2f4a344c",
+  "implementation_commit": "bcb5e4626e29050b07d2d958a507cf13641e78c7",
   "branch": "rmlink/subscriptions-20261014",
   "patch": "orbit-rmlink-subscriptions.patch.gz",
-  "sha256": "660e48750e1c98a6955025442232db651a45f2e3211c7d72f74da78c2ec44c77",
+  "sha256": "34b154645352e1b4d2fa947add6b0b8b1ebd3eb9bf98c798e91a5c86fe456cb8",
   "validation": {
     "typecheck": true,
     "build": true,
@@ -12,7 +12,7 @@
     "tests_passed": 1055,
     "tests_skipped": 1,
     "hardware": true,
-    "hardware_scope": "real debug adapter child: 10 discrete matrix words, Watch, RTT, halt/run",
+    "hardware_scope": "real debug adapter child: buffered 64KiB prelaunch Flash, matrix and shared pointer Timeline, Watch, RTT, halt/run; SDK 0.2.8, firmware 0.2.17",
     "installed_vscode": false
   }
 }

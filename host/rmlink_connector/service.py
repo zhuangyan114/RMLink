@@ -241,7 +241,12 @@ class Connector:
                         if body.get('action')=='commit':
                             async def stop_captures():
                                 await captures.close()
-                                session['captures']=Subscriptions(target)
+                                replacement=Subscriptions(target)
+                                # Local stream cursors belong to the owner
+                                # session, not a single board capture generation.
+                                replacement.next_sequence=captures.next_sequence
+                                replacement.host_dropped=captures.host_dropped+len(captures.records)
+                                session['captures']=replacement
                             try:return await flash.commit(before_commit=stop_captures)
                             except Exception as error:
                                 if flash.progress['phase'] in ('failed','cancelled'):

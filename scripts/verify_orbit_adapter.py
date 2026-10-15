@@ -91,15 +91,21 @@ def main():
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--seconds',type=float,default=10)
     p.add_argument('--period-us',type=int,default=2000)
     p.add_argument('--matrix',action='store_true',help='Use all ten original discrete 2D-array fields')
+    p.add_argument('--flash-before-debug',action='store_true')
+    p.add_argument('--allow-target-write',action='store_true')
+    p.add_argument('--program',type=Path,default=ROOT/'artifacts/build/stm32-fixture/fixture.elf')
     p.add_argument('--pointers',action='store_true',help='Use ten fields through the existing typed three-pointer chain')
     p.add_argument('--node-report-directory',type=Path,help='Optional Node fatal-error reports, excluding environment variables')
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 2<=args.seconds<=300:p.error('seconds must be 2..300')
     if not 200<=args.period_us<=10000000:p.error('period-us must be 200..10000000')
     if args.matrix and args.pointers:p.error('Choose matrix or pointers')
+    if args.flash_before_debug and not args.allow_target_write:p.error('Flash requires --allow-target-write')
+    if args.output.exists():p.error('Preserve previous acceptance evidence')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
         'scope':'real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded',
-        'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False,'periodUs':args.period_us,
+        'fixtureRetained':True,'flashBeforeDebug':args.flash_before_debug,'program':str(args.program),
+        'requestedClockHz':4000000,'actualClockMeasured':False,'periodUs':args.period_us,
         'fieldSet':'ten_three_level_pointer_fields' if args.pointers else 'ten_discrete_matrix_words' if args.matrix else 'three_struct_scalars'}
     deadline=time.perf_counter()+30
     while True:
@@ -114,9 +120,15 @@ def main():
     try:
         report['initialize']=adapter.request('initialize',{'adapterID':'ozone','clientID':'rmlink-acceptance','linesStartAt1':True})
         report['launch']=adapter.request('launch',{'device':'STM32F103C8','probe':'cmsis-dap',
-            'rmlinkDeviceId':args.device_id,'program':str(ROOT/'artifacts/build/stm32-fixture/fixture.elf'),
-            'flashBeforeDebug':False,'runToEntryPoint':False,'speedKHz':4000,'loggingEnabled':False,
+            'rmlinkDeviceId':args.device_id,'program':str(args.program),
+            'flashBeforeDebug':args.flash_before_debug,'runToEntryPoint':False,'speedKHz':4000,'loggingEnabled':False,
             'rttLogEnabled':True,'rttControlBlockAddress':'0x20000400','rttStripAnsi':False})
+        if args.flash_before_debug:
+            observer=ApiClient()
+            owner=next(d['owner'] for d in observer.request('GET','/v1/status')['devices'] if d['device_id']==args.device_id)
+            report['flashStatus']=observer.request('GET',f'/v1/sessions/{owner}/flash')
+            assert report['flashStatus']['phase']=='complete' and report['flashStatus']['verified']
+            assert report['flashStatus']['backend']=='probe'
         adapter.request('configurationDone');adapter.request('continue',{'threadId':1})
         expressions=[f'capture_root->next->leaf->values[{i}]' for i in range(10)] if args.pointers else [f'capture_values[{i}][0]' for i in range(10)] if args.matrix else [
             'fixture_state.counter','fixture_state.boots','fixture_state.guard']
