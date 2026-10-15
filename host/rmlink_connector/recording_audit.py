@@ -20,14 +20,16 @@ def audit_recording(path,max_anomalies=16):
         if last_cursor is not None and cursor<=last_cursor:
             totals['cursor_order_errors']+=1;reasons.append('cursor_not_increasing')
         last_cursor=cursor
-        key=(sample['subscription_id'],sample['capture_id'])
-        if key in previous:
-            delta=(sample['sequence']-previous[key])&0xffffffff
+        # The wire bounds subscription IDs to 1..4. Keep only each slot's
+        # latest generation, so an arbitrarily long file cannot grow this map.
+        key=sample['subscription_id'];old=previous.get(key)
+        if old is not None and old[0]==sample['capture_id']:
+            delta=(sample['sequence']-old[1])&0xffffffff
             if delta!=1:
                 totals['sequence_gap_events']+=1
                 if 1<delta<0x80000000:totals['missed_sequence_slots']+=delta-1
                 else:totals['out_of_order_samples']+=1;reasons.append('sequence_not_increasing')
-        previous[key]=sample['sequence']
+        previous[key]=(sample['capture_id'],sample['sequence'])
         row={k:sample[k] for k in ('subscription_id','capture_id','kind','sequence','timestamp_us','duration_us','flags','valid_bitmap')}
         row['cursor']=cursor
         if kind!=3:row['values']=sample['values']
