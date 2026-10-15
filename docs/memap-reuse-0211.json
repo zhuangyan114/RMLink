@@ -1,0 +1,3094 @@
+{
+  "recordedAt": "2026-10-15T21:36:30.622267+08:00",
+  "baseCommit": "c3fa2e0d4900e9773b99e0cbc95b48ae00368dbf",
+  "sourceHashes": {
+    "firmware/CMakeLists.txt": "076ace84b87050c804f7dc7e480e92f48bf5c97b4a570c16e0f91697d5d8f766",
+    "firmware/components/debug_probe/rmlink_capture.c": "de979f2a728d1fcaca561747010bfeec7adc56b6a0127f215a24a106fd75ef6b",
+    "firmware/components/debug_probe/include/rmlink_capture.h": "1fcd90cff9e8b1ad919e1a3959ff167ce1fde24f993dbea5fa12ff96c2dedb23",
+    "firmware/components/debug_probe/swd.c": "b05e0ccdabb49f4acb24b5a690698979e5237d3d27eeef7a4a7b3d7bf12546c0",
+    "tests/capture/capture_test.c": "b537c8c2687a61b049f5187b1ae4eae1453e00ede3b0bdaaf3eadb7bd934624b"
+  },
+  "firmwareVersion": "0.2.11",
+  "connectorSdkVersion": "0.2.6",
+  "acceptanceStatus": "development candidate; functional and later 600s run passed; first run overflow remains unexplained",
+  "firmwareReceipt": {
+    "flashedAt": "2026-10-15T20:54:27.9784957+08:00",
+    "profile": "firmware-target-tcp512-core0",
+    "port": "COM13",
+    "binarySha256": "1BC18108EEA7F04A6A407487CFA9351D11AE68AF0943170AAAC061EA4F34909B",
+    "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+    "targetGpioEnabled": true,
+    "tcpPacketSize": 512,
+    "requestedExecutorCore": 0,
+    "configuredExecutorCore": 0
+  },
+  "connectorExeSha256": "bc68689058779dfd6ea0c73818ce3556c51bbfdcb751d650e5e52e69aaa5214d",
+  "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+  "scope": {
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "executorCore": 0,
+    "tcpPacketBytes": 512,
+    "nativeUsbPacketBytes": 64,
+    "fields": 10,
+    "leafStrideBytes": 64,
+    "timelinePeriodUs": 1000,
+    "watchFields": 4,
+    "watchPeriodUs": 100000,
+    "rttPeriodUs": 5000,
+    "shortRunSeconds": 5,
+    "shortRunRepetitions": 3,
+    "installedVSCodeUiTested": false,
+    "steadyStatePointerNodesFixed": true,
+    "allTenSparseLeavesDynamic": true
+  },
+  "shortComparison": [
+    {
+      "depth": 0,
+      "shared": false,
+      "coexist": true,
+      "beforeHz": 925.3215580858423,
+      "afterHz": 963.1208050427302,
+      "changePercent": 4.084985011597597,
+      "beforeRunsHz": [
+        935.6090338164622,
+        921.0723583954003,
+        925.3215580858423
+      ],
+      "afterRunsHz": [
+        966.3047959109722,
+        963.1208050427302,
+        956.569218780649
+      ],
+      "medianOfAfterFrameSpanP50Us": 667
+    },
+    {
+      "depth": 2,
+      "shared": true,
+      "coexist": true,
+      "beforeHz": 633.3381085016117,
+      "afterHz": 802.6687916696998,
+      "changePercent": 26.73622207397255,
+      "beforeRunsHz": [
+        633.3381085016117,
+        634.3724987197191,
+        627.3460780420864
+      ],
+      "afterRunsHz": [
+        802.6687916696998,
+        817.2923386374313,
+        801.2543613598599
+      ],
+      "medianOfAfterFrameSpanP50Us": 846
+    },
+    {
+      "depth": 3,
+      "shared": true,
+      "coexist": true,
+      "beforeHz": 499.9079679538001,
+      "afterHz": 702.1175173077987,
+      "changePercent": 40.44935514464258,
+      "beforeRunsHz": [
+        500.00346956917974,
+        499.6794454084134,
+        499.9079679538001
+      ],
+      "afterRunsHz": [
+        702.1175173077987,
+        709.1265005244139,
+        688.8841074143278
+      ],
+      "medianOfAfterFrameSpanP50Us": 930
+    },
+    {
+      "depth": 3,
+      "shared": false,
+      "coexist": true,
+      "beforeHz": 266.3700885956601,
+      "afterHz": 314.8434480844948,
+      "changePercent": 18.19774875790032,
+      "beforeRunsHz": [
+        267.38307094511293,
+        265.46349648929976,
+        266.3700885956601
+      ],
+      "afterRunsHz": [
+        315.5691626583931,
+        314.8434480844948,
+        314.5879546631569
+      ],
+      "medianOfAfterFrameSpanP50Us": 2736
+    },
+    {
+      "depth": 4,
+      "shared": false,
+      "coexist": true,
+      "beforeHz": 231.67939658816226,
+      "afterHz": 247.21999457559917,
+      "changePercent": 6.707803204038121,
+      "beforeRunsHz": [
+        232.65171317590048,
+        231.67939658816226,
+        230.0418134825683
+      ],
+      "afterRunsHz": [
+        247.21999457559917,
+        247.01813128730086,
+        247.5947934352009
+      ],
+      "medianOfAfterFrameSpanP50Us": 3432
+    }
+  ],
+  "orbit": {
+    "runsHz": [
+      990.1364519173192,
+      990.2175317240232,
+      988.0589865633607,
+      988.468900457004,
+      983.6160756883984
+    ],
+    "medianHz": 988.468900457004,
+    "previous028MedianHz": 936.2758177282243,
+    "allAdapterExitsZero": true,
+    "nodeVersion": "v24.15.0",
+    "noNodeFatalReport": true,
+    "adapterBundleSha256": "6d4f264e3f8c193519d24370367f3cc6296ae5d2b00c32ae2b6c8fb031cd935b",
+    "worktreeBaseCommit": "db81bf17e864150fad7034084fc7377c2f4a344c",
+    "conditions": "shared depth3, ten contiguous 32-bit leaves, only field0 dynamic; 5 seconds each; not installed UI"
+  },
+  "standardProgramming": {
+    "exitCode": 0,
+    "elapsedMs": 12322.99,
+    "verified": true,
+    "log": "artifacts\\logs\\accept-memap-0211-accept-virtual-openocd-fixture.log",
+    "errorLines": []
+  },
+  "subscriptions": {
+    "capturedAt": "2026-10-15T20:58:18.027641+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "strictThreeSubscriptions": {
+      "recording": {
+        "recording_id": "3461901fbe4e455f92f3833ad2b2be29",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\3461901fbe4e455f92f3833ad2b2be29.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2008,
+        "bytes": 207600,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "6d9a8e2c479145f4f0d714af3bd9ce185f7c24325a65938d4a1717aeb82407c7",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 998,
+        "2": 100,
+        "3": 910
+      },
+      "watchReusedFrames": 100,
+      "rttBytesVerified": 14976,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "strictOverload": {
+      "strictFailure": {
+        "recording_id": "dc70701ffaf34e908821497d77d8359d",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\dc70701ffaf34e908821497d77d8359d.rmlrec",
+        "strict": true,
+        "phase": "failed",
+        "frames": 0,
+        "bytes": 0,
+        "gaps": 0,
+        "invalid_samples": 1,
+        "error": "invalid_sample",
+        "finalized": true,
+        "sha256": "46db63871ef4f984b37dbab8b34f1afa1d6b2b5f012a4ba9db1e1add5acea4e2",
+        "queued_frames": 0
+      },
+      "pausedStatus": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 53,
+        "last_sequence": 414,
+        "completed": 100,
+        "deadline_missed": 314,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": "paused",
+        "budget_overrun": 99,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "realtimeReplacement": {
+        "recording_id": "4a45775d9c8040e9812a68affd0c8658",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\4a45775d9c8040e9812a68affd0c8658.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 618,
+        "bytes": 66744,
+        "gaps": 617,
+        "invalid_samples": 618,
+        "error": null,
+        "finalized": true,
+        "sha256": "6c62a658933aa252171cf47b70453b4c0af8c2884facd1c2fd8d2938f54cff87",
+        "queued_frames": 0
+      }
+    },
+    "pointerFields": {
+      "samples": 8,
+      "threeLevelPointer": true,
+      "widths": [
+        1,
+        2,
+        4
+      ],
+      "invalidFieldIsolated": true,
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 5,
+        "capture_id": 54,
+        "last_sequence": 8,
+        "completed": 8,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 8,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowConsumer": {
+      "recording": {
+        "recording_id": "1851422ec1bd415c9c8b6ff0a6f9aba9",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\1851422ec1bd415c9c8b6ff0a6f9aba9.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 10004,
+        "bytes": 720288,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "2a8b66ff8ff113e43a9dd099f150788679ed24d1b8f163cda1ee3b6de142f64a",
+        "queued_frames": 0
+      },
+      "consumerGap": 5922,
+      "hostHistoryEvicted": 8761,
+      "status": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 1,
+        "capture_id": 55,
+        "last_sequence": 10105,
+        "completed": 10105,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 8847,
+        "host_dropped": 8847,
+        "stream_error": null
+      },
+      "recorderIndependentOfHistory": true
+    },
+    "rttReconfiguration": {
+      "replacements": 50,
+      "rttFramesChecked": 199,
+      "rttBytesChecked": 6096,
+      "timelineAndWatchStayedActive": true,
+      "statuses": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 56,
+          "last_sequence": 4776,
+          "completed": 4776,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 14455,
+          "host_dropped": 14455,
+          "stream_error": null
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "field_count": 4,
+          "capture_id": 57,
+          "last_sequence": 94,
+          "completed": 94,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 14491,
+          "host_dropped": 14491,
+          "stream_error": null
+        }
+      }
+    },
+    "stateAtEnd": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    }
+  },
+  "wired": {
+    "capturedAt": "2026-10-15T20:58:50.394356+08:00",
+    "complete": true,
+    "transport": "native USB64",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "selection": {
+      "device_id": "50787d15a924",
+      "transport": "usb",
+      "connected": true,
+      "connection_error": null
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "coreState": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    },
+    "threeSubscriptions": {
+      "recording": {
+        "recording_id": "3abf603b469b4982b06118f36ccaa1b3",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\3abf603b469b4982b06118f36ccaa1b3.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2056,
+        "bytes": 212976,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "e077da56912fa850665e60b00702fa2ea861d0b69d6d140bf0cd1e4ac34aeec1",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1020,
+        "2": 101,
+        "3": 935
+      },
+      "watchReusedFrames": 101,
+      "rttBytesVerified": 15792,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "wifiRestored": {
+      "device_id": "50787d15a924",
+      "transport": "wifi",
+      "connected": true,
+      "connection_error": null
+    }
+  },
+  "pointerMatrix": {
+    "capturedAt": "2026-10-15T20:59:05.214985+08:00",
+    "complete": true,
+    "rows": [
+      {
+        "samples": 1898,
+        "effectiveHz": 953.7662201847501,
+        "sequenceGaps": 92,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 111,
+          "last_sequence": 2030,
+          "completed": 1936,
+          "deadline_missed": 94,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 20,
+          "host_history_evicted": 0,
+          "host_dropped": 0,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1898,
+        "captureSpanUs": {
+          "p50": 666,
+          "p95": 862,
+          "p99": 997,
+          "max": 1235
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 1413,
+          "p99": 2000,
+          "max": 2500
+        },
+        "depth": 0,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 2053,
+        "effectiveHz": 954.4310344506812,
+        "sequenceGaps": 98,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 112,
+          "last_sequence": 2203,
+          "completed": 2104,
+          "deadline_missed": 99,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 20,
+          "host_history_evicted": 225,
+          "host_dropped": 225,
+          "stream_error": null
+        },
+        "timingWindowFrames": 2053,
+        "captureSpanUs": {
+          "p50": 672,
+          "p95": 844,
+          "p99": 999,
+          "max": 1275
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 1383,
+          "p99": 1925,
+          "max": 2684
+        },
+        "depth": 0,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 977,
+        "effectiveHz": 497.7154046997389,
+        "sequenceGaps": 985,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 115,
+          "last_sequence": 2026,
+          "completed": 1008,
+          "deadline_missed": 1018,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1008,
+          "host_history_evicted": 1371,
+          "host_dropped": 1371,
+          "stream_error": null
+        },
+        "timingWindowFrames": 977,
+        "captureSpanUs": {
+          "p50": 1343,
+          "p95": 1644,
+          "p99": 1829,
+          "max": 2150
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2170,
+          "p99": 2377,
+          "max": 3031
+        },
+        "depth": 1,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1082,
+        "effectiveHz": 497.9361674392124,
+        "sequenceGaps": 1090,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 116,
+          "last_sequence": 2225,
+          "completed": 1108,
+          "deadline_missed": 1117,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1108,
+          "host_history_evicted": 2701,
+          "host_dropped": 2701,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1082,
+        "captureSpanUs": {
+          "p50": 1346,
+          "p95": 1621,
+          "p99": 1832,
+          "max": 2114
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2139,
+          "p99": 2421,
+          "max": 3017
+        },
+        "depth": 1,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1808,
+        "effectiveHz": 913.106335199466,
+        "sequenceGaps": 172,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 119,
+          "last_sequence": 2025,
+          "completed": 1851,
+          "deadline_missed": 174,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 46,
+          "host_history_evicted": 4645,
+          "host_dropped": 4645,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1808,
+        "captureSpanUs": {
+          "p50": 764,
+          "p95": 944,
+          "p99": 1082,
+          "max": 1289
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 1856,
+          "p99": 2021,
+          "max": 2382
+        },
+        "depth": 1,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1952,
+        "effectiveHz": 909.1502171522302,
+        "sequenceGaps": 195,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 120,
+          "last_sequence": 2209,
+          "completed": 2009,
+          "deadline_missed": 200,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 49,
+          "host_history_evicted": 6902,
+          "host_dropped": 6902,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1952,
+        "captureSpanUs": {
+          "p50": 764,
+          "p95": 935,
+          "p99": 1094,
+          "max": 1418
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 1898,
+          "p99": 2015,
+          "max": 2254
+        },
+        "depth": 1,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 658,
+        "effectiveHz": 333.34043647809847,
+        "sequenceGaps": 1314,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 123,
+          "last_sequence": 2028,
+          "completed": 676,
+          "deadline_missed": 1352,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 676,
+          "host_history_evicted": 7716,
+          "host_dropped": 7716,
+          "stream_error": null
+        },
+        "timingWindowFrames": 658,
+        "captureSpanUs": {
+          "p50": 2009,
+          "p95": 2345,
+          "p99": 2614,
+          "max": 2905
+        },
+        "sampleIntervalUs": {
+          "p50": 3000,
+          "p95": 3157,
+          "p99": 3312,
+          "max": 3741
+        },
+        "depth": 2,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 722,
+        "effectiveHz": 333.1811451819511,
+        "sequenceGaps": 1443,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 124,
+          "last_sequence": 2209,
+          "completed": 736,
+          "deadline_missed": 1473,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 736,
+          "host_history_evicted": 8681,
+          "host_dropped": 8681,
+          "stream_error": null
+        },
+        "timingWindowFrames": 722,
+        "captureSpanUs": {
+          "p50": 2033,
+          "p95": 2361,
+          "p99": 2603,
+          "max": 2841
+        },
+        "sampleIntervalUs": {
+          "p50": 3000,
+          "p95": 3171,
+          "p99": 3347,
+          "max": 3467
+        },
+        "depth": 2,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1782,
+        "effectiveHz": 869.6458915213187,
+        "sequenceGaps": 267,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 127,
+          "last_sequence": 2101,
+          "completed": 1831,
+          "deadline_missed": 270,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 131,
+          "host_history_evicted": 10571,
+          "host_dropped": 10571,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1782,
+        "captureSpanUs": {
+          "p50": 846,
+          "p95": 1029,
+          "p99": 1171,
+          "max": 2032
+        },
+        "sampleIntervalUs": {
+          "p50": 1000,
+          "p95": 2003,
+          "p99": 2084,
+          "max": 3007
+        },
+        "depth": 2,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1678,
+        "effectiveHz": 768.8914849738338,
+        "sequenceGaps": 504,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 128,
+          "last_sequence": 2225,
+          "completed": 1710,
+          "deadline_missed": 515,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 137,
+          "host_history_evicted": 12543,
+          "host_dropped": 12543,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1678,
+        "captureSpanUs": {
+          "p50": 846,
+          "p95": 1051,
+          "p99": 1161,
+          "max": 1894
+        },
+        "sampleIntervalUs": {
+          "p50": 1101,
+          "p95": 2009,
+          "p99": 2127,
+          "max": 2878
+        },
+        "depth": 2,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 627,
+        "effectiveHz": 317.9354712885478,
+        "sequenceGaps": 1343,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 131,
+          "last_sequence": 1985,
+          "completed": 631,
+          "deadline_missed": 1354,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 631,
+          "host_history_evicted": 13394,
+          "host_dropped": 13394,
+          "stream_error": null
+        },
+        "timingWindowFrames": 627,
+        "captureSpanUs": {
+          "p50": 2716,
+          "p95": 3132,
+          "p99": 3369,
+          "max": 3781
+        },
+        "sampleIntervalUs": {
+          "p50": 3001,
+          "p95": 4004,
+          "p99": 4015,
+          "max": 4346
+        },
+        "depth": 3,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 711,
+        "effectiveHz": 312.2121107517496,
+        "sequenceGaps": 1564,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 132,
+          "last_sequence": 2284,
+          "completed": 713,
+          "deadline_missed": 1571,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 713,
+          "host_history_evicted": 14338,
+          "host_dropped": 14338,
+          "stream_error": null
+        },
+        "timingWindowFrames": 711,
+        "captureSpanUs": {
+          "p50": 2750,
+          "p95": 3162,
+          "p99": 3342,
+          "max": 3711
+        },
+        "sampleIntervalUs": {
+          "p50": 3033,
+          "p95": 4001,
+          "p99": 4080,
+          "max": 4256
+        },
+        "depth": 3,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1587,
+        "effectiveHz": 800.2147360603199,
+        "sequenceGaps": 396,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 135,
+          "last_sequence": 2044,
+          "completed": 1640,
+          "deadline_missed": 404,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 268,
+          "host_history_evicted": 16067,
+          "host_dropped": 16067,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1587,
+        "captureSpanUs": {
+          "p50": 929,
+          "p95": 1113,
+          "p99": 1236,
+          "max": 1597
+        },
+        "sampleIntervalUs": {
+          "p50": 1001,
+          "p95": 2009,
+          "p99": 2080,
+          "max": 2581
+        },
+        "depth": 3,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1518,
+        "effectiveHz": 711.4894048112068,
+        "sequenceGaps": 615,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 136,
+          "last_sequence": 2168,
+          "completed": 1541,
+          "deadline_missed": 627,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 246,
+          "host_history_evicted": 17937,
+          "host_dropped": 17937,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1518,
+        "captureSpanUs": {
+          "p50": 929,
+          "p95": 1108,
+          "p99": 1260,
+          "max": 1768
+        },
+        "sampleIntervalUs": {
+          "p50": 1185,
+          "p95": 2017,
+          "p99": 2156,
+          "max": 2585
+        },
+        "depth": 3,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 479,
+        "effectiveHz": 247.16062596789496,
+        "sequenceGaps": 1456,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 139,
+          "last_sequence": 1951,
+          "completed": 482,
+          "deadline_missed": 1469,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 482,
+          "host_history_evicted": 18609,
+          "host_dropped": 18609,
+          "stream_error": null
+        },
+        "timingWindowFrames": 479,
+        "captureSpanUs": {
+          "p50": 3408,
+          "p95": 3858,
+          "p99": 4081,
+          "max": 4331
+        },
+        "sampleIntervalUs": {
+          "p50": 4000,
+          "p95": 4420,
+          "p99": 4997,
+          "max": 5014
+        },
+        "depth": 4,
+        "shared": false,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 536,
+        "effectiveHz": 246.89204449225383,
+        "sequenceGaps": 1632,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 140,
+          "last_sequence": 2227,
+          "completed": 550,
+          "deadline_missed": 1677,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 550,
+          "host_history_evicted": 19380,
+          "host_dropped": 19380,
+          "stream_error": null
+        },
+        "timingWindowFrames": 536,
+        "captureSpanUs": {
+          "p50": 3436,
+          "p95": 3908,
+          "p99": 4155,
+          "max": 4325
+        },
+        "sampleIntervalUs": {
+          "p50": 4001,
+          "p95": 4365,
+          "p99": 5014,
+          "max": 5053
+        },
+        "depth": 4,
+        "shared": false,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 987,
+        "effectiveHz": 500.01064931403204,
+        "sequenceGaps": 986,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 143,
+          "last_sequence": 2028,
+          "completed": 1014,
+          "deadline_missed": 1014,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1014,
+          "host_history_evicted": 20441,
+          "host_dropped": 20441,
+          "stream_error": null
+        },
+        "timingWindowFrames": 987,
+        "captureSpanUs": {
+          "p50": 1013,
+          "p95": 1207,
+          "p99": 1331,
+          "max": 1484
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2043,
+          "p99": 2205,
+          "max": 2712
+        },
+        "depth": 4,
+        "shared": true,
+        "coexist": false,
+        "periodUs": 1000,
+        "repetition": 1
+      },
+      {
+        "samples": 1074,
+        "effectiveHz": 500.0058248581647,
+        "sequenceGaps": 1073,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 144,
+          "last_sequence": 2160,
+          "completed": 1080,
+          "deadline_missed": 1080,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 1080,
+          "host_history_evicted": 21809,
+          "host_dropped": 21809,
+          "stream_error": null
+        },
+        "timingWindowFrames": 1074,
+        "captureSpanUs": {
+          "p50": 1013,
+          "p95": 1222,
+          "p99": 1339,
+          "max": 1565
+        },
+        "sampleIntervalUs": {
+          "p50": 2000,
+          "p95": 2118,
+          "p99": 2282,
+          "max": 2567
+        },
+        "depth": 4,
+        "shared": true,
+        "coexist": true,
+        "periodUs": 1000,
+        "repetition": 1
+      }
+    ],
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureFlashRetained": true,
+    "scratchRam": [
+      536875008,
+      536879104
+    ],
+    "leafStrideBytes": 64,
+    "requestedSecondsPerRun": 2.0,
+    "repetitions": 1,
+    "scope": "public service subscriptions; no Orbit adapter or installed VS Code UI",
+    "timingScope": "probe frame span includes SWD plus executor scheduling; last 8192 frames, not pure SWCLK time",
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "retarget": [
+      {
+        "step": "initial",
+        "checked": 15,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 147,
+          "last_sequence": 27,
+          "completed": 27,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 21944,
+          "host_dropped": 21944,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "retarget",
+        "checked": 12,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 147,
+          "last_sequence": 52,
+          "completed": 52,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 21981,
+          "host_dropped": 21981,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "null",
+        "checked": 19,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 147,
+          "last_sequence": 88,
+          "completed": 88,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 240,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 22006,
+          "host_dropped": 22006,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "unaligned",
+        "checked": 14,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 147,
+          "last_sequence": 114,
+          "completed": 114,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 500,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 22033,
+          "host_dropped": 22033,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "outside_ram",
+        "checked": 12,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 147,
+          "last_sequence": 145,
+          "completed": 145,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 810,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 22063,
+          "host_dropped": 22063,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "recovered",
+        "checked": 12,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 147,
+          "last_sequence": 171,
+          "completed": 171,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 860,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 22092,
+          "host_dropped": 22092,
+          "stream_error": null
+        }
+      }
+    ],
+    "signedOffsetsAndWidths": {
+      "samples": 20,
+      "fourSignedOffsets": [
+        4,
+        -4,
+        4,
+        -4
+      ],
+      "widths": [
+        4,
+        2,
+        1
+      ],
+      "invalidCases": [
+        "uint32_overflow",
+        "uint32_underflow",
+        "unaligned",
+        "outside_ram"
+      ],
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 7,
+        "capture_id": 148,
+        "last_sequence": 20,
+        "completed": 20,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 80,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 22118,
+        "host_dropped": 22118,
+        "stream_error": null
+      }
+    }
+  },
+  "pointerWatch": {
+    "capturedAt": "2026-10-15T20:58:07.947239+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureFlashRetained": true,
+    "pointerDepth": 3,
+    "leafStrideBytes": 64,
+    "secondsPerPhase": 2.0,
+    "scratchRam": [
+      536875008,
+      536879104
+    ],
+    "flashReceipt": {
+      "flashedAt": "2026-10-15T20:54:27.9784957+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "1BC18108EEA7F04A6A407487CFA9351D11AE68AF0943170AAAC061EA4F34909B",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "activeTimeline": {
+      "watchFrames": 20,
+      "reusedFrames": 20,
+      "ownReadFrames": 0,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "reused": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 47,
+          "revision": 1,
+          "sequence": 0,
+          "timestamp_us": 220694825,
+          "duration_us": 765,
+          "valid_bitmap": 15,
+          "flags": 4,
+          "values": [
+            538,
+            16777754,
+            33554970,
+            50332186
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 46,
+        "last_sequence": 1028,
+        "completed": 1028,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 47,
+        "last_sequence": 21,
+        "completed": 21,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "pausedAndRetargeted": {
+      "watchFrames": 20,
+      "reusedFrames": 0,
+      "ownReadFrames": 20,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "ownRead": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 47,
+          "revision": 1,
+          "sequence": 22,
+          "timestamp_us": 222894834,
+          "duration_us": 546,
+          "valid_bitmap": 15,
+          "flags": 0,
+          "values": [
+            16777954,
+            33555170,
+            50332386,
+            67109602
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 46,
+        "last_sequence": 1047,
+        "completed": 1047,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": "paused",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 47,
+        "last_sequence": 43,
+        "completed": 43,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "resumedTimeline": {
+      "watchFrames": 21,
+      "reusedFrames": 20,
+      "ownReadFrames": 1,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "ownRead": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 47,
+          "revision": 1,
+          "sequence": 42,
+          "timestamp_us": 224894849,
+          "duration_us": 547,
+          "valid_bitmap": 15,
+          "flags": 0,
+          "values": [
+            16778136,
+            33555352,
+            50332568,
+            67109784
+          ]
+        },
+        "reused": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 47,
+          "revision": 1,
+          "sequence": 43,
+          "timestamp_us": 224994364,
+          "duration_us": 578,
+          "valid_bitmap": 15,
+          "flags": 4,
+          "values": [
+            16778145,
+            33555361,
+            50332577,
+            67109793
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 46,
+        "last_sequence": 2079,
+        "completed": 2079,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 47,
+        "last_sequence": 64,
+        "completed": 64,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowTimelineFreshness": {
+      "watchFrames": 199,
+      "reusedFrames": 19,
+      "ownReadFrames": 180,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "ownRead": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 49,
+          "revision": 1,
+          "sequence": 0,
+          "timestamp_us": 227437316,
+          "duration_us": 709,
+          "valid_bitmap": 15,
+          "flags": 0,
+          "values": [
+            1151,
+            16778367,
+            33555583,
+            50332799
+          ]
+        },
+        "reused": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 49,
+          "revision": 1,
+          "sequence": 9,
+          "timestamp_us": 227524821,
+          "duration_us": 2504,
+          "valid_bitmap": 15,
+          "flags": 4,
+          "values": [
+            1159,
+            16778375,
+            33555591,
+            50332807
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 48,
+        "last_sequence": 22,
+        "completed": 22,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 49,
+        "last_sequence": 208,
+        "completed": 208,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "finalCoreState": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    }
+  },
+  "control": {
+    "capturedAt": "2026-10-15T20:59:55.057806+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "idleControls": {
+      "loaded": false,
+      "pointerDepth": 0,
+      "independentChains": false,
+      "rows": [
+        {
+          "halt_ms": 108.03499999929045,
+          "run_ms": 77.63349999913771
+        },
+        {
+          "halt_ms": 60.43819999922562,
+          "run_ms": 63.97659999947791
+        },
+        {
+          "halt_ms": 83.33669999956328,
+          "run_ms": 87.21719999994093
+        },
+        {
+          "halt_ms": 81.43179999933636,
+          "run_ms": 67.84539999989647
+        },
+        {
+          "halt_ms": 80.58950000031473,
+          "run_ms": 99.54580000066926
+        },
+        {
+          "halt_ms": 28.176499999972293,
+          "run_ms": 46.632900000076916
+        },
+        {
+          "halt_ms": 47.75119999976596,
+          "run_ms": 67.3226999997496
+        },
+        {
+          "halt_ms": 76.30759999938164,
+          "run_ms": 35.91989999949874
+        },
+        {
+          "halt_ms": 24.480799999764713,
+          "run_ms": 66.3022999997338
+        },
+        {
+          "halt_ms": 81.18209999975079,
+          "run_ms": 98.43559999990248
+        },
+        {
+          "halt_ms": 73.93909999973403,
+          "run_ms": 75.52440000017668
+        },
+        {
+          "halt_ms": 45.75939999995171,
+          "run_ms": 88.16599999954633
+        },
+        {
+          "halt_ms": 103.21509999994305,
+          "run_ms": 76.19770000019344
+        },
+        {
+          "halt_ms": 69.16420000015933,
+          "run_ms": 80.5754999992132
+        },
+        {
+          "halt_ms": 79.2301999999836,
+          "run_ms": 34.76290000071458
+        },
+        {
+          "halt_ms": 124.66300000050978,
+          "run_ms": 54.91509999956179
+        },
+        {
+          "halt_ms": 74.99980000011419,
+          "run_ms": 61.87890000001062
+        },
+        {
+          "halt_ms": 66.2004000005254,
+          "run_ms": 75.33809999949881
+        },
+        {
+          "halt_ms": 55.48240000007354,
+          "run_ms": 85.08849999998347
+        },
+        {
+          "halt_ms": 71.15750000048138,
+          "run_ms": 21.015299999817216
+        }
+      ],
+      "median_halt_ms": 74.46944999992411,
+      "max_halt_ms": 124.66300000050978,
+      "median_run_ms": 71.59174999969764,
+      "max_run_ms": 99.54580000066926,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "loadedControls": {
+      "loaded": true,
+      "pointerDepth": 4,
+      "independentChains": true,
+      "rows": [
+        {
+          "halt_ms": 98.04520000034245,
+          "run_ms": 25.4531999999017
+        },
+        {
+          "halt_ms": 74.44310000028054,
+          "run_ms": 86.11130000008416
+        },
+        {
+          "halt_ms": 70.82450000052631,
+          "run_ms": 101.5690000003815
+        },
+        {
+          "halt_ms": 68.64969999969617,
+          "run_ms": 120.01080000027287
+        },
+        {
+          "halt_ms": 25.483800000074552,
+          "run_ms": 103.3502000000226
+        },
+        {
+          "halt_ms": 113.22000000018306,
+          "run_ms": 30.994599999758066
+        },
+        {
+          "halt_ms": 88.52769999975862,
+          "run_ms": 44.44270000021788
+        },
+        {
+          "halt_ms": 85.46200000000681,
+          "run_ms": 84.2211999997744
+        },
+        {
+          "halt_ms": 103.08960000020306,
+          "run_ms": 30.215700000553625
+        },
+        {
+          "halt_ms": 49.11369999990711,
+          "run_ms": 79.1477999991912
+        },
+        {
+          "halt_ms": 63.641899999311136,
+          "run_ms": 40.57149999971443
+        },
+        {
+          "halt_ms": 64.11060000027646,
+          "run_ms": 21.162699999877077
+        },
+        {
+          "halt_ms": 175.62880000059522,
+          "run_ms": 64.06210000022838
+        },
+        {
+          "halt_ms": 61.232099999870115,
+          "run_ms": 15.665800000533636
+        },
+        {
+          "halt_ms": 30.010399999810033,
+          "run_ms": 32.29709999959596
+        },
+        {
+          "halt_ms": 79.92569999987609,
+          "run_ms": 32.977800000480784
+        },
+        {
+          "halt_ms": 128.43210000028193,
+          "run_ms": 28.396499999871594
+        },
+        {
+          "halt_ms": 112.96029999994062,
+          "run_ms": 168.95649999969464
+        },
+        {
+          "halt_ms": 122.24479999986215,
+          "run_ms": 84.48270000008051
+        },
+        {
+          "halt_ms": 116.02370000036899,
+          "run_ms": 109.45839999931195
+        }
+      ],
+      "median_halt_ms": 82.69384999994145,
+      "max_halt_ms": 175.62880000059522,
+      "median_run_ms": 54.25240000022313,
+      "max_run_ms": 168.95649999969464,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "cSdk": {
+      "samples": 40,
+      "crcVerified": true,
+      "cursorResumeWithoutReplay": true,
+      "firstCursor": 0,
+      "lastCursor": 39,
+      "captureId": 150
+    }
+  },
+  "network": {
+    "capturedAt": "2026-10-15T21:02:40.108705+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "scope": "healthy TCP idle, then native USB SWD stays active across probe STA reconnects; no silent-host-crash simulation",
+    "rows": [
+      {
+        "repetition": 1,
+        "oldTcpClosedMs": 1961.2018999996508,
+        "usbCpuidReadsDuringFault": 25,
+        "maxUsbCpuidReadMs": 11.45150000047579,
+        "networkUp": true,
+        "newTcpReadyMs": 2759.4316000004255,
+        "targetCounterBeforeAfter": [
+          26419,
+          26676
+        ],
+        "usbOwnerPreserved": true
+      },
+      {
+        "repetition": 2,
+        "oldTcpClosedMs": 2087.6453000000765,
+        "usbCpuidReadsDuringFault": 27,
+        "maxUsbCpuidReadMs": 0.5757999997513252,
+        "networkUp": true,
+        "newTcpReadyMs": 2879.7223999999915,
+        "targetCounterBeforeAfter": [
+          26676,
+          26947
+        ],
+        "usbOwnerPreserved": true
+      },
+      {
+        "repetition": 3,
+        "oldTcpClosedMs": 2164.7471999995105,
+        "usbCpuidReadsDuringFault": 28,
+        "maxUsbCpuidReadMs": 0.6277999991652905,
+        "networkUp": true,
+        "newTcpReadyMs": 2736.402399999861,
+        "targetCounterBeforeAfter": [
+          26947,
+          27205
+        ],
+        "usbOwnerPreserved": true
+      }
+    ],
+    "firmware": {
+      "version": "0.2.11",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 0,
+      "ownerSession": 0,
+      "packetSize": 64
+    },
+    "idleSecondsActual": 20.000077300000157,
+    "healthyIdleOwnerPreserved": true,
+    "finalStatus": {
+      "version": "0.2.11",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 0,
+      "ownerSession": 0,
+      "packetSize": 64
+    },
+    "uptimeBeforeAfterUs": [
+      492256981,
+      521315268
+    ]
+  },
+  "soak": {
+    "elapsedSeconds": 600.0433134000014,
+    "recording": {
+      "recording_id": "01b8194133d1440f8dcbca82694b43ab",
+      "path": "C:\\Users\\22690\\.rmlink\\recordings\\01b8194133d1440f8dcbca82694b43ab.rmlrec",
+      "strict": false,
+      "phase": "complete",
+      "frames": 209672,
+      "bytes": 22070024,
+      "gaps": 151821,
+      "invalid_samples": 149391,
+      "error": null,
+      "finalized": true,
+      "sha256": "dac83d6c460b4bd5fbfc2677a6250ac95c8396131960846ffa06d1d62339257e",
+      "queued_frames": 0
+    },
+    "disk": {
+      "kinds": {
+        "1": {
+          "frames": 149391,
+          "gaps": 450739,
+          "budgetFlags": 149391,
+          "firstUs": 1623067882,
+          "lastUs": 2223196730,
+          "lastSequence": 600258,
+          "effectiveHz": 248.9298764721272
+        },
+        "2": {
+          "frames": 6001,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 1623137805,
+          "lastUs": 2223136792,
+          "lastSequence": 6001,
+          "effectiveHz": 10.000016883361837
+        },
+        "3": {
+          "frames": 54280,
+          "gaps": 2460,
+          "budgetFlags": 0,
+          "firstUs": 1623079170,
+          "lastUs": 2223200472,
+          "lastSequence": 56740,
+          "effectiveHz": 90.44671438775222
+        }
+      },
+      "rttBytes": 872192,
+      "rttRecordsChecked": 54512,
+      "rttProducerSkipped": 8041,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4000,
+      "recentTimelineIntervalP99Us": 4918
+    },
+    "statuses": {
+      "1": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 172,
+        "last_sequence": 600173,
+        "completed": 149400,
+        "deadline_missed": 450773,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 149400,
+        "host_history_evicted": 205577,
+        "host_dropped": 205577,
+        "stream_error": null
+      },
+      "2": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 173,
+        "last_sequence": 6001,
+        "completed": 6001,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 205577,
+        "host_dropped": 205577,
+        "stream_error": null
+      },
+      "3": {
+        "state": 2,
+        "kind": 3,
+        "field_count": 1,
+        "capture_id": 174,
+        "last_sequence": 56737,
+        "completed": 872208,
+        "deadline_missed": 2459,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 205600,
+        "host_dropped": 205600,
+        "stream_error": null
+      }
+    },
+    "consumerGap": 0,
+    "wirelessAtStart": {
+      "connected": true,
+      "rssiDbm": -28,
+      "scope": "probe snapshot before capture; not continuous RF measurement"
+    },
+    "allTimelineFieldsChanged": true,
+    "fieldChangeCounts": {
+      "1": [
+        54453,
+        54453,
+        54453,
+        54453,
+        54453,
+        54453,
+        54453,
+        54453,
+        54453,
+        54453
+      ],
+      "2": [
+        6000,
+        6000,
+        6000,
+        6000
+      ]
+    },
+    "observedFieldChangesPerSecond": [
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754,
+      90.73551485063754
+    ],
+    "producerGaps": [
+      {
+        "previous": 119205,
+        "next": 127247,
+        "skipped": 8041,
+        "atUsFromFirstRttFrame": 111143
+      }
+    ],
+    "producerGapEvents": 1,
+    "producerGapListTruncated": false
+  },
+  "earlierFailedSoak": {
+    "complete": false,
+    "failure": "AssertionError: Probe data loss",
+    "elapsedSeconds": 600.0232786000006,
+    "recording": {
+      "recording_id": "9f581c766f674262a57627ba22298ed6",
+      "path": "C:\\Users\\22690\\.rmlink\\recordings\\9f581c766f674262a57627ba22298ed6.rmlrec",
+      "strict": false,
+      "phase": "complete",
+      "frames": 208612,
+      "bytes": 21968048,
+      "gaps": 151046,
+      "invalid_samples": 148978,
+      "error": null,
+      "finalized": true,
+      "sha256": "8050ee3570437542c2ac08427aa91e7bf3a3612db1146ca0ca47e3b6c1f50c9a",
+      "queued_frames": 0
+    },
+    "statuses": {
+      "1": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 166,
+        "last_sequence": 600248,
+        "completed": 149510,
+        "deadline_missed": 450738,
+        "ring_dropped": 522,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 149510,
+        "host_history_evicted": 204513,
+        "host_dropped": 204513,
+        "stream_error": null
+      },
+      "2": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 167,
+        "last_sequence": 6002,
+        "completed": 6002,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 204518,
+        "host_dropped": 204518,
+        "stream_error": null
+      },
+      "3": {
+        "state": 2,
+        "kind": 3,
+        "field_count": 1,
+        "capture_id": 168,
+        "last_sequence": 55721,
+        "completed": 869040,
+        "deadline_missed": 2097,
+        "ring_dropped": 1595,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 204563,
+        "host_dropped": 204563,
+        "stream_error": null
+      }
+    },
+    "fileValidationPassed": true,
+    "validated": {
+      "kinds": {
+        "1": {
+          "frames": 148978,
+          "gaps": 451221,
+          "budgetFlags": 148978,
+          "firstUs": 570038577,
+          "lastUs": 1170236565,
+          "lastSequence": 600389,
+          "effectiveHz": 248.2130946430297
+        },
+        "2": {
+          "frames": 6002,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 570050588,
+          "lastUs": 1170148645,
+          "lastSequence": 6002,
+          "effectiveHz": 10.000032378041844
+        },
+        "3": {
+          "frames": 53632,
+          "gaps": 2097,
+          "budgetFlags": 0,
+          "firstUs": 570042561,
+          "lastUs": 1170235982,
+          "lastSequence": 55728,
+          "effectiveHz": 89.35619439254067
+        }
+      },
+      "rttBytes": 869168,
+      "rttRecordsChecked": 54323,
+      "rttProducerSkipped": 13664,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4001,
+      "recentTimelineIntervalP99Us": 4886
+    },
+    "producerGaps": [
+      {
+        "previous": 18173,
+        "next": 31638,
+        "skipped": 13464,
+        "atUsFromFirstRttFrame": 125604
+      },
+      {
+        "previous": 36452,
+        "next": 36500,
+        "skipped": 47,
+        "atUsFromFirstRttFrame": 54200740
+      },
+      {
+        "previous": 36575,
+        "next": 36593,
+        "skipped": 17,
+        "atUsFromFirstRttFrame": 54733695
+      },
+      {
+        "previous": 36855,
+        "next": 36937,
+        "skipped": 81,
+        "atUsFromFirstRttFrame": 58801480
+      },
+      {
+        "previous": 37124,
+        "next": 37132,
+        "skipped": 7,
+        "atUsFromFirstRttFrame": 60652813
+      },
+      {
+        "previous": 37566,
+        "next": 37615,
+        "skipped": 48,
+        "atUsFromFirstRttFrame": 65961826
+      }
+    ],
+    "largeTimelineIntervals": [
+      {
+        "intervalUs": 718999,
+        "fromUs": 627968566,
+        "toUs": 628687565,
+        "fromSequence": 58121,
+        "toSequence": 58840
+      },
+      {
+        "intervalUs": 501999,
+        "fromUs": 626030566,
+        "toUs": 626532565,
+        "fromSequence": 56183,
+        "toSequence": 56685
+      },
+      {
+        "intervalUs": 296001,
+        "fromUs": 622448565,
+        "toUs": 622744566,
+        "fromSequence": 52601,
+        "toSequence": 52897
+      },
+      {
+        "intervalUs": 184000,
+        "fromUs": 627364566,
+        "toUs": 627548566,
+        "fromSequence": 57517,
+        "toSequence": 57701
+      },
+      {
+        "intervalUs": 135998,
+        "fromUs": 633862566,
+        "toUs": 633998564,
+        "fromSequence": 64015,
+        "toSequence": 64151
+      },
+      {
+        "intervalUs": 80001,
+        "fromUs": 622256565,
+        "toUs": 622336566,
+        "fromSequence": 52409,
+        "toSequence": 52489
+      },
+      {
+        "intervalUs": 76001,
+        "fromUs": 626868565,
+        "toUs": 626944566,
+        "fromSequence": 57021,
+        "toSequence": 57097
+      },
+      {
+        "intervalUs": 75999,
+        "fromUs": 627788566,
+        "toUs": 627864565,
+        "fromSequence": 57941,
+        "toSequence": 58017
+      },
+      {
+        "intervalUs": 60000,
+        "fromUs": 627184566,
+        "toUs": 627244566,
+        "fromSequence": 57337,
+        "toSequence": 57397
+      }
+    ],
+    "rootCauseResolved": false
+  },
+  "intermediate120SecondRecheck": {
+    "complete": true,
+    "elapsedSeconds": 120.00140089999877,
+    "recording": {
+      "recording_id": "ca0ac48d38144f74b9e957fff2dfe1af",
+      "path": "C:\\Users\\22690\\.rmlink\\recordings\\ca0ac48d38144f74b9e957fff2dfe1af.rmlrec",
+      "strict": false,
+      "phase": "complete",
+      "frames": 41942,
+      "bytes": 4415720,
+      "gaps": 30669,
+      "invalid_samples": 29886,
+      "error": null,
+      "finalized": true,
+      "sha256": "aa714202790d1c1522d992a148099ffbac21d587fb98a404318b0d9017642138",
+      "queued_frames": 0
+    },
+    "disk": {
+      "kinds": {
+        "1": {
+          "frames": 29886,
+          "gaps": 90193,
+          "budgetFlags": 29886,
+          "firstUs": 1413655821,
+          "lastUs": 1533733802,
+          "lastSequence": 120190,
+          "effectiveHz": 248.87993411548118
+        },
+        "2": {
+          "frames": 1201,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 1413733856,
+          "lastUs": 1533733802,
+          "lastSequence": 1201,
+          "effectiveHz": 10.000004500002024
+        },
+        "3": {
+          "frames": 10855,
+          "gaps": 793,
+          "budgetFlags": 0,
+          "firstUs": 1413664610,
+          "lastUs": 1533729773,
+          "lastSequence": 11647,
+          "effectiveHz": 90.40091004582237
+        }
+      },
+      "rttBytes": 175328,
+      "rttRecordsChecked": 10958,
+      "rttProducerSkipped": 21988,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4001,
+      "recentTimelineIntervalP99Us": 4959
+    },
+    "statuses": {
+      "1": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 169,
+        "last_sequence": 120130,
+        "completed": 29897,
+        "deadline_missed": 90233,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 29897,
+        "host_history_evicted": 37868,
+        "host_dropped": 37868,
+        "stream_error": null
+      },
+      "2": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 170,
+        "last_sequence": 1202,
+        "completed": 1202,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 37871,
+        "host_dropped": 37871,
+        "stream_error": null
+      },
+      "3": {
+        "state": 2,
+        "kind": 3,
+        "field_count": 1,
+        "capture_id": 171,
+        "last_sequence": 11649,
+        "completed": 175328,
+        "deadline_missed": 794,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 37874,
+        "host_dropped": 37874,
+        "stream_error": null
+      }
+    },
+    "consumerGap": 0,
+    "fieldChangeCounts": {
+      "1": [
+        10896,
+        10896,
+        10896,
+        10896,
+        10896,
+        10896,
+        10896,
+        10896,
+        10895,
+        10895
+      ],
+      "2": [
+        1200,
+        1200,
+        1200,
+        1200
+      ]
+    }
+  },
+  "validationSourceHashes": {
+    "scripts/verify_subscription_soak.py": "69139ae3e19ff45c03c2a5a753a3c30a43bde7df1c8032dd15d0d9fba56e9727",
+    "scripts/verify_stream_backpressure.py": "d180c8cec2e3ac57c7cd7df0dcf8d57d6492f0c650f7ec9d35c10bbdb6ae2313",
+    "tests/host/test_soak_measurements.py": "4319b714671f5a77deeda34e47fbe606f9d8c553d32c5c5f963aa6cfb444077d"
+  },
+  "controlledBackpressure": {
+    "capturedAt": "2026-10-15T21:35:13.438514+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "scope": "intentional TCP receive backpressure; ten static sparse dynamic leaves, Watch and RTT; not a loss-free soak or natural-failure diagnosis",
+    "timelinePeriodUs": 1000,
+    "watchPeriodUs": 100000,
+    "rttPeriodUs": 5000,
+    "fixtureFlashRetained": true,
+    "phases": [
+      {
+        "requestedNoReadSeconds": 0.05,
+        "actualNoReadSeconds": 0.05052169999908074,
+        "whileBlocked": {
+          "1": {
+            "state": 2,
+            "kind": 1,
+            "capture_id": 181,
+            "completed": 3331,
+            "last_sequence": 3444,
+            "deadline_missed": 113,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 22,
+            "stop_reason": 0
+          },
+          "2": {
+            "state": 2,
+            "kind": 2,
+            "capture_id": 182,
+            "completed": 34,
+            "last_sequence": 34,
+            "deadline_missed": 0,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          },
+          "3": {
+            "state": 2,
+            "kind": 3,
+            "capture_id": 183,
+            "completed": 5728,
+            "last_sequence": 306,
+            "deadline_missed": 0,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          }
+        },
+        "receiveRecoverySeconds": 3.007476599999791,
+        "afterRecovery": {
+          "1": {
+            "state": 2,
+            "kind": 1,
+            "capture_id": 181,
+            "completed": 6289,
+            "last_sequence": 6510,
+            "deadline_missed": 221,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 35,
+            "stop_reason": 0
+          },
+          "2": {
+            "state": 2,
+            "kind": 2,
+            "capture_id": 182,
+            "completed": 65,
+            "last_sequence": 65,
+            "deadline_missed": 0,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          },
+          "3": {
+            "state": 2,
+            "kind": 3,
+            "capture_id": 183,
+            "completed": 10176,
+            "last_sequence": 584,
+            "deadline_missed": 0,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          }
+        },
+        "dropDelta": {
+          "1": 0,
+          "2": 0,
+          "3": 0
+        },
+        "measurements": {
+          "kinds": {
+            "1": {
+              "frames": 6297,
+              "gaps": 223,
+              "budgetFlags": 36,
+              "firstUs": 2446347585,
+              "lastUs": 2452866455,
+              "lastSequence": 6519,
+              "effectiveHz": 965.8115593653501
+            },
+            "2": {
+              "frames": 65,
+              "gaps": 0,
+              "budgetFlags": 0,
+              "firstUs": 2446453450,
+              "lastUs": 2452853432,
+              "lastSequence": 64,
+              "effectiveHz": 10.000028125079101
+            },
+            "3": {
+              "frames": 583,
+              "gaps": 0,
+              "budgetFlags": 0,
+              "firstUs": 2446560481,
+              "lastUs": 2452864717,
+              "lastSequence": 582,
+              "effectiveHz": 92.3188789252179
+            }
+          },
+          "rttBytes": 10160,
+          "rttRecordsChecked": 635,
+          "rttProducerSkipped": 12203,
+          "rttPartialBytes": 0,
+          "intervalWindow": 6296,
+          "recentTimelineIntervalP50Us": 1000,
+          "recentTimelineIntervalP99Us": 1879
+        }
+      },
+      {
+        "requestedNoReadSeconds": 1.5,
+        "actualNoReadSeconds": 1.500378799999453,
+        "whileBlocked": {
+          "1": {
+            "state": 2,
+            "kind": 1,
+            "capture_id": 181,
+            "completed": 7908,
+            "last_sequence": 8150,
+            "deadline_missed": 242,
+            "ring_dropped": 791,
+            "failures": 0,
+            "budget_overrun": 41,
+            "stop_reason": 0
+          },
+          "2": {
+            "state": 2,
+            "kind": 2,
+            "capture_id": 182,
+            "completed": 81,
+            "last_sequence": 81,
+            "deadline_missed": 0,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          },
+          "3": {
+            "state": 2,
+            "kind": 3,
+            "capture_id": 183,
+            "completed": 12368,
+            "last_sequence": 685,
+            "deadline_missed": 0,
+            "ring_dropped": 123,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          }
+        },
+        "receiveRecoverySeconds": 3.009783299999981,
+        "afterRecovery": {
+          "1": {
+            "state": 2,
+            "kind": 1,
+            "capture_id": 181,
+            "completed": 10851,
+            "last_sequence": 11239,
+            "deadline_missed": 388,
+            "ring_dropped": 794,
+            "failures": 0,
+            "budget_overrun": 69,
+            "stop_reason": 0
+          },
+          "2": {
+            "state": 2,
+            "kind": 2,
+            "capture_id": 182,
+            "completed": 112,
+            "last_sequence": 112,
+            "deadline_missed": 0,
+            "ring_dropped": 0,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          },
+          "3": {
+            "state": 2,
+            "kind": 3,
+            "capture_id": 183,
+            "completed": 17136,
+            "last_sequence": 972,
+            "deadline_missed": 0,
+            "ring_dropped": 123,
+            "failures": 0,
+            "budget_overrun": 0,
+            "stop_reason": 0
+          }
+        },
+        "dropDelta": {
+          "1": 794,
+          "2": 0,
+          "3": 123
+        },
+        "measurements": {
+          "kinds": {
+            "1": {
+              "frames": 10150,
+              "gaps": 1183,
+              "budgetFlags": 68,
+              "firstUs": 2446347585,
+              "lastUs": 2457679449,
+              "lastSequence": 11332,
+              "effectiveHz": 895.6161139950144
+            },
+            "2": {
+              "frames": 113,
+              "gaps": 0,
+              "budgetFlags": 0,
+              "firstUs": 2446453450,
+              "lastUs": 2457653487,
+              "lastSequence": 112,
+              "effectiveHz": 9.999966964394849
+            },
+            "3": {
+              "frames": 973,
+              "gaps": 0,
+              "budgetFlags": 0,
+              "firstUs": 2446560481,
+              "lastUs": 2457678428,
+              "lastSequence": 972,
+              "effectiveHz": 87.42621277111682
+            }
+          },
+          "rttBytes": 17152,
+          "rttRecordsChecked": 1072,
+          "rttProducerSkipped": 12203,
+          "rttPartialBytes": 0,
+          "intervalWindow": 8192,
+          "recentTimelineIntervalP50Us": 1000,
+          "recentTimelineIntervalP99Us": 1917
+        }
+      }
+    ],
+    "deviceBefore": {
+      "device_id": "50787d15a924",
+      "hostname": "rmlink-15a924.local",
+      "address": "192.168.137.170",
+      "port": 3241,
+      "firmware": "0.2.11",
+      "paired": true,
+      "connected": true,
+      "packet_size": 512,
+      "transport": "wifi",
+      "owner": null
+    },
+    "receiveBufferBytes": 8192,
+    "warmup": {
+      "statuses": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "capture_id": 181,
+          "completed": 3179,
+          "last_sequence": 3285,
+          "deadline_missed": 106,
+          "ring_dropped": 0,
+          "failures": 0,
+          "budget_overrun": 22,
+          "stop_reason": 0
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "capture_id": 182,
+          "completed": 32,
+          "last_sequence": 32,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "budget_overrun": 0,
+          "stop_reason": 0
+        },
+        "3": {
+          "state": 2,
+          "kind": 3,
+          "capture_id": 183,
+          "completed": 5472,
+          "last_sequence": 290,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "budget_overrun": 0,
+          "stop_reason": 0
+        }
+      },
+      "measurements": {
+        "kinds": {
+          "1": {
+            "frames": 3227,
+            "gaps": 108,
+            "budgetFlags": 22,
+            "firstUs": 2446347585,
+            "lastUs": 2449681449,
+            "lastSequence": 3334,
+            "effectiveHz": 967.6459507646383
+          },
+          "2": {
+            "frames": 33,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 2446453450,
+            "lastUs": 2449653491,
+            "lastSequence": 32,
+            "effectiveHz": 9.999871876641581
+          },
+          "3": {
+            "frames": 294,
+            "gaps": 0,
+            "budgetFlags": 0,
+            "firstUs": 2446560481,
+            "lastUs": 2449674247,
+            "lastSequence": 293,
+            "effectiveHz": 94.0982719960331
+          }
+        },
+        "rttBytes": 5536,
+        "rttRecordsChecked": 346,
+        "rttProducerSkipped": 12203,
+        "rttPartialBytes": 0,
+        "intervalWindow": 3226,
+        "recentTimelineIntervalP50Us": 1000,
+        "recentTimelineIntervalP99Us": 1896
+      }
+    },
+    "settledRecovery": {
+      "observedSeconds": 3.002479400000084,
+      "before": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "capture_id": 181,
+          "completed": 10977,
+          "last_sequence": 11368,
+          "deadline_missed": 391,
+          "ring_dropped": 794,
+          "failures": 0,
+          "budget_overrun": 71,
+          "stop_reason": 0
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "capture_id": 182,
+          "completed": 114,
+          "last_sequence": 114,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "budget_overrun": 0,
+          "stop_reason": 0
+        },
+        "3": {
+          "state": 2,
+          "kind": 3,
+          "capture_id": 183,
+          "completed": 17296,
+          "last_sequence": 982,
+          "deadline_missed": 0,
+          "ring_dropped": 123,
+          "failures": 0,
+          "budget_overrun": 0,
+          "stop_reason": 0
+        }
+      },
+      "after": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "capture_id": 181,
+          "completed": 13960,
+          "last_sequence": 14498,
+          "deadline_missed": 538,
+          "ring_dropped": 794,
+          "failures": 0,
+          "budget_overrun": 94,
+          "stop_reason": 0
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "capture_id": 182,
+          "completed": 145,
+          "last_sequence": 145,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "budget_overrun": 0,
+          "stop_reason": 0
+        },
+        "3": {
+          "state": 2,
+          "kind": 3,
+          "capture_id": 183,
+          "completed": 21792,
+          "last_sequence": 1263,
+          "deadline_missed": 0,
+          "ring_dropped": 123,
+          "failures": 0,
+          "budget_overrun": 0,
+          "stop_reason": 0
+        }
+      },
+      "receivedTimelineFrames": 2963,
+      "receivedTimelineHz": 952.4265662402552
+    },
+    "coreStateDuringCapture": 16842753,
+    "decoderPendingBytes": 0,
+    "deviceAfter": {
+      "device_id": "50787d15a924",
+      "hostname": "rmlink-15a924.local",
+      "address": "192.168.137.170",
+      "port": 3241,
+      "firmware": "0.2.11",
+      "paired": true,
+      "connected": true,
+      "packet_size": 512,
+      "transport": "wifi",
+      "owner": null
+    }
+  },
+  "hostTests": 83,
+  "negativeTests": {
+    "complete": true,
+    "cases": [
+      {
+        "variant": "no-reuse",
+        "exitCode": 3,
+        "expectedRejection": true
+      },
+      {
+        "variant": "no-executor-boundary",
+        "exitCode": 3,
+        "expectedRejection": true
+      }
+    ]
+  },
+  "finalDevice": {
+    "capturedAt": "2026-10-15T21:36:19.126728+08:00",
+    "complete": true,
+    "devices": [
+      {
+        "device_id": "50787d15a924",
+        "hostname": "rmlink-15a924.local",
+        "address": "192.168.137.170",
+        "port": 3241,
+        "firmware": "0.2.11",
+        "paired": true,
+        "connected": true,
+        "packet_size": 512,
+        "transport": "wifi",
+        "owner": null
+      }
+    ],
+    "flashReceipt": {
+      "flashedAt": "2026-10-15T20:54:27.9784957+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "1BC18108EEA7F04A6A407487CFA9351D11AE68AF0943170AAAC061EA4F34909B",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "state": {
+      "dhcsr": 16842753,
+      "state": "Running"
+    },
+    "fixtureMagic": {
+      "address": 536870912,
+      "data": "4b4c4d52"
+    },
+    "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "after": [
+      {
+        "device_id": "50787d15a924",
+        "hostname": "rmlink-15a924.local",
+        "address": "192.168.137.170",
+        "port": 3241,
+        "firmware": "0.2.11",
+        "paired": true,
+        "connected": true,
+        "packet_size": 512,
+        "transport": "wifi",
+        "owner": null
+      }
+    ]
+  },
+  "unifiedPackageCreated": false,
+  "previousPackageUnchanged": true,
+  "limits": [
+    "Independent depth4 does not sustain 1kHz; timeline deadline gaps remain.",
+    "First 600s run failed on Timeline/RTT ring counters; later clean runs do not establish the cause or a fix.",
+    "Control tail target is not met.",
+    "Actual SWCLK, physical NRST, other targets, installed UI, Keil/IAR and formal driver signing not validated.",
+    "Full PC reboot and silent TCP blackhole not retested; STA-only recovery is separate.",
+    "Earlier Node 0xC0000409 remains unexplained; successful short launches do not prove a fix."
+  ],
+  "evidence": {
+    "artifacts/logs/accept-memap-0211-accept-virtual-openocd-fixture.log": {
+      "sha256": "f12d92fd63e8049132fa4061b251b8a1fae5c9f30481fc71e40f803a73b72453",
+      "bytes": 1167
+    },
+    "artifacts/logs/accept-memap-0211.json": {
+      "sha256": "69469ad61600d0562299ff0514bcb44df6637ef409e602cf93fdfc0bc48c2be0",
+      "bytes": 3605
+    },
+    "artifacts/logs/build-memap-frame-0211.log": {
+      "sha256": "d7d4ea05010b0f59ceb90f09c08d0fef755ec51cba2661fd5fc923551e2c8437",
+      "bytes": 2965
+    },
+    "artifacts/logs/build-memap-frame-usb64-0211.log": {
+      "sha256": "adead2ad0cf95ee34c72c812de017d1858fbdaff833946222f831e5dea399c42",
+      "bytes": 12377
+    },
+    "artifacts/logs/capture-memap-0211.log": {
+      "sha256": "8b206eb20b1ceac477297cbc2d17f139b8501d31094d9fb9507af3efc934ab52",
+      "bytes": 165
+    },
+    "artifacts/logs/capture-memap-complete-0211.log": {
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+      "bytes": 174
+    },
+    "artifacts/logs/capture-profile-after-028.json": {
+      "sha256": "39f89a877a182732cd803f2e69b174cfda44d56044d60b56ea5ddb023f49b4d3",
+      "bytes": 15956
+    },
+    "artifacts/logs/control-memap-0211.json": {
+      "sha256": "ce2f5e564c9482f42b72c043d53a13b51c8ad728bad7a475557123e32cb992dd",
+      "bytes": 4889
+    },
+    "artifacts/logs/flash-memap-0211.log": {
+      "sha256": "e407531f7005d9532a4b7cf401dd50d577b79d3e0b3273bcf1aa657b02b1e04f",
+      "bytes": 5082
+    },
+    "artifacts/logs/host-memap-0211.log": {
+      "sha256": "9f864aee070ea41046d123e1f2c0c9c20b86ceb1085f60bebf0b140b674b2c4d",
+      "bytes": 186
+    },
+    "artifacts/logs/host-memap-final-0211.log": {
+      "sha256": "bf84f63cdf6e9439302c247336546313929c7da61f5ba503592bb02916fea9df",
+      "bytes": 188
+    },
+    "artifacts/logs/memap-final-identity-0211.json": {
+      "sha256": "201e3b07a645139c093dd20edbdc35139cefe4f614db8bc2557106467b574d63",
+      "bytes": 1615
+    },
+    "artifacts/logs/memap-five-layouts-0211.json": {
+      "sha256": "1b19f1106a0d10d08e7e1d56410b48c9cc79144c1b392ffed7fcd74f46874dd9",
+      "bytes": 15904
+    },
+    "artifacts/logs/memap-negative-0211.json": {
+      "sha256": "dfe78259f5150f8807dee7a24cf17be36b3e30ebb551ab1d4ba9ebad0ce63eac",
+      "bytes": 257
+    },
+    "artifacts/logs/memap-negative-no-executor-boundary-0211.log": {
+      "sha256": "9b77a3c7af884fe703b484385de8355ae35ae7316ea8aa7b01fa04bfb4374b93",
+      "bytes": 226
+    },
+    "artifacts/logs/memap-negative-no-reuse-0211.log": {
+      "sha256": "6682de1577f5a31b7af5060b7a71f8d4885ed7b3d8f4514ab006a5affb359d82",
+      "bytes": 209
+    },
+    "artifacts/logs/network-memap-0211-console.log": {
+      "sha256": "10a50eab65808594fbb39673885be72b340930a9575504e37d4e3af3803f40b7",
+      "bytes": 281
+    },
+    "artifacts/logs/network-memap-direct-0211.json": {
+      "sha256": "c5bcab7b467e8d63eeb4f24b073c4a3bd2a8bb80837a2b9686a3ece6cccaafc5",
+      "bytes": 1879
+    },
+    "artifacts/logs/orbit-memap-1-0211.json": {
+      "sha256": "92b32c472f396edadfc445df9be8a773b6000ceec0bbee5523a56080da73603f",
+      "bytes": 18754
+    },
+    "artifacts/logs/orbit-memap-2-0211.json": {
+      "sha256": "330208d7a0bc9b7878fd195063503d656ceff3814631507dd86cacafc3e70b05",
+      "bytes": 18754
+    },
+    "artifacts/logs/orbit-memap-3-0211.json": {
+      "sha256": "29c306e39c38d9a9839ae1614f63d329da659b18b9128af96773fee3b20e3df0",
+      "bytes": 18754
+    },
+    "artifacts/logs/orbit-memap-4-0211.json": {
+      "sha256": "1aebbae084034cc5e6a273ff8c655d39478cbf7e39cfdb4a25869c23a2d8b601",
+      "bytes": 18750
+    },
+    "artifacts/logs/orbit-memap-5-0211.json": {
+      "sha256": "34c686ffce5658a3ccd6125afcd73a100b5a9f0453424a02233a7125b9694e04",
+      "bytes": 18752
+    },
+    "artifacts/logs/pointer-matrix-memap-0211.json": {
+      "sha256": "e654859a8d3ebda04d901ad2d31857cade66867627f6d7e287cdb42fc02c8a3f",
+      "bytes": 22270
+    },
+    "artifacts/logs/pointer-watch-memap-0211.json": {
+      "sha256": "44e2ffaf18f57cc30926348806c9b318036152e1070bfaf35324bb271c4c8113",
+      "bytes": 7207
+    },
+    "artifacts/logs/pyocd-memap-0211.json": {
+      "sha256": "d0f5af5cd684d17137c92c365b8b8e7b7c659b2ee89b8bd1311a53460ab4ccc3",
+      "bytes": 278
+    },
+    "artifacts/logs/soak-memap-failed-forensics-0211.json": {
+      "sha256": "0a12986e29fe0d6a7992b637802b43a48adbf2ffb94be16a77a52b9fe46d560d",
+      "bytes": 9928
+    },
+    "artifacts/logs/soak-memap-independent4-0211.json": {
+      "sha256": "4dda1b8a0931b9f4d08310dd60cc5282bc126a58ee909ce2978c1f2a257faec8",
+      "bytes": 23280
+    },
+    "artifacts/logs/soak-memap-steady-final-0211.json": {
+      "sha256": "8c4801481f80c777503879918d80e6c76536ee7d1ad4c239be06c17afb71b682",
+      "bytes": 57483
+    },
+    "artifacts/logs/soak-memap-steady-final-offline-0211.json": {
+      "sha256": "7fd60d2eaf3f6e9760c0f50fcdbb92801a8cbc5cdb80c494466949f2b09e0431",
+      "bytes": 2449
+    },
+    "artifacts/logs/soak-memap-steady-recheck-0211.json": {
+      "sha256": "a037af36ca8d1c511e081fd80505ebd97f3c1ebdfba0ff56805fb17481c985c4",
+      "bytes": 17087
+    },
+    "artifacts/logs/soak-memap-steady-recheck-offline-0211.json": {
+      "sha256": "253ab5be158d9fac0c09dbcb709ec77f7e8a6b7d36c8c4a7238a18a9cc3a7991",
+      "bytes": 2448
+    },
+    "artifacts/logs/soak-memap-uart-0211.log": {
+      "sha256": "aa90bf85a33abbd6fedf6c3cd717ee130ce96133bab03e7bf1662d8b58db25c0",
+      "bytes": 726
+    },
+    "artifacts/logs/stream-pressure-0211.json": {
+      "sha256": "764fb69d7d7647fbe36e613595080013daf295228f1f8f7936ca957df2f8606f",
+      "bytes": 9754
+    },
+    "artifacts/logs/stream-pressure-settled-0211.json": {
+      "sha256": "2b0df6e60e4ac04163a9bdb19a2fbf296e84547b895eb8201a03ec0b0b6167b4",
+      "bytes": 11417
+    },
+    "artifacts/logs/stream-pressure-threaded-0211.json": {
+      "sha256": "321b506ed06649a3fdbd6de30180aefc7725c0f563c556d13aff389d785b486e",
+      "bytes": 11722
+    },
+    "artifacts/logs/subscriptions-memap-0211.json": {
+      "sha256": "751cfeae990104c3830d239ec116d6b5c3b2392e6e5f2137b316c985017c8f3e",
+      "bytes": 5213
+    },
+    "artifacts/logs/wired-memap-0211.json": {
+      "sha256": "4762a7cb3aa2a2ec18a401a5b3c478fc0ec6c5e872e93cac12e3ba2c7dde51aa",
+      "bytes": 1487
+    }
+  }
+}

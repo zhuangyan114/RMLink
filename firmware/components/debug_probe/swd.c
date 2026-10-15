@@ -75,7 +75,7 @@ static size_t process(const request_t *job, uint8_t *out)
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 2; out[6] = 8; /* firmware 0.2.8: pointer Watch reuse */
+            out[5] = 2; out[6] = 11; /* firmware 0.2.11: scoped MEM-AP setup reuse */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */
@@ -145,6 +145,10 @@ static void swd_task(void *arg)
             if (!sampled) ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
             continue;
         }
+        /* Only consecutive capture work may reuse AP setup. Even an info or
+         * rejected/stale request conservatively breaks that interval. Raw
+         * commands, reset, barriers and owner changes cannot inherit it. */
+        rmlink_capture_invalidate_ap();
         if (job.close) {
             rmlink_vendor_transport_closed(job.transport);
             rmlink_capture_closed(job.transport, job.session);

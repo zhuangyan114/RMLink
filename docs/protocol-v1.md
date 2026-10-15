@@ -1,8 +1,8 @@
 # RMLink 开发协议 v1
 
-固件 0.1.6，更新：2026-10-14。当前为开发接口，采样 / 离散地址批量 API 尚未实现。
+当前开发固件 0.2.11，更新：2026-10-15。本页描述标准 DAP 承载与 0x80 设备管理接口；板端采样、指针解析、离散地址读取和三类订阅已实现。
 
-Watch / Timeline / RTT 板端订阅的新增协议、数据流与所有权设计见 [subscription-design.md](subscription-design.md)。其中 0x81、3244 等均为规划值；本文件仍只描述当前已实现接口。
+已实现的 Watch / Timeline / RTT 使用 0x81 控制、TCP3244 或原生 USB_PULL 回传，字段、命令和公开接入见 [API](api-v1.md)，架构见 [订阅方案](subscription-design.md)。实现和验收范围见 [进度](development-status.md)，不能把支持的周期范围当作实测采样频率。
 
 ## 标准 DAP 与传输
 
@@ -52,7 +52,7 @@ DAP_ResetTarget 为 GPIO6 的 10 ms 开漏脉冲，实现返回值不证明目�
 | --- | --- | --- |
 | 0 | 3 | 80 00 00 |
 | 3 | 1 | 协议版本，当前 1 |
-| 4 | 3 | 固件 major / minor / patch，当前 0 / 1 / 6 |
+| 4 | 3 | 固件 major / minor / patch，当前开发版 0 / 2 / 11；按实际查询结果识别版本 |
 | 7 | 2 | little-endian 能力；bit0 USB、bit1 TCP、bit2 USB 配网；当前 0x0007 |
 | 9 | 1 | 编译配置是否允许目标 GPIO |
 | 10 | 1 | 当前目标 owner：0 无、1 USB、2 TCP |

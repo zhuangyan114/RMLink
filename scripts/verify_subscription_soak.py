@@ -75,6 +75,7 @@ def main():
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 10<=args.seconds<=86400:p.error('seconds must be 10..86400')
     if not 200<=args.period_us<=10000000:p.error('Invalid period')
+    if args.output.exists():p.error('Output already exists; preserve the previous evidence')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
             'requestedSeconds':args.seconds,'pointerDepth':args.pointer_depth,'shared':not args.independent,
             'requestedPeriodUs':args.period_us,'requestedClockHz':4000000,'actualClockMeasured':False,
@@ -93,7 +94,7 @@ def main():
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             image,fields=layout(args.pointer_depth,not args.independent)
             client.target('write_memory',address=0x20001000,data=image.hex())
-            ids=[];recording=None;live=Measurements();after=-1;consumer_gap=0
+            ids=[];recording=None;begin=None;live=Measurements();after=-1;consumer_gap=0
             try:
                 sub=client.subscribe('memory_series',fields=fields,period_us=args.period_us)
                 ids.append(sub['subscription_id']);after=sub['stream_cursor']
@@ -110,26 +111,43 @@ def main():
                     if now>=next_state:
                         require(client.target('state')['state']=='Running','Target stopped')
                         statuses={str(i):client.subscription(i) for i in ids}
+                        report['statuses']=statuses
                         require(all(s['state']==2 and not s['failures'] for s in statuses.values()),f'Probe stopped: {statuses}')
+                        require(all(not s['ring_dropped'] for s in statuses.values()),f'Probe data loss: {statuses}')
                         next_state=now+2
                     if now>=next_progress:
-                        progress={'elapsedSeconds':now-begin,**live.summary()}
+                        progress={'elapsedSeconds':now-begin,**live.summary(),'statuses':statuses}
                         report['progress'].append(progress);print(json.dumps(progress),flush=True);next_progress=now+30
                 report['elapsedSeconds']=time.perf_counter()-begin
                 report['statuses']={str(i):client.subscription(i) for i in ids}
                 report['recording']=client.recording(recording['recording_id'],stop=True);recording=None
                 require(report['recording']['phase']=='complete' and report['recording']['finalized'],'Recording failed')
                 disk=Measurements();parsed=inspect_recording(report['recording']['path'],disk.accept)
+                # Keep validated measurements even if the acceptance assertions
+                # below reject this run; a failed run is still useful evidence.
+                report.update(live=live.summary(),disk=disk.summary(),consumerGap=consumer_gap,
+                              independentFileValidation=parsed)
                 require(parsed['sha256']==report['recording']['sha256'],'Independent recording hash mismatch')
                 require(all(m['frames'] for m in disk.kinds.values()),'A subscription produced no records')
                 require(not disk.rtt_pending,'RTT ended inside a fixture record')
                 require(all(not s['ring_dropped'] and not s['failures'] for s in report['statuses'].values()),'Probe data loss')
-                report.update(live=live.summary(),disk=disk.summary(),consumerGap=consumer_gap,
-                              independentFileValidation=parsed,complete=True)
+                report['complete']=True
             finally:
+                if begin is not None:
+                    report.setdefault('elapsedSeconds',time.perf_counter()-begin)
+                report.setdefault('live',live.summary())
+                report.setdefault('consumerGap',consumer_gap)
                 if recording:
                     try:report['failedRecording']=client.recording(recording['recording_id'],stop=True)
                     except Exception as error:report['cleanupError']=str(error)
+                    else:
+                        try:
+                            failed=report['failedRecording']
+                            require(failed['phase']=='complete' and failed['finalized'],'Failed recording not finalized')
+                            disk=Measurements();parsed=inspect_recording(failed['path'],disk.accept)
+                            report['disk']=disk.summary();report['independentFileValidation']=parsed
+                            require(parsed['sha256']==failed['sha256'],'Independent failed recording hash mismatch')
+                        except Exception as error:report['failedRecordingValidationError']=str(error)
                 for sid in reversed(ids):
                     try:client.unsubscribe(sid)
                     except Exception:pass

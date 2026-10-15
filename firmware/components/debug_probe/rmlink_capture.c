@@ -66,6 +66,10 @@ static size_t s_usb_length;
 static uint32_t s_usb_frame_id;
 static uint64_t s_last_stream;
 static atomic_bool s_stream_failed;
+/* Only consecutive work within a capture frame reuses SELECT=0 / CSW32.
+ * No TAR, target value or resolved pointer survives through this cache. */
+static bool s_memap_configured;
+void rmlink_capture_invalidate_ap(void) { s_memap_configured=false; }
 
 static uint32_t u32(const uint8_t *p) { return p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
 static void w16(uint8_t *p, uint16_t v) { p[0]=v; p[1]=v>>8; }
@@ -88,6 +92,7 @@ static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count) {
     DAP_TransferDeadline(2000);
     size_t n=DAP_ProcessCommand(request,out)&0xffff;
     bool ok=n>=3 && out[0]==5 && out[1]==count && out[2]==1;
+    s_memap_configured=ok; /* any partial/failed response makes state unknown */
 #ifndef RMLINK_HOST_TEST
     /* Subscriptions stop on failure. Preserve the DAP reason without logging
      * successful samples or retrying a possibly completed target write. */
@@ -99,34 +104,39 @@ static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count) {
 #endif
     return ok;
 }
+static size_t memap_prefix(uint8_t *request) {
+    request[0]=5;request[1]=0;request[2]=0;
+    if(s_memap_configured)return 3;
+    request[2]=2;request[3]=8;w32(request+4,0); /* DP SELECT=0 */
+    request[8]=1;w32(request+9,0x23000052); /* AP CSW32, increment */
+    return 13;
+}
 static bool word(uint32_t addr,uint32_t *value,bool write) {
-    uint8_t req[24]={5,0,4,8},reply[32];
-    /* SELECT=0, CSW=32-bit single increment, TAR, DRW. No cached state. */
-    w32(req+4,0); req[8]=1; w32(req+9,0x23000052);
-    req[13]=5; w32(req+14,addr); req[18]=write?13:15;
-    if(write) w32(req+19,*value);
-    if(!transfer(req,reply,4)) return false;
+    uint8_t req[24],reply[32];size_t p=memap_prefix(req);
+    req[p++]=5;w32(req+p,addr);p+=4;req[p++]=write?13:15;
+    if(write)w32(req+p,*value);
+    req[2]+=2;
+    if(!transfer(req,reply,req[2])) return false;
     if(!write) *value=u32(reply+3);
     return true;
 }
 static bool block(uint32_t address,uint32_t *values,unsigned count) {
-    uint8_t request[32]={5,0,0,8},reply[40];
+    uint8_t request[32],reply[40];
     if(!count || count>8 || (address&3) || !memory(address,count*4,false) ||
        (address&0x3ff)+count*4>0x400) return false;
-    w32(request+4,0);request[8]=1;w32(request+9,0x23000052);
-    request[13]=5;w32(request+14,address);
-    memset(request+18,15,count);request[2]=3+count;
-    if(!transfer(request,reply,3+count))return false;
+    size_t p=memap_prefix(request);
+    request[p++]=5;w32(request+p,address);p+=4;
+    memset(request+p,15,count);request[2]+=1+count;
+    if(!transfer(request,reply,request[2]))return false;
     for(unsigned i=0;i<count;i++) values[i]=u32(reply+3+i*4);
     return true;
 }
 static bool scattered(const uint32_t *addresses,uint32_t *values,unsigned count) {
-    uint8_t request[64]={5,0,0,8},reply[40];
+    uint8_t request[64],reply[40];
     if(!count || count>8)return false;
-    w32(request+4,0);request[8]=1;w32(request+9,0x23000052);
-    size_t p=13;
+    size_t p=memap_prefix(request);
     for(unsigned i=0;i<count;i++) { request[p++]=5;w32(request+p,addresses[i]);p+=4;request[p++]=15; }
-    request[2]=2+count*2;
+    request[2]+=count*2;
     if(!transfer(request,reply,request[2]))return false;
     for(unsigned i=0;i<count;i++)values[i]=u32(reply+3+i*4);
     return true;
@@ -173,6 +183,7 @@ static void timer_refresh(void) {
     esp_timer_start_once(s_timer,delay<20?20:delay);
 }
 esp_err_t rmlink_capture_init(void (*wake)(void)) {
+    rmlink_capture_invalidate_ap();
     s_wake=wake;
     const size_t sizes[SLOTS]={48*1024,4*1024,6*1024,6*1024};
     for(unsigned i=0;i<SLOTS;i++) {
@@ -193,6 +204,7 @@ static void stream_reset(void) {
         while((p=xRingbufferReceive(s_records[i],&n,0))) vRingbufferReturnItem(s_records[i],p);
 }
 void rmlink_capture_closed(uint8_t transport,uint32_t session) {
+    rmlink_capture_invalidate_ap();
     if(s_transport!=transport || s_session!=session) return;
     memset(s_sub,0,sizeof(s_sub)); s_session=0; s_transport=0; s_barrier=false;
     timer_refresh(); stream_reset();
@@ -383,6 +395,7 @@ bool rmlink_capture_run(void) {
         subscription_t *s=&s_sub[k];
         if(s->state!=2 || (!s->started && now<s->next)) continue;
         if(!s->started) {
+            rmlink_capture_invalidate_ap(); /* bound reuse to this frame/poll */
             uint64_t missed=(now-s->next)/s->period;
             s->missed+=missed; s->seq+=(uint32_t)missed;
             s->next+=(missed+1)*s->period;
@@ -417,6 +430,7 @@ bool rmlink_capture_run(void) {
     return false;
 }
 static void pause_all(void) {
+    rmlink_capture_invalidate_ap();
     for(unsigned i=0;i<SLOTS;i++) {
         subscription_t *s=&s_sub[i];
         if(s->started && s->kind!=3) sample_finish(s,i+1);

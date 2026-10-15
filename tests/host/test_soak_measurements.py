@@ -1,5 +1,12 @@
 import unittest
 import struct
+import contextlib
+import io
+import json
+from pathlib import Path
+import tempfile
+from unittest.mock import patch
+import verify_subscription_soak as soak
 from verify_subscription_soak import Measurements
 from inspect_fixture_recording import Audit
 
@@ -74,6 +81,56 @@ class SoakMeasurementsTests(unittest.TestCase):
             sample['values']=[(i<<24)|(0 if i==4 else sequence) for i in range(10)]
             audit.accept(sequence,sample)
         with self.assertRaisesRegex(AssertionError,'never changed'):audit.require_dynamic_timeline()
+
+    def run_loss_case(self,corrupt_recording=False):
+        class Client:
+            now=0;next_id=0;unsubscribed=[];recording_stopped=False
+            def open(self,device_id):return self
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def exchange(self,request):return b'\x80\x04\x00\x00\x01\xe0\x00\x00\x00\x00'
+            def target(self,action,**options):
+                if action=='read_memory':return {'data':'4b4c4d52'}
+                return {'state':'Running'}
+            def subscribe(self,*args,**options):
+                self.next_id+=1;return {'subscription_id':self.next_id,'stream_cursor':-1}
+            def start_recording(self,**options):return {'recording_id':'test'}
+            def events(self,*args):
+                self.now+=.5;return {'cursor':0,'consumer_gap':0,'error':None,'records':[]}
+            def subscription(self,sid):
+                return {'state':2,'failures':0,'ring_dropped':int(sid==1 and self.now>=2)}
+            def recording(self,rid,stop=False):
+                self.recording_stopped=stop
+                return {'phase':'complete','finalized':True,'path':'fixture.rmlrec','sha256':'expected'}
+            def unsubscribe(self,sid):self.unsubscribed.append(sid)
+        client=Client()
+        def inspect(path,accept):
+            if corrupt_recording:raise ValueError('Recording CRC mismatch')
+            return {'sha256':'expected','frames':0}
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'loss.json'
+            with patch.object(soak,'ApiClient',return_value=client), \
+                 patch.object(soak.time,'perf_counter',side_effect=lambda:client.now), \
+                 patch.object(soak,'inspect_recording',side_effect=inspect), \
+                 patch.object(soak.sys,'argv',['soak','--seconds','10','--output',str(output)]), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(AssertionError,'Probe data loss'):soak.main()
+            result=json.loads(output.read_text())
+        self.assertFalse(result['complete']);self.assertLess(result['elapsedSeconds'],10)
+        self.assertEqual(result['statuses']['1']['ring_dropped'],1)
+        self.assertTrue(client.recording_stopped);self.assertEqual(client.unsubscribed,[3,2,1])
+        self.assertEqual(result['consumerGap'],0);self.assertIn('live',result)
+        return result
+
+    def test_board_loss_aborts_early_and_keeps_failed_recording_measurements(self):
+        result=self.run_loss_case()
+        self.assertEqual(result['independentFileValidation']['sha256'],'expected')
+        self.assertIn('disk',result);self.assertNotIn('cleanupError',result)
+
+    def test_bad_failed_recording_does_not_mask_the_original_loss(self):
+        result=self.run_loss_case(corrupt_recording=True)
+        self.assertIn('Probe data loss',result['failure'])
+        self.assertEqual(result['failedRecordingValidationError'],'Recording CRC mismatch')
 
 
 if __name__=='__main__':unittest.main()

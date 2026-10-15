@@ -4,36 +4,41 @@
 #include "rmlink_capture.h"
 uint64_t host_clock=1000000;
 static uint32_t ram[5120], reads, writes, commands;
+static uint32_t dp_select,ap_csw,select_writes,csw_writes;
 static uint32_t operation_us=20;
 static bool fail;
 static bool fail_after_write;
 uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
-    assert(r[0]==5 && r[3]==8 && r[8]==1);
+    assert(r[0]==5 && r[1]==0);
     commands++;
     host_clock+=operation_us;
     out[0]=5; out[1]=fail?0:r[2]; out[2]=fail?4:1;
-    if(fail) return 3;
+    if(fail) {dp_select=0x10;ap_csw=0;return 3;}
     unsigned pos=3,n=3;uint32_t address=0;
     for(unsigned i=0;i<r[2];i++) {
         uint8_t flags=r[pos++];uint32_t value;
         if(flags&2) {
-            assert(flags==15 && !(address&3));
+            assert(flags==15 && !(address&3) && dp_select==0 && ap_csw==0x23000052);
             uint32_t observed=0x30003;
             if(address!=0xe000edf0) {assert(address>=0x20000000 && address<0x20005000);observed=ram[(address-0x20000000)/4];}
             memcpy(out+n,&observed,4);n+=4;reads++;address=(address&~0x3ffu)|((address+4)&0x3ff);
         }else {
             memcpy(&value,r+pos,4);pos+=4;
-            if(flags==5)address=value;
-            else if(flags==13){assert(address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;
-                if(fail_after_write){out[1]=0;out[2]=4;return 3;}}
+            if(flags==8){dp_select=value;select_writes++;}
+            else if(flags==1){assert(dp_select==0);ap_csw=value;csw_writes++;}
+            else if(flags==5){assert(dp_select==0 && ap_csw==0x23000052);address=value;}
+            else if(flags==13){assert(dp_select==0 && ap_csw==0x23000052 && address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;
+                if(fail_after_write){dp_select=0x10;ap_csw=0;out[1]=0;out[2]=4;return 3;}}
+            else assert(false);
         }
     }
     return n;
 }
 static rmlink_owner_t owner={.transport=2,.session=7};
 static uint8_t out[512];
-static size_t command(uint8_t *r,size_t n) { return rmlink_capture_command(2,7,r,n,out,&owner); }
-static size_t usb_command(uint8_t *r,size_t n) {return rmlink_capture_command(1,7,r,n,out,&owner);}
+/* Mirror the fixed-core executor's conservative boundary for queued work. */
+static size_t command(uint8_t *r,size_t n) { rmlink_capture_invalidate_ap();return rmlink_capture_command(2,7,r,n,out,&owner); }
+static size_t usb_command(uint8_t *r,size_t n) {rmlink_capture_invalidate_ap();return rmlink_capture_command(1,7,r,n,out,&owner);}
 static void action(unsigned sub,unsigned sid) { uint8_t r[]={0x81,sub,sid}; command(r,3); assert(out[2]==0); }
 static void prepare_period(unsigned sid,unsigned kind,unsigned count,uint32_t period) {
     uint8_t r[17]={0x81,1,sid,kind,count}; memcpy(r+5,&period,4);
@@ -56,8 +61,46 @@ static size_t next_record(uint8_t *frame) {
     }
     assert(false);return 0;
 }
+static void memap_cache_test(void) {
+    prepare(1,1,10);
+    for(unsigned i=0;i<10;i++){address(1,i,0x20000000+i*8);ram[i*2]=0x123400+i;}
+    action(3,1);uint8_t frame[384];
+    unsigned sel=select_writes,csw=csw_writes,cmd=commands;
+    assert(next_record(frame)==96 && commands==cmd+2);
+    assert(select_writes==sel+1 && csw_writes==csw+1);
+    /* Each new frame reestablishes AP configuration and rereads every leaf. */
+    ram[0]++;host_clock+=2000;sel=select_writes;csw=csw_writes;unsigned before=reads;
+    assert(next_record(frame)==96 && reads==before+10);
+    assert(select_writes==sel+1 && csw_writes==csw+1);
+    uint32_t value;memcpy(&value,frame+56,4);assert(value==ram[0]);
+    /* A queued external access can change the bank and CSW arbitrarily. */
+    sel=select_writes;csw=csw_writes;
+    dp_select=0x10;ap_csw=0;rmlink_capture_invalidate_ap();host_clock+=2000;
+    assert(next_record(frame)==96 && select_writes==sel+1 && csw_writes==csw+1);
+    action(8,1);dp_select=0x20;ap_csw=0;action(9,1);host_clock+=2000;
+    sel=select_writes;assert(next_record(frame)==96 && select_writes==sel+1);
+    /* A possibly partial transfer invalidates configuration before recovery. */
+    fail=true;host_clock+=2000;assert(next_record(frame)==96 && frame[52]&1);
+    fail=false;uint8_t resume[]={0x81,6,1};
+    assert(rmlink_capture_command(2,7,resume,sizeof(resume),out,&owner)==3 && out[2]==0);
+    sel=select_writes;assert(next_record(frame)==96 && select_writes==sel+1 && frame[48]==255 && frame[49]==3);
+    rmlink_capture_closed(2,7);dp_select=0x30;ap_csw=0;
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);
+    sel=select_writes;assert(next_record(frame)==60 && select_writes==sel+1);
+    rmlink_capture_closed(2,7);
+    /* A queued command between two chunks of one frame must fence the cache,
+     * even when that command itself performs no target IO (heartbeat here). */
+    prepare(1,1,10);for(unsigned i=0;i<10;i++)address(1,i,0x20000000+i*8);action(3,1);
+    sel=select_writes;csw=csw_writes;
+    assert(rmlink_capture_run() && !rmlink_capture_take(frame,sizeof(frame),0));
+    dp_select=0x40;ap_csw=0;uint8_t heartbeat[]={0x81,12};
+    assert(command(heartbeat,sizeof(heartbeat))==3 && out[2]==0);
+    assert(next_record(frame)==96 && select_writes==sel+2 && csw_writes==csw+2);
+    rmlink_capture_closed(2,7);
+}
 int main(void) {
-    assert(rmlink_capture_init(NULL)==0);
+    assert(rmlink_capture_init(NULL)==0);memap_cache_test();
+    memset(ram,0,sizeof(ram));reads=0;writes=0;commands=0;
     uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};
     unsigned sync_reads=reads;owner.session=8;
     assert(command(sync,sizeof(sync))==27 && out[2]==0);
