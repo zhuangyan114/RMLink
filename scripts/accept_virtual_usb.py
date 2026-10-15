@@ -29,7 +29,7 @@ def wait_virtual_usb(timeout=30):
             time.sleep(.2)
 
 
-def program(openocd, serial, image, label, log_directory, clock=4000000):
+def program(openocd, serial, image, label, log_directory, clock=4000000,run_tag=''):
     command = [str(openocd), '-c', 'adapter driver cmsis-dap', '-c', 'cmsis-dap backend usb_bulk',
                '-c', 'adapter usb vid_pid 0x303a 0x1002', '-c', f'adapter serial {serial}',
                '-c', 'transport select swd', '-f', 'target/stm32f1x.cfg', '-c', f'adapter speed {clock // 1000}',
@@ -37,7 +37,8 @@ def program(openocd, serial, image, label, log_directory, clock=4000000):
     begin = time.perf_counter()
     done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
     text = done.stdout.decode('utf-8', errors='replace')
-    log = log_directory / f'accept-virtual-openocd-{label}.log'
+    prefix=run_tag+'-' if run_tag else ''
+    log = log_directory / f'{prefix}accept-virtual-openocd-{label}.log'
     log.write_text(text, encoding='utf-8')
     result = dict(exitCode=done.returncode, elapsedMs=round((time.perf_counter()-begin)*1000, 2),
                   verified='** Verified OK **' in text, log=str(log),
@@ -82,7 +83,7 @@ def main():
             report['optionBytesBefore'] = s.read_words(0x1ffff800, 4)
         print('Virtual USB: erase/program/verify/reset fixture', flush=True)
         modified = True
-        report['openocdProgram'] = program(args.openocd, serial, fixture_path, 'fixture', args.output.parent, args.clock)
+        report['openocdProgram'] = program(args.openocd, serial, fixture_path, 'fixture', args.output.parent, args.clock,args.output.stem)
         require(not report['openocdProgram']['errorLines'], 'OpenOCD reported errors')
         report['debug'] = {}
         with UsbClient(bcd_device=0x0100, serial=serial) as c:
@@ -95,7 +96,7 @@ def main():
         if modified:
             try:
                 if args.restore_original:
-                    report['restoreProgram'] = program(args.openocd, serial, backup_path, 'restore', args.output.parent, args.clock)
+                    report['restoreProgram'] = program(args.openocd, serial, backup_path, 'restore', args.output.parent, args.clock,args.output.stem)
                 with UsbClient(bcd_device=0x0100, serial=serial) as c, SwdSession(c, args.clock) as s:
                     data = main_flash(s)
                     expected = backup if args.restore_original else fixture

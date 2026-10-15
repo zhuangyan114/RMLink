@@ -17,6 +17,18 @@ class Client(ApiClient):
 
 
 class ClientLifecycleTests(unittest.TestCase):
+    def test_failed_close_clears_the_local_lease_without_replaying_a_request(self):
+        client=Client();original=client.request;deleted=[]
+        def request(method,path,body=None):
+            if method=='DELETE' and path=='/v1/sessions/1':
+                deleted.append(path);raise ConnectionError('lost session')
+            return original(method,path,body)
+        client.request=request;client.open('model')
+        with self.assertRaises(ConnectionError):client.close()
+        self.assertIsNone(client.session);self.assertEqual(deleted,['/v1/sessions/1'])
+        try:client.open('model');self.assertEqual(client.session,'2')
+        finally:client.close()
+
     def test_old_failed_heartbeat_cannot_stop_the_reopened_session(self):
         client=Client();client.open('model');old_thread=client._heartbeat
         try:

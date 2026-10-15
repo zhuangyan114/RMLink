@@ -2,6 +2,8 @@
 
 服务 0.2.3 的原始记录容器，供第三方工具离线解析。全部整数为小端；文件不是 Python pickle，不执行载入代码。公开 Python 读入器是 `host/rmlink_connector/recording_reader.py`，命令入口为 `scripts/inspect_recording.py`。
 
+0.2.5起，独立EXE也提供 `RMLinkConnector.exe inspect-recording FILE`，离线使用，无需服务或token。flush/fsync失败时录制器尽力截去已写尾部，状态finalized=false；若截断也失败则返回invalidation_error，此时分析必须保留运行时存储错误，不能只看旧尾部。
+
 | 顺序 | 字段 | 长度 |
 | --- | --- | --- |
 | 文件头 | ASCII `RMLR` | 4 B |

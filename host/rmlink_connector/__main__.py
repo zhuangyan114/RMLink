@@ -7,6 +7,7 @@ import os
 from .client import ApiClient
 from .service import Connector
 from .state import State
+from .recording_reader import inspect_recording
 
 
 async def serve(args):
@@ -36,9 +37,14 @@ def main():
     parser.add_argument('--state-dir')
     parser.add_argument('--api-port', type=int, default=3243)
     parser.add_argument('--usbip-port', type=int, default=3240)
-    parser.add_argument('command', choices=['serve', 'status', 'devices', 'pair', 'mount', 'unmount', 'stop'])
+    parser.add_argument('command', choices=['serve', 'status', 'devices', 'pair', 'mount', 'unmount', 'stop','inspect-recording'])
     parser.add_argument('device_id', nargs='?')
     args = parser.parse_args()
+    if args.command=='inspect-recording':
+        if not args.device_id:parser.error('inspect-recording requires a file path')
+        try:result=inspect_recording(args.device_id)
+        except (OSError,ValueError,KeyError) as error:parser.error(str(error))
+        print(json.dumps(result,ensure_ascii=False,indent=2));return
     if args.command == 'serve':
         try: asyncio.run(serve(args))
         except KeyboardInterrupt: pass

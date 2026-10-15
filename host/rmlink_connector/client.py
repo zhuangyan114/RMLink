@@ -109,6 +109,7 @@ class ApiClient:
         if hasattr(self,'_stream_cursor'):del self._stream_cursor
         if self._heartbeat: self._heartbeat.join(timeout=1)
         if self.session:
-            self.request('DELETE', f'/v1/sessions/{self.session}'); self.session = None
+            session=self.session;self.session=None
+            self.request('DELETE',f'/v1/sessions/{session}')
     def __enter__(self): return self
     def __exit__(self, *args): self.close()

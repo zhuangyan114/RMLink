@@ -6,6 +6,7 @@ uint64_t host_clock=1000000;
 static uint32_t ram[5120], reads, writes;
 static uint32_t operation_us=20;
 static bool fail;
+static bool fail_after_write;
 uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
     assert(r[0]==5 && r[3]==8 && r[8]==1);
     host_clock+=operation_us;
@@ -22,7 +23,8 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
         }else {
             memcpy(&value,r+pos,4);pos+=4;
             if(flags==5)address=value;
-            else if(flags==13){assert(address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;}
+            else if(flags==13){assert(address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;
+                if(fail_after_write){out[1]=0;out[2]=4;return 3;}}
         }
     }
     return n;
@@ -38,6 +40,13 @@ static void prepare(unsigned sid,unsigned kind,unsigned count) {
 }
 static void address(unsigned sid,unsigned index,uint32_t a) {
     uint8_t r[9]={0x81,2,sid,index,1}; memcpy(r+5,&a,4); command(r,9); assert(out[2]==0);
+}
+static size_t next_record(uint8_t *frame) {
+    for(unsigned i=0;i<32;i++) {
+        unsigned before=reads;if(!rmlink_capture_run())host_clock+=1000;assert(reads-before<=8);
+        size_t n=rmlink_capture_take(frame,384,0);if(n)return n;
+    }
+    assert(false);return 0;
 }
 int main(void) {
     assert(rmlink_capture_init(NULL)==0);
@@ -91,10 +100,32 @@ int main(void) {
     memcpy(ram,"SEGGER RTT",10); ram[4]=1; ram[5]=0;
     ram[7]=0x20000200; ram[8]=16; ram[9]=4; ram[10]=14;
     uint8_t *buffer=(uint8_t*)&ram[128]; for(unsigned i=0;i<16;i++) buffer[i]=i;
-    prepare(3,3,1); address(3,0,0x20000000); action(3,3); assert(rmlink_capture_run());
-    assert(ram[10]==4 && writes==1); assert(rmlink_capture_take(frame,sizeof(frame),0)==78);
+    prepare(3,3,1); address(3,0,0x20000000); action(3,3);
+    assert(next_record(frame)==78);assert(ram[10]==4 && writes==1);
     uint8_t expected[]={14,15,0,1,2,3}; assert(memcmp(frame+72,expected,6)==0);
     rmlink_capture_closed(2,7);
+    /* Timeline and a control barrier preempt a partially read RTT poll. The
+     * uncommitted poll restarts from its header and does not consume twice. */
+    ram[10]=14;prepare(3,3,1);address(3,0,0x20000000);action(3,3);
+    unsigned preempt_writes=writes;assert(rmlink_capture_run());
+    assert(writes==preempt_writes && !rmlink_capture_take(frame,sizeof(frame),0));
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);assert(rmlink_capture_run());
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==60 && frame[5]==1 && writes==preempt_writes);
+    action(4,1);action(8,3);assert(!rmlink_capture_run());action(9,3);
+    assert(next_record(frame)==78 && frame[5]==3 && writes==preempt_writes+1);
+    assert(memcmp(frame+72,expected,6)==0);rmlink_capture_closed(2,7);
+    /* A lost RdOff response can follow a completed physical write. Resume
+     * re-reads the descriptor and publishes once, with no second write. */
+    ram[10]=14;prepare(3,3,1);address(3,0,0x20000000);action(3,3);
+    unsigned before_writes=writes;fail_after_write=true;
+    for(unsigned i=0;i<16;i++) {
+        if(!rmlink_capture_run())break;
+        action(7,3);if(out[3]==3)break;
+    }
+    action(7,3);assert(out[3]==3 && out[50]==3 && ram[10]==4 && writes==before_writes+1);
+    assert(!rmlink_capture_take(frame,sizeof(frame),0));fail_after_write=false;action(6,3);
+    assert(next_record(frame)==78 && writes==before_writes+1);
+    assert(memcmp(frame+72,expected,6)==0);rmlink_capture_closed(2,7);
     uint8_t ticket[]={0x81,11}; command(ticket,2); assert(out[2]==0);
     uint8_t nonce[16]; memcpy(nonce,out+3,16); uint32_t generation;
     assert(rmlink_capture_bind(nonce,&generation)); assert(!rmlink_capture_bind(nonce,&generation));

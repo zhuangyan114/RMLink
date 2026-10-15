@@ -1,6 +1,6 @@
 # RMLink 公开连接组件 API v1.2（开发版）
 
-适用于固件/服务/SDK 0.2.3–0.2.4。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
+适用于固件/服务/SDK 0.2.3–0.2.5。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
 
 ## 接入与能力
 
@@ -96,6 +96,8 @@ timestamp表示探针单调时基，duration是采集跨度，变量不是原子
 严格模式遇到板端序号缺口、RTT 字节序号缺口、partial/预算超限样本即失败，暂停所选运行任务；写队列满、存储失败、采集流失败和会话关闭也明确失败，不自动补写或重放目标操作。文件 finalized=true 只表示容器完整结束；还须 phase=complete、error=null 才能作为成功录制。strict=false 保留带缺口/无效标记的实时数据，仍记录统计，存储异常仍失败。
 
 RMLR v1 文件保存配置、原始 RML1 帧与服务游标以及最终统计。`scripts/inspect_recording.py FILE` 流式检查长度、每帧 CRC、完整尾部及帧数，给出整个文件 SHA256。详见 [录制格式](recording-format.md)。当前录制窗口始于订阅已经启动之后，结束于停止入口前已被服务接收的记录；不保证订阅第一帧或停止时仍在网络/探针中的末尾数据。TCP 可靠传输不等于断电后完整录制，尚无应用确认、断线续传或文件分段轮转。
+
+0.2.5独立组件可直接运行 `RMLinkConnector.exe inspect-recording FILE` 离线校验，无需Python、token、在线服务或目标连接。磁盘flush/fsync失败会返回finalized=false并尽力移除完整尾部；截断也失败时附invalidation_error，不能据文件旧尾部忽略运行状态中的存储错误。
 
 ## SDK 与验证范围
 

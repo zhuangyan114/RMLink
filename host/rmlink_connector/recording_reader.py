@@ -16,7 +16,7 @@ def inspect_recording(path,on_frame=None):
         size=struct.unpack('<I',exact(4))[0]
         if not 1<=size<=65536:raise ValueError('Recording metadata bound')
         metadata=json.loads(exact(size))
-        if metadata.get('version')!=1:raise ValueError('Recording version')
+        if not isinstance(metadata,dict) or metadata.get('version')!=1:raise ValueError('Recording version')
         while True:
             cursor,size=struct.unpack('<QI',exact(12))
             if size==0:
@@ -24,7 +24,8 @@ def inspect_recording(path,on_frame=None):
                 if not 1<=length<=65536:raise ValueError('Recording footer bound')
                 footer=json.loads(exact(length))
                 if source.read(1):raise ValueError('Trailing recording data')
-                if footer['frames']!=count:raise ValueError('Recording count mismatch')
+                if not isinstance(footer,dict) or type(footer.get('frames')) is not int or footer['frames']!=count:
+                    raise ValueError('Recording count mismatch')
                 return {'metadata':metadata,'summary':footer,'frames':count,'sha256':digest.hexdigest()}
             if not 56<=size<=384:raise ValueError('Recording frame bound')
             frame=exact(size);sample=decode_record(frame);count+=1

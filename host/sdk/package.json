@@ -1,6 +1,6 @@
 {
   "name": "@rmlink/client",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Public RMLink connector SDK for target control and probe subscriptions",
   "type": "module",
   "main": "rmlink-client.mjs",

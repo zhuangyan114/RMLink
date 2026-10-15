@@ -16,7 +16,7 @@ class Recording:
         self.id=uuid.uuid4().hex;self.path=Path(directory)/(self.id+'.rmlrec')
         self.configs=json.loads(json.dumps(configs));self.on_failure=on_failure;self.strict=strict
         self.queue=asyncio.Queue(maxsize=queue_capacity);self.changed=asyncio.Event()
-        self.task=None;self.failure_task=None;self.file=None;self.accepting=False;self.stopping=False
+        self.task=None;self.failure_task=None;self.file=None;self.accepting=False;self.stopping=False;self.footer_offset=None
         self.last_sequence={};self.last_byte={};self.hash=hashlib.sha256()
         self.progress={'recording_id':self.id,'path':str(self.path),'strict':strict,'phase':'starting',
             'frames':0,'bytes':0,'gaps':0,'invalid_samples':0,'error':None,'finalized':False}
@@ -82,11 +82,15 @@ class Recording:
             self.progress['phase']='failed' if self.progress['error'] else 'complete'
             if self.failure_task:await self.failure_task
             summary=json.dumps(dict(self.status(),finalized=True,window_end='last_received_record'),separators=(',',':')).encode()
+            self.footer_offset=self.file.tell()
             await asyncio.to_thread(self.write,struct.pack('<QI',0,0)+struct.pack('<I',len(summary))+summary)
             await asyncio.to_thread(self.file.flush);await asyncio.to_thread(os.fsync,self.file.fileno())
             self.progress.update(finalized=True,sha256=self.hash.hexdigest())
         except Exception as error:
             self.fail('storage_error: '+str(error));self.progress.update(finalized=False,storage_error=str(error))
+            if self.footer_offset is not None:
+                try:await asyncio.to_thread(self.file.truncate,self.footer_offset)
+                except Exception as invalidation:self.progress['invalidation_error']=str(invalidation)
         finally:
             self.accepting=False;self.file.close()
 

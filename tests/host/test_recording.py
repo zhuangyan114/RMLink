@@ -1,6 +1,8 @@
 import asyncio
 import tempfile
 import unittest
+from unittest.mock import patch
+import struct
 from pathlib import Path
 from rmlink_connector.recording import Recording
 from rmlink_connector.recording_reader import inspect_recording
@@ -48,4 +50,19 @@ class RecordingTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):inspect_recording(path)
         payload=bytearray(data);offset=payload.index(b'RML1');payload[offset+56]^=1
         path=Path(self.temp.name)/'corrupt';path.write_bytes(payload)
+        with self.assertRaises(ValueError):inspect_recording(path)
+
+    async def test_fsync_failure_invalidates_the_previously_written_footer(self):
+        rec=Recording(self.temp.name,'model',self.config,self.pause);await rec.start();rec.offer(0,record(0))
+        with patch('rmlink_connector.recording.os.fsync',side_effect=OSError('flush failed')):
+            result=await rec.stop()
+        self.assertFalse(result['finalized']);self.assertIn('storage_error',result['error'])
+        with self.assertRaises(ValueError):inspect_recording(rec.path)
+
+    def test_non_object_json_metadata_and_footer_are_rejected(self):
+        path=Path(self.temp.name)/'invalid-json'
+        path.write_bytes(b'RMLR'+struct.pack('<I',2)+b'[]')
+        with self.assertRaises(ValueError):inspect_recording(path)
+        metadata=b'{"version":1}'
+        path.write_bytes(b'RMLR'+struct.pack('<I',len(metadata))+metadata+bytes(12)+struct.pack('<I',2)+b'[]')
         with self.assertRaises(ValueError):inspect_recording(path)

@@ -37,6 +37,8 @@ typedef struct {
     bool reused;
     bool strict_deadlines;
     uint32_t rtt_channel, rtt_bytes, rtt_pending_rd, rtt_old_rd;
+    uint32_t rtt_base,rtt_size,rtt_cursor;
+    uint8_t rtt_phase;
     uint32_t budget_overrun;
     uint8_t pending[256];
     bool rtt_pending;
@@ -262,39 +264,54 @@ static unsigned field(subscription_t *s,unsigned i,uint32_t *value) {
     if(width<4) *value&=(1u<<(width*8))-1;
     return 1;
 }
-static void rtt_run(subscription_t *s,unsigned id) {
+static bool rtt_run(subscription_t *s,unsigned id) {
     /* F103 32-bit RTT descriptor: name,buffer,size,WrOff,RdOff,flags. */
     uint32_t cb=s->address[0],desc=cb+24+s->rtt_channel*24;
     uint8_t header[24],d[24];
-    if(!bytes_read(cb,header,24) || memcmp(header,"SEGGER RTT",10) ||
-       u32(header+16)>16 || s->rtt_channel>=u32(header+16) || !bytes_read(desc,d,24)) goto fail;
-    uint32_t base=u32(d+4),size=u32(d+8),wr=u32(d+12),rd=u32(d+16);
-    if(size<2 || size>65536 || wr>=size || rd>=size || !memory(base,size,true)) goto fail;
-    if(s->rtt_pending) {
-        if(rd==s->rtt_pending_rd) goto publish;
-        if(rd!=s->rtt_old_rd) goto fail;
-        uint32_t wanted=s->rtt_pending_rd;
-        if(!word(desc+16,&wanted,true)) { s->state=3; s->reason=3; s->failures++; return; }
-        goto publish;
+    if(s->rtt_phase==0) {
+        if(!bytes_read(cb,header,24) || memcmp(header,"SEGGER RTT",10) ||
+           u32(header+16)>16 || s->rtt_channel>=u32(header+16))goto fail;
+        s->rtt_phase=1;return false;
     }
-    unsigned available=(wr+size-rd)%size;
-    if(!available) return;
-    unsigned n=available>64?64:available;
-    /* Reserve enough space before consuming target bytes. */
-    if(xRingbufferGetCurFreeSize(s_records[id-1])<RECORD_MAX+16) { s->dropped++; return; }
-    unsigned first=size-rd; if(first>n) first=n;
-    if(!bytes_read(base+rd,s->pending,first) ||
-       (n>first && !bytes_read(base,s->pending+first,n-first))) goto fail;
-    s->rtt_bytes=n; s->rtt_old_rd=rd; s->rtt_pending_rd=(rd+n)%size; s->rtt_pending=true;
+    if(s->rtt_phase==1) {
+        if(!bytes_read(desc,d,24))goto fail;
+        uint32_t base=u32(d+4),size=u32(d+8),wr=u32(d+12),rd=u32(d+16);
+        if(size<2 || size>65536 || wr>=size || rd>=size || !memory(base,size,true))goto fail;
+        if(s->rtt_pending) {
+            if(base!=s->rtt_base || size!=s->rtt_size)goto fail;
+            if(rd==s->rtt_pending_rd)goto publish;
+            if(rd!=s->rtt_old_rd)goto fail;
+            s->rtt_phase=3;return false;
+        }
+        unsigned available=(wr+size-rd)%size;
+        if(!available) {s->rtt_phase=0;return true;}
+        if(xRingbufferGetCurFreeSize(s_records[id-1])<RECORD_MAX+16) {s->dropped++;s->rtt_phase=0;return true;}
+        s->rtt_bytes=available>64?64:available;s->rtt_old_rd=rd;
+        s->rtt_pending_rd=(rd+s->rtt_bytes)%size;s->rtt_base=base;s->rtt_size=size;s->rtt_cursor=0;
+        s->rtt_phase=2;return false;
+    }
+    if(s->rtt_phase==2) {
+        /* Yield between bounded payload pieces so a due Timeline or control
+         * can run before the rest of this background RTT transaction. */
+        unsigned at=(s->rtt_old_rd+s->rtt_cursor)%s->rtt_size;
+        unsigned n=s->rtt_bytes-s->rtt_cursor;
+        if(n>16)n=16;
+        if(n>s->rtt_size-at)n=s->rtt_size-at;
+        if(!bytes_read(s->rtt_base+at,s->pending+s->rtt_cursor,n))goto fail;
+        s->rtt_cursor+=n;
+        if(s->rtt_cursor==s->rtt_bytes) {s->rtt_pending=true;s->rtt_phase=3;}
+        return false;
+    }
+    if(s->rtt_phase!=3)goto fail;
     uint32_t wanted=s->rtt_pending_rd;
-    if(!word(desc+16,&wanted,true)) { s->state=3; s->reason=3; s->failures++; return; }
+    if(!word(desc+16,&wanted,true))goto fail;
 publish:;
     uint8_t payload[80]; w32(payload,s->rtt_channel); w64(payload+4,s->frames);
     w32(payload+12,s->rtt_bytes); memcpy(payload+16,s->pending,s->rtt_bytes);
     emit(s,id,esp_timer_get_time(),0,payload,16+s->rtt_bytes,0,0);
-    s->frames+=s->rtt_bytes; s->seq++; s->rtt_pending=false; return;
+    s->frames+=s->rtt_bytes; s->seq++; s->rtt_pending=false;s->rtt_phase=0;return true;
 fail:
-    s->failures++; s->state=3; s->reason=3;
+    s->failures++; s->state=3; s->reason=3;s->rtt_phase=0;return true;
 }
 bool rmlink_capture_run(void) {
     if(!s_timer)return false;
@@ -315,7 +332,7 @@ bool rmlink_capture_run(void) {
             s->started=now; s->timestamp=now; s->reused=false; s->valid=0; memset(s->values,0,sizeof(s->values));
             s->cache_count=0;
         }
-        if(s->kind==3) { rtt_run(s,k+1); s->started=0; timer_refresh(); return true; }
+        if(s->kind==3) { if(rtt_run(s,k+1))s->started=0;timer_refresh();return true; }
         unsigned end=s->index+(s->kind==1?8:4); if(end>s->count) end=s->count;
         bool failed=false;
         uint64_t block_start=esp_timer_get_time();
@@ -355,7 +372,7 @@ static void pause_all(void) {
     for(unsigned i=0;i<SLOTS;i++) {
         subscription_t *s=&s_sub[i];
         if(s->started && s->kind!=3) sample_finish(s,i+1);
-        s->started=0;
+        s->started=0;s->rtt_phase=0;
     }
 }
 size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *r,
@@ -472,10 +489,10 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     case 5: /* PAUSE */
         if(!s->state) return 3;
         if(s->started && s->kind!=3) sample_finish(s,r[2]);
-        s->started=0; s->state=3; s->reason=r[1]==4?2:1; break;
+        s->started=0;s->rtt_phase=0; s->state=3; s->reason=r[1]==4?2:1; break;
     case 6: /* RESUME */
         if(s->state!=3) return 3;
-        s->state=2; s->reason=0; s->next=esp_timer_get_time(); atomic_store(&s_stream_failed,false); break;
+        s->state=2;s->rtt_phase=0; s->reason=0; s->next=esp_timer_get_time(); atomic_store(&s_stream_failed,false); break;
     case 7: /* STATS */
         out[2]=0; out[3]=s->state; out[4]=s->kind; out[5]=s->count;
         w32(out+6,s->capture); w32(out+10,s->seq); w64(out+14,s->frames);

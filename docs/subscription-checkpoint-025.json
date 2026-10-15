@@ -1,0 +1,465 @@
+{
+  "version": "0.2.5",
+  "requested_clock_hz": 4000000,
+  "actual_clock_measured": false,
+  "orbit_10_fields_watch_rtt_1khz": {
+    "rates": [
+      938.9821743863296,
+      940.2680320199325,
+      944.5352790796783,
+      944.4781049926097,
+      940.1017570223466
+    ],
+    "median_hz": 940.2680320199325,
+    "min_hz": 938.9821743863296,
+    "max_hz": 944.5352790796783,
+    "scope": "real Orbit child adapter, 10 discrete fields, Watch4, RTT and monitor; five runs of 5 seconds"
+  },
+  "recording": {
+    "capturedAt": "2026-10-15T11:28:02.535979+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "strictThreeSubscriptions": {
+      "recording": {
+        "recording_id": "50ae06443364496e83750d9af705f846",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\50ae06443364496e83750d9af705f846.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2043,
+        "bytes": 211620,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "c6da199876bd43e613a09c6432b79b114074f5d819659c2e766e3620f043cf49",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1013,
+        "2": 101,
+        "3": 929
+      },
+      "watchReusedFrames": 101,
+      "rttBytesVerified": 15696,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "strictOverload": {
+      "strictFailure": {
+        "recording_id": "49bfd609abe54886a136111fe8fab177",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\49bfd609abe54886a136111fe8fab177.rmlrec",
+        "strict": true,
+        "phase": "failed",
+        "frames": 0,
+        "bytes": 0,
+        "gaps": 0,
+        "invalid_samples": 1,
+        "error": "invalid_sample",
+        "finalized": true,
+        "sha256": "4295ac1b42e939236188300ef84a0b0b9d041f2698d9633152149a05e0d83ca0",
+        "queued_frames": 0
+      },
+      "pausedStatus": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 22,
+        "last_sequence": 639,
+        "completed": 152,
+        "deadline_missed": 487,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": "paused",
+        "budget_overrun": 152,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "realtimeReplacement": {
+        "recording_id": "748e610e4c7949899652bcd24047aa22",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\748e610e4c7949899652bcd24047aa22.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 607,
+        "bytes": 65556,
+        "gaps": 606,
+        "invalid_samples": 607,
+        "error": null,
+        "finalized": true,
+        "sha256": "8035df0015c8b8ad06b72d62e8dba4f3cbbfc1742cd4d447420194020cd612b7",
+        "queued_frames": 0
+      }
+    },
+    "pointerFields": {
+      "samples": 8,
+      "threeLevelPointer": true,
+      "widths": [
+        1,
+        2,
+        4
+      ],
+      "invalidFieldIsolated": true,
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 5,
+        "capture_id": 23,
+        "last_sequence": 8,
+        "completed": 8,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 8,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowConsumer": {
+      "recording": {
+        "recording_id": "2f69e316cb34434d84ef7b7462872305",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\2f69e316cb34434d84ef7b7462872305.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 10020,
+        "bytes": 721440,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "a75bcd33f59a61386d74ee3714dc0057b469df90a478fb282cb45e72f4c9196a",
+        "queued_frames": 0
+      },
+      "consumerGap": 5960,
+      "hostHistoryEvicted": 8882,
+      "status": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 1,
+        "capture_id": 24,
+        "last_sequence": 10106,
+        "completed": 10106,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 8940,
+        "host_dropped": 8940,
+        "stream_error": null
+      },
+      "recorderIndependentOfHistory": true
+    },
+    "stateAtEnd": {
+      "dhcsr": 16842753,
+      "state": "Running"
+    }
+  },
+  "wired": {
+    "capturedAt": "2026-10-15T11:28:24.979677+08:00",
+    "complete": true,
+    "transport": "native USB64",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "selection": {
+      "device_id": "50787d15a924",
+      "transport": "usb",
+      "connected": true,
+      "connection_error": null
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "coreState": {
+      "dhcsr": 16842753,
+      "state": "Running"
+    },
+    "threeSubscriptions": {
+      "recording": {
+        "recording_id": "81f93b7c52144893bcf854bcb9b8630b",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\81f93b7c52144893bcf854bcb9b8630b.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2027,
+        "bytes": 209988,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "69d20986824c6ed2b804d13a146f94a6ce2c8433d9b9ff0da1fd6f89f976b290",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1005,
+        "2": 100,
+        "3": 922
+      },
+      "watchReusedFrames": 100,
+      "rttBytesVerified": 15600,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "wifiRestored": {
+      "device_id": "50787d15a924",
+      "transport": "wifi",
+      "connected": true,
+      "connection_error": null
+    }
+  },
+  "network_fault": {
+    "capturedAt": "2026-10-15T11:29:23.800669+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "fault": "probe STA disconnect via native USB 80/05; PC hotspot stays on",
+    "oldSessionFailedMs": 2397.863199999847,
+    "failedRecording": {
+      "frames": 515,
+      "sha256": "cbb9fed2312fb495e1b9e764a4bff36f9bba4429cc68bbc3a8fe51450702dc08",
+      "summary": {
+        "recording_id": "f3c1e5f453744c1aa00bba7a01f7c285",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\f3c1e5f453744c1aa00bba7a01f7c285.rmlrec",
+        "strict": false,
+        "phase": "failed",
+        "frames": 515,
+        "bytes": 55620,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": "session_closed",
+        "finalized": true,
+        "pause_error": "Session/transport is closed",
+        "queued_frames": 0,
+        "window_end": "last_received_record"
+      }
+    },
+    "automaticRecoveryMs": 2942.0221999971545,
+    "targetCounterBeforeAfter": [
+      134348,
+      134763
+    ],
+    "newCaptureId": 29,
+    "oldLeaseTerminal": true,
+    "oldPlanNotReplayed": true,
+    "oldFileImmutableAfterRecovery": true,
+    "ownerAtEnd": null
+  },
+  "standard_virtual_usb": {
+    "capturedAt": "2026-10-15T11:32:49.119954+08:00",
+    "complete": true,
+    "transport": "Windows virtual USB -> loopback USB/IP -> WiFi TCP DAP",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "restoreRequested": false,
+    "virtualBcdDevice": "0x0100",
+    "physicalNrstTested": false,
+    "virtualSerial": "RM50787D15A924",
+    "device": {
+      "version": "0.2.5",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 2,
+      "ownerSession": 5,
+      "packetSize": 512
+    },
+    "cpuid": "0x411fc231",
+    "flashBeforeSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "optionBytesBefore": [
+      4294924965,
+      4294967295,
+      4294967295,
+      4294967295
+    ],
+    "openocdProgram": {
+      "exitCode": 0,
+      "elapsedMs": 7105.7,
+      "verified": true,
+      "log": "artifacts\\logs\\subscriptions-20261015\\accept-rtt-phases-025-accept-virtual-openocd-fixture.log",
+      "errorLines": []
+    },
+    "debug": {
+      "flashReadback": {
+        "bytes": 65536,
+        "sha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+        "elapsedMs": 1724.51
+      },
+      "haltRegisterRun": {
+        "counterBefore": 235,
+        "counterRunning": 240,
+        "counterHalted": 241,
+        "registersBefore": [
+          536870912,
+          15,
+          241,
+          428,
+          536871936,
+          536870912,
+          536871168,
+          536872448,
+          1380799060,
+          0,
+          536890980,
+          1182925824,
+          82,
+          536891328,
+          134218089,
+          134218192,
+          2164260864
+        ]
+      },
+      "ramWriteRead": {
+        "address": "0x20004000",
+        "bytes": 3072,
+        "crosses1KiBBoundaries": true
+      },
+      "hardwareBreakpointAndStep": {
+        "pc": "0x80000c2",
+        "dfsr": "0x2",
+        "pcAfterStep": "0x80000c4"
+      },
+      "softwareBreakpointAndStep": {
+        "pc": "0x20004000",
+        "register0AfterTwoSteps": 18
+      },
+      "nrstAndResetTarget": {
+        "tested": false,
+        "passed": null,
+        "reason": "User confirmed no spare NRST jumper; three-wire SWD acceptance uses SYSRESETREQ"
+      },
+      "softwareSystemReset": {
+        "passed": true
+      },
+      "dataWatchpoint": {
+        "dfsr": "0x4",
+        "pc": "0x8000168"
+      },
+      "faultRecovery": {
+        "faultResponse": "050204",
+        "recoveryCpuid": "0x411FC231"
+      },
+      "swdSequence": "1d00ff",
+      "swclkPinMonitor": {
+        "highAndLow": true
+      },
+      "asynchronousAbort": {
+        "actualResponse": "050011",
+        "elapsedMs": 98.1,
+        "hostDelayMs": 80
+      },
+      "boundedTransferDeadline": {
+        "elapsedMs": 1005.61,
+        "response": "050011"
+      },
+      "blockAbort": {
+        "requestedWords": 15,
+        "actualWords": 2,
+        "elapsedMs": 134.73,
+        "response": "060200017714a01b7714a01b"
+      },
+      "coreRunningAtEnd": true,
+      "ownerDuring": {
+        "version": "0.2.5",
+        "capabilities": 7,
+        "targetPinsConfirmed": true,
+        "ownerTransport": 2,
+        "ownerSession": 5,
+        "packetSize": 512
+      },
+      "ownerAfter": {
+        "version": "0.2.5",
+        "capabilities": 7,
+        "targetPinsConfirmed": true,
+        "ownerTransport": 0,
+        "ownerSession": 0,
+        "packetSize": 512
+      }
+    },
+    "finalFlashSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "optionBytesUnchanged": true,
+    "coreHaltedAtEnd": false,
+    "fixtureRetained": true,
+    "restored": false,
+    "finalStateVerified": true
+  },
+  "pyocd": {
+    "capturedAt": "2026-10-15T11:33:06.154698+08:00",
+    "complete": true,
+    "requestedSerial": "RM50787D15A924",
+    "pyocdVersion": "0.45.1",
+    "probeSerial": "RM50787D15A924",
+    "cpuid": "0x411fc231",
+    "pcWhileHalted": "0x80001da",
+    "haltReadRegisterResume": true
+  },
+  "firmware_receipt": {
+    "flashedAt": "2026-10-15T11:25:10.1594712+08:00",
+    "profile": "firmware-target-tcp512",
+    "port": "COM13",
+    "binarySha256": "2733F1B103519E32CE77C4E3D3808263C3F52ECA475EB49CB5FD977304FFA272",
+    "sdkconfigSha256": "7E5BE91FD22347151BAECFF1FB41AF7B8B6C4BF00B6CF10A1DE740D53AF9C4DC",
+    "targetGpioEnabled": true,
+    "tcpPacketSize": 512
+  },
+  "connector_sha256": "0825ebbfd646fb61c66fdfc4f6e2a4d32e4b11bd38c94a89946f0e399ab42d32",
+  "sources": [
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-rtt-phases-025-1.json",
+      "sha256": "354c45d344bbe13eecf173af4fa7e25961089db27da3f68e78332bfed8c47f27"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-rtt-phases-025-2.json",
+      "sha256": "22386ee89da0d9e71c70eeae9090af470254431a02e1a9cf15d6e8d490a9cbda"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-rtt-phases-025-3.json",
+      "sha256": "8e23bb58d55c323f37a280513c87d62afa53a6046a61f3807af5914b3125cc70"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-rtt-phases-025-4.json",
+      "sha256": "8062588aa091685d2613c70f5450552211794329f33fba1f1161e3f5f8d8c888"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-rtt-phases-025-5.json",
+      "sha256": "d865eb517c064538f246db6a01d8733d875e4c119e8f9d1f387c9425b0a50a06"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/recording-rtt-phases-025.json",
+      "sha256": "dade1ee0027935245ea9f2570ab0f1723bc1ab5b57bf3c917b634c1e418946d4"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/wired-rtt-phases-025.json",
+      "sha256": "42a402ed92e8e8f55bfbf6189b431b04ddba3efc7353a9b8e9e963bf79e8986d"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/capture-reconnect-025.json",
+      "sha256": "b0c3f59c3f39599ec0620366bb0a8f03c2e98ef12f0078b3f0e70248c5566585"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/accept-rtt-phases-025.json",
+      "sha256": "b577a7d6f60778b4cc1167cbb882bb8f6c2cf0edb4bce6625fe7bb7279289466"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/pyocd-rtt-phases-025.json",
+      "sha256": "83a3889d30713f810eabb6c427e871b88582c47e06631156b81e188e6b9149d2"
+    }
+  ],
+  "measured_connector_sha256": "093319d23c7ebdc9553b84bf95a5a69d0d7a1c81998d5a80b951988c0804bc00"
+}
