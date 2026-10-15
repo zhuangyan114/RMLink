@@ -61,9 +61,9 @@ class ApiClient:
 
     def target(self, command, **parameters):
         return self.request('POST', f'/v1/sessions/{self.session}/target', {'command':command,**parameters})
-    def flash_image(self,data,address=0x08000000):
+    def flash_image(self,data,address=0x08000000,backend='auto'):
         data=bytes(data);path=f'/v1/sessions/{self.session}/flash'
-        self.request('POST',path,{'action':'begin','address':address,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+        self.request('POST',path,{'action':'begin','address':address,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest(),'backend':backend})
         for offset in range(0,len(data),4096):self.request('POST',path,{'action':'chunk','offset':offset,'data':data[offset:offset+4096].hex()})
         return self.request('POST',path,{'action':'commit'})
     def subscribe(self, kind, **parameters):

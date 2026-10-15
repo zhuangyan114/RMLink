@@ -11,6 +11,8 @@ set(debug_probe_sources
     "debug_gpio.c"
     "rmlink_core.c"
     "rmlink_capture.c"
+    "rmlink_flash.c"
+    "rmlink_flash_port.c"
 )
 
 set(include_dirs
@@ -29,6 +31,7 @@ set(dependencies
     "hal"
     "util"
     "esp_ringbuf"
+    "mbedtls"
 )
 
 # Starting from esp-idf v5.3, the GPIO driver is moved to a separate component

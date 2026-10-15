@@ -18,7 +18,7 @@ from .usb_transport import UsbTransport
 from .usbip import UsbIpServer
 from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
-from .flash import FlashProgrammer
+from .flash import FlashProgrammer, FlashJobError
 from .clock_sync import ClockSync
 from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
@@ -199,6 +199,8 @@ class Connector:
                 return {'alive': True}
             if method == 'POST' and len(parts) == 5 and parts[4] == 'abort': return {'accepted': await broker.abort(sid)}
             if len(parts)>=5 and parts[4] in ('target','subscriptions','events','flash','recordings'):
+                if session.get('flash') and session['flash'].busy and parts[4]!='flash':
+                    raise ValueError('Flash operation owns the target; query Flash status or cancel')
                 if 'target' not in session:
                     session['target']=TargetEngine(broker,sid)
                     session['captures']=Subscriptions(session['target'])
@@ -216,12 +218,16 @@ class Connector:
                     if method=='GET':return dict(flash.progress,busy=flash.busy)
                     if method=='POST':
                         if body.get('action')=='cancel':
-                            flash.cancelled=True
-                            if not flash.busy:flash.progress['phase']='cancelled'
-                            return {'cancel_requested':True}
+                            return flash.cancel()
                         if body.get('action')=='commit':
-                            for sub in list(captures.configs):await captures.delete(sub)
-                            return await flash.commit()
+                            async def stop_captures():
+                                await captures.close()
+                                session['captures']=Subscriptions(target)
+                            try:return await flash.commit(before_commit=stop_captures)
+                            except Exception as error:
+                                if flash.progress['phase'] in ('failed','cancelled'):
+                                    raise FlashJobError(error,flash.progress) from error
+                                raise
                         return flash.stage(body)
                 if method=='POST' and len(parts)==5 and parts[4]=='target':
                     if body.get('command') in ('halt','step'):await captures.target_halted()
@@ -301,6 +307,10 @@ class Connector:
                     writer.close()
                     return
                 response = await self.route(method, path, body); code = 200
+        except FlashJobError as exc:
+            code,response=exc.status,{'error':str(exc)[:400],
+                'code':'FlashCancelled' if exc.progress['phase']=='cancelled' else 'FlashFailed',
+                'progress':exc.progress,'write_completion_may_be_unknown':exc.progress.get('write_completion_may_be_unknown',False)}
         except (ValueError, UnicodeError, json.JSONDecodeError, asyncio.LimitOverrunError):
             code, response = 400, {'error': 'invalid_request'}
         except asyncio.QueueFull: code, response = 429, {'error': 'request_queue_full'}

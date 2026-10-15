@@ -38,6 +38,7 @@ export class RMLinkClient {
     this.timer = null;
     this.packetSize = 64;
     this.streamCursor=null;
+    this.flashPending=false;
   }
   async request(method, path, body, timeoutMs = 30000) {
     const response = await fetch(this.base + path, {
@@ -107,14 +108,34 @@ export class RMLinkClient {
   async target(command, parameters = {}) {
     return this.request('POST', `/sessions/${this.session}/target`, {command, ...parameters});
   }
-  async flashImage(data, address = 0x08000000, signal) {
+  async flashImage(data, address = 0x08000000, signal, {backend = 'auto'} = {}) {
+    if (!this.session) throw new Error('RMLink owner lost or session closed');
+    if (this.flashPending) throw new Error('Flash upload already running');
     const image=Buffer.from(data), path=`/sessions/${this.session}/flash`;
-    const check=()=>{if(signal?.aborted)throw new Error('Flash cancelled');};
-    check();
-    await this.request('POST',path,{action:'begin',address,byte_length:image.length,sha256:createHash('sha256').update(image).digest('hex')});
-    for(let offset=0;offset<image.length;offset+=4096){check();await this.request('POST',path,{action:'chunk',offset,data:image.subarray(offset,offset+4096).toString('hex')});}
-    check();
-    return this.request('POST',path,{action:'commit'},180000);
+    let started=false,cancelRequest,cancelError;
+    const check=()=>{if(signal?.aborted){const error=new Error('Flash cancelled');error.name='AbortError';throw error;}};
+    const cancel=()=>{
+      if(started && !cancelRequest)cancelRequest=this.request('POST',path,{action:'cancel'}).catch(error=>{cancelError=error;});
+    };
+    this.flashPending=true;
+    signal?.addEventListener('abort',cancel,{once:true});
+    try {
+      check();started=true;
+      await this.request('POST',path,{action:'begin',address,byte_length:image.length,sha256:createHash('sha256').update(image).digest('hex'),backend});
+      for(let offset=0;offset<image.length;offset+=4096){check();await this.request('POST',path,{action:'chunk',offset,data:image.subarray(offset,offset+4096).toString('hex')});}
+      check();
+      // Keep the commit response alive: aborting fetch alone cannot stop the
+      // target. A separate cancel request asks the executor to stop safely.
+      return await this.request('POST',path,{action:'commit'},180000);
+    } catch(error) {
+      await cancelRequest;
+      if(cancelError)error.cancelRequestError=cancelError;
+      throw error;
+    } finally {
+      signal?.removeEventListener('abort',cancel);
+      // Finish this cancellation before another upload can replace its state.
+      await cancelRequest;this.flashPending=false;
+    }
   }
   async subscribe(kind, parameters = {}) {
     const result=await this.request('POST', `/sessions/${this.session}/subscriptions`, {kind, ...parameters});

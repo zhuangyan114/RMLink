@@ -8,6 +8,7 @@
 #include "sdkconfig.h"
 #endif
 #if CONFIG_DEBUG_PROBE_IFACE_SWD
+#include <stdlib.h>
 #include <string.h>
 #include <stdatomic.h>
 #ifndef RMLINK_HOST_TEST
@@ -17,6 +18,7 @@
 #include "esp_timer.h"
 #include "esp_random.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "DAP.h"
 #endif
 #include "rmlink_capture.h"
@@ -56,6 +58,11 @@ static esp_timer_handle_t s_timer;
 static uint64_t s_timer_due;
 static void (*s_wake)(void);
 static RingbufHandle_t s_records[SLOTS];
+#if CONFIG_SPIRAM && !defined(RMLINK_HOST_TEST)
+/* CPU-only record payload; the ring control, task stacks, SWD data and USB DMA
+ * remain internal. Stream/USB workers copy a record before sending it. */
+static StaticRingbuffer_t s_external_record_control;
+#endif
 static portMUX_TYPE s_stream_mux = portMUX_INITIALIZER_UNLOCKED;
 static uint8_t s_ticket[16];
 static uint32_t s_generation;
@@ -187,7 +194,17 @@ esp_err_t rmlink_capture_init(void (*wake)(void)) {
     s_wake=wake;
     const size_t sizes[SLOTS]={48*1024,4*1024,6*1024,6*1024};
     for(unsigned i=0;i<SLOTS;i++) {
-        s_records[i]=xRingbufferCreate(sizes[i],RINGBUF_TYPE_NOSPLIT);
+#if CONFIG_SPIRAM && !defined(RMLINK_HOST_TEST)
+        if(i==0) {
+            uint8_t *storage=heap_caps_malloc(sizes[i],MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+            if(storage) {
+                s_records[i]=xRingbufferCreateStatic(sizes[i],RINGBUF_TYPE_NOSPLIT,storage,&s_external_record_control);
+                if(!s_records[i])free(storage);
+                else ESP_LOGI("rmlink_capture","Timeline ring: %u bytes PSRAM",(unsigned)sizes[i]);
+            }
+        }
+#endif
+        if(!s_records[i])s_records[i]=xRingbufferCreate(sizes[i],RINGBUF_TYPE_NOSPLIT);
         if(!s_records[i]) return ESP_ERR_NO_MEM;
     }
     esp_timer_create_args_t args={.callback=timer_cb,.name="rmlink_capture",.skip_unhandled_events=true};
@@ -454,7 +471,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
-        w32(out+20,31); /* time sync, drop-old, USB pull, deadline policy, core state */
+        w32(out+20,63); /* plus bit5: buffered Flash protocol 0x82 */
         return 24;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED

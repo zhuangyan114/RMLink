@@ -79,6 +79,8 @@ DAP_Info、HostStatus 和设备 / 网络信息查询不占用目标。目标 GPI
 
 ## 临时 TCP 传输测试
 
+固件 0.2.12 新增 0x82 缓存烧录，见 [命令、状态和错误定义](buffered-flash-protocol.md)。增强服务的连续 read_memory 在每个包内独立配置 SELECT／CSW／TAR，并允许在 1 KiB 边界插入 TAR 重设；每个字恰读一次。上文 rmlink_swd.py 的 TransferBlock／跨包流水线计数与边界说明保留其原实现范围，不适用于新增高层连续读实现。
+
 默认诊断端口 3242，只有 USB 显式开启后监听，到期或命令关闭后停止，最多持续 300 秒。该服务与标准 DAP TCP 3241 分开，不占用目标会话。
 
 请求头共 16 字节：[RMB1 4 字节][mode LE32][size LE32][seed LE32]。mode=1 下，size 必须为 1..16 MiB，设备连续发送 size 字节，数据为 (字节偏移 + seed) & 255；mode=2 下，size 必须为 1..1024，头后跟 size 字节，设备原样回传。响应仅含数据，无额外帧头。无效请求关闭该 socket，部分读 / 写超时为 2 秒；主机测试明确区分直接 TCP 测试与 64 字节 DAP 的速率口径，见 transport-benchmark.md。

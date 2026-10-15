@@ -1,6 +1,6 @@
 # RMLink 公开连接组件 API v1.2（开发版）
 
-本文按服务／SDK 0.2.6 和固件候选 0.2.8 描述；较早固件的差异另行标注。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
+本文按服务／SDK 0.2.7 和固件候选 0.2.12 描述；较早固件的差异另行标注。新增 [ESP32 缓存烧录协议与验收](buffered-flash-protocol.md)，支持 backend 选择、进度、取消和断连清理。历史采样条件见 [采样性能记录](subscription-performance-20261015.md)。实际 SWCLK 与已安装 VS Code 界面仍需独立验证。
 
 ## 接入与能力
 

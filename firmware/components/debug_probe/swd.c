@@ -20,6 +20,7 @@
 #include "DAP_config.h"
 #include "DAP.h"
 #include "rmlink_capture.h"
+#include "rmlink_flash.h"
 
 typedef struct {
     uint32_t session;
@@ -69,13 +70,24 @@ static size_t process(const request_t *job, uint8_t *out)
 {
     const uint8_t *r = job->request;
     size_t capacity = job->transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
+    if (r[0] == 0x82) {
+        size_t n = rmlink_flash_command(job->transport, job->session, r, job->len, out,
+            capacity, &s_owner, rmlink_capture_raw_allowed());
+        if (job->len >= 2 && r[1] == 4 && n >= 3 && !out[2])
+            rmlink_capture_closed(job->transport, job->session);
+        return n;
+    }
+    /* A buffered operation owns the whole target transaction. Information and
+     * explicit disconnect remain available; raw IO/capture cannot interleave. */
+    if (rmlink_flash_busy() && r[0] != 0 && r[0] != 1 && r[0] != 3 && r[0] != 0x80)
+        return rmlink_dap_error(r[0], out);
     if (r[0] == 0x81)
         return rmlink_capture_command(job->transport, job->session, r, job->len, out, &s_owner);
     if (r[0] == 0x80) {
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 2; out[6] = 11; /* firmware 0.2.11: scoped MEM-AP setup reuse */
+            out[5] = 2; out[6] = 12; /* firmware 0.2.12: buffered Flash executor */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
             out[7] |= 6; /* TCP + USB provisioning */
@@ -101,6 +113,8 @@ static size_t process(const request_t *job, uint8_t *out)
     if (r[0] == 0x03) {
         if (!s_owner.session) { out[0] = 3; out[1] = 0; return 2; }
         if (!rmlink_owner_release(&s_owner, job->transport, job->session)) return rmlink_dap_error(3, out);
+        DAP_TransferBeginBounded(2000); /* permit bounded cleanup after an RX Abort */
+        rmlink_flash_closed(job->transport, job->session);
         rmlink_capture_closed(job->transport, job->session);
         return DAP_ProcessCommand(r, out) & 0xffff;
     }
@@ -138,7 +152,8 @@ static void swd_task(void *arg)
             DAP_TransferBegin();
             s_active = s_owner;
             portEXIT_CRITICAL(&s_active_mux);
-            bool sampled = rmlink_capture_run();
+            bool sampled = rmlink_flash_run();
+            if (!sampled) sampled = rmlink_capture_run();
             portENTER_CRITICAL(&s_active_mux);
             memset(&s_active, 0, sizeof(s_active));
             portEXIT_CRITICAL(&s_active_mux);
@@ -151,6 +166,8 @@ static void swd_task(void *arg)
         rmlink_capture_invalidate_ap();
         if (job.close) {
             rmlink_vendor_transport_closed(job.transport);
+            DAP_TransferBeginBounded(2000);
+            rmlink_flash_closed(job.transport, job.session);
             rmlink_capture_closed(job.transport, job.session);
             if (rmlink_owner_release(&s_owner, job.transport, job.session)) {
                 const uint8_t disconnect[] = {3};
@@ -163,7 +180,7 @@ static void swd_task(void *arg)
         bool stale = !session_live(&job);
         if (stale && !job.done) continue;
         /* A synchronous caller must always be released, including after USB reset. */
-        bool transfer = !stale && (job.request[0] == 5 || job.request[0] == 6 || job.request[0] == 0x81);
+        bool transfer = !stale && (job.request[0] == 5 || job.request[0] == 6 || job.request[0] == 0x81 || job.request[0] == 0x82);
         if (transfer) {
             portENTER_CRITICAL(&s_active_mux);
             DAP_TransferBegin();
@@ -201,6 +218,7 @@ esp_err_t debug_probe_init(void)
     s_requests = xQueueCreate(DAP_PACKET_COUNT, sizeof(request_t));
     s_usb_replies = xRingbufferCreate(1024, RINGBUF_TYPE_NOSPLIT);
     if (!s_requests || !s_usb_replies) return ESP_ERR_NO_MEM;
+    rmlink_flash_init_port();
     esp_err_t capture_result = rmlink_capture_init(capture_wake);
     if (capture_result != ESP_OK)
         ESP_LOGW("rmlink", "Capture unavailable: %s; standard DAP remains enabled", esp_err_to_name(capture_result));

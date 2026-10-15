@@ -1,0 +1,8 @@
+# Confirmed ESP32-S3 R8: octal 3.3V 8 MiB PSRAM. Keep normal malloc/internal
+# USB DMA buffers internal; only explicit capability allocations use PSRAM.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+CONFIG_SPIRAM_MEMTEST=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y

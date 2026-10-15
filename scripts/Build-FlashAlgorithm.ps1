@@ -9,3 +9,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Flash algorithm build failed' }
 & (Join-Path (Split-Path $Gcc -Parent) 'arm-none-eabi-objcopy.exe') -O binary (Join-Path $out 'stm32f103c8.elf') (Join-Path $out 'stm32f103c8.bin')
 if ($LASTEXITCODE -ne 0) { throw 'Flash algorithm export failed' }
 Get-FileHash -LiteralPath (Join-Path $out 'stm32f103c8.bin')
+& 'D:\ESP32\ESP32idf\Espressif\python_env\idf5.1_py3.11_env\Scripts\python.exe' (Join-Path $PSScriptRoot 'embed_flash_algorithm.py')
+if ($LASTEXITCODE -ne 0) { throw 'Flash algorithm embedding failed' }

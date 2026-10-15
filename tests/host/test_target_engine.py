@@ -5,7 +5,7 @@ from rmlink_connector.broker import Broker
 from rmlink_connector.target import TargetEngine,TargetAccessError
 
 class TargetModel:
-    def __init__(self,capacity):self.packet_size=capacity;self.memory={0xe000edf0:0x30000,0xe0002000:0x60,0xe000ed00:0x411fc231,0xe0042000:0x410};self.requests=[];self.fault=False;self.regs={};self.mask=0xffffffff;self.features=0
+    def __init__(self,capacity):self.packet_size=capacity;self.memory={0xe000edf0:0x30000,0xe0002000:0x60,0xe000ed00:0x411fc231,0xe0042000:0x410};self.requests=[];self.fault=False;self.regs={};self.mask=0xffffffff;self.features=0;self.csw=0
     async def connect(self):pass
     async def close(self):pass
     async def abort(self):pass
@@ -29,9 +29,11 @@ class TargetModel:
                     assert self.read(address)&self.mask==value
                 elif flags&2:
                     data.append(self.read(address) if flags==15 else 0xf0000040)
+                    if flags==15 and self.csw&0x30==0x10:address=(address&~0x3ff)|((address+4)&0x3ff)
                 else:
                     value=struct.unpack_from('<I',p,pos)[0];pos+=4
                     if flags==0x20:self.mask=value
+                    elif flags==1:self.csw=value
                     elif flags==5:address=value
                     elif flags==13:
                         self.memory[address]=value
@@ -39,7 +41,7 @@ class TargetModel:
                         if address==0xe000edf4:
                             if value&0x10000:self.regs[value&31]=self.memory[0xe000edf8]
                             else:self.memory[0xe000edf8]=self.regs.get(value,0x08000100+value*4)
-                        address+=4
+                        if self.csw&0x30==0x10:address=(address&~0x3ff)|((address+4)&0x3ff)
             out.append(bytes([5,p[2],1])+struct.pack('<'+'I'*len(data),*data))
         return out
 

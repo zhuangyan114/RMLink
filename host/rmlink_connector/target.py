@@ -19,8 +19,10 @@ class TargetEngine:
         self.clock=DEFAULT_CLOCK_HZ
         self.breakpoints={}
         self.capture_features=0
+        self.packet_count=0
 
     async def packet(self, request, priority='control'):
+        self.packet_count+=1
         return (await self.broker.submit(self.source,[request],priority))[0]
 
     async def exact(self, request, expected):
@@ -174,15 +176,25 @@ class TargetEngine:
 
     async def read_range(self,address,size):
         self.check_range(address,size)
-        data=bytearray()
-        words=list(range(address&~3,(address+size+3)&~3,4))
-        # Each packet establishes SELECT, CSW and every TAR independently.
-        count=min((self.broker.packet_size-13)//6,(self.broker.packet_size-3)//4)
-        for offset in range(0,len(words),count):
-            operations=[(8,0),(1,0x23000052)]
-            for a in words[offset:offset+count]:operations.extend([(5,a),(15,None)])
-            values=await self.transfer(operations)
+        data=bytearray();position=address&~3;end=(address+size+3)&~3
+        # One contiguous range reads each word exactly once. Every packet
+        # establishes SELECT/CSW/TAR and repairs TAR at each 1KiB wrap, including
+        # a boundary inside the packet. No AP state is inherited from a peer.
+        limit=min((self.broker.packet_size-3)//4,251)
+        while position<end:
+            count=min((end-position)//4,limit)
+            operations=[(8,0),(1,0x23000052),(5,position)]
+            for i in range(count):
+                if i and ((position+i*4)&0x3ff)==0:operations.append((5,position+i*4))
+                operations.append((15,None))
+            try:
+                values=await self.transfer(operations)
+            except TargetAccessError as error:
+                raw_done=len(data)+sum(bool(flags&2) for flags,_ in operations[:error.completed])*4
+                error.completed_bytes=min(size,max(0,raw_done-(address&3)))
+                raise
             data.extend(struct.pack('<'+'I'*len(values),*values))
+            position+=count*4
         return {'address':address,'data':bytes(data[address&3:(address&3)+size]).hex()}
 
     async def execute(self, command, body):

@@ -136,7 +136,7 @@ static bool network_current(unsigned generation)
     return atomic_load(&s_up) && generation == atomic_load(&s_network_generation);
 }
 
-static bool tcp_keepalive(int client)
+static bool tcp_configure_keepalive(int client)
 {
     /* Probe the TCP peer, without expiring healthy idle CMSIS-DAP sessions or
      * adding target commands. ESP-IDF 5.1 lwIP supports these seconds options. */
@@ -158,6 +158,7 @@ static void tcp_reply(void *arg, const uint8_t *data, size_t len)
     tcp_reply_t reply = { .len = len };
     memcpy(reply.data, data, len);
     if (xQueueSend(c->replies, &reply, pdMS_TO_TICKS(100)) != pdTRUE) {
+        ESP_LOGW("rmlink_wifi", "TCP reply queue timeout, response=%u", (unsigned)len);
         atomic_store(&c->closing, true);
         shutdown(c->fd, SHUT_RDWR); /* Never silently lose a reply and keep the stream alive. */
     }
@@ -173,6 +174,7 @@ static void tcp_send_task(void *arg)
         rmlink_tcp_header_encode(frame, reply.len);
         memcpy(frame + RMLINK_TCP_HEADER_SIZE, reply.data, reply.len);
         if (!send_exact(c->fd, frame, RMLINK_TCP_HEADER_SIZE + reply.len)) {
+            ESP_LOGW("rmlink_wifi", "TCP response send failed: errno=%d", errno);
             atomic_store(&c->closing, true); shutdown(c->fd, SHUT_RDWR);
         }
     }
@@ -203,7 +205,7 @@ static void tcp_task(void *arg)
             int client = accept(listener, NULL, NULL);
             if (client < 0) continue;
             if (!network_current(network_generation)) { close(client); break; }
-            if (!tcp_keepalive(client)) { close(client); continue; }
+            if (!tcp_configure_keepalive(client)) { close(client); continue; }
             if (++session == 0) ++session;
             struct timeval timeout = { .tv_sec = 2 };
             setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
@@ -220,6 +222,8 @@ static void tcp_task(void *arg)
                 close(client); continue;
             }
             rmlink_tcp_session_open(session);
+            unsigned received_requests=0;
+            const char *end_reason="network or sender closed";
             while (network_current(network_generation) && !atomic_load(&connection.closing)) {
                 FD_ZERO(&fds); FD_SET(client, &fds); poll = (struct timeval){ .tv_usec = 250000 };
                 int ready = select(client + 1, &fds, NULL, NULL, &poll);
@@ -227,11 +231,14 @@ static void tcp_task(void *arg)
                 if (ready == 0) continue;
                 uint8_t header[RMLINK_TCP_HEADER_SIZE], request[RMLINK_PACKET_SIZE];
                 size_t len = 0;
-                if (!recv_exact(client, header, sizeof(header)) || !rmlink_tcp_header_decode(header, &len)
-                    || !recv_exact(client, request, len)) break;
+                if (!recv_exact(client, header, sizeof(header))) {end_reason="header read";break;}
+                if (!rmlink_tcp_header_decode(header, &len)) {end_reason="invalid header";break;}
+                if (!recv_exact(client, request, len)) {end_reason="payload read";break;}
                 if (!network_current(network_generation) || atomic_load(&connection.closing)) break;
-                if (rmlink_submit_tcp(session, request, len, tcp_reply, &connection) != ESP_OK) break;
+                if (rmlink_submit_tcp(session, request, len, tcp_reply, &connection) != ESP_OK) {end_reason="executor submit";break;}
+                received_requests++;
             }
+            ESP_LOGI("rmlink_wifi", "TCP session end: %s, requests=%u errno=%d",end_reason,received_requests,errno);
             atomic_store(&connection.closing, true);
             shutdown(client, SHUT_RDWR);
             /* Invalidate/abort then drain the executor before freeing callback context. */

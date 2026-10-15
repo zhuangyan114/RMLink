@@ -1,12 +1,13 @@
 param([string]$Port = 'COM13', [switch]$TargetProfile, [switch]$TargetWiringConfirmed,
       [ValidateSet(64,128,256,512)][int]$TcpPacketSize = 64,
-      [ValidateSet(0,1)][int]$ExecutorCore = 0)
+      [ValidateSet(0,1)][int]$ExecutorCore = 0, [switch]$ImageCachePsram)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $buildName = if ($TargetProfile) { 'firmware-target' } else { 'firmware' }
 if ($TcpPacketSize -ne 64) { $buildName += "-tcp$TcpPacketSize" }
 if ($ExecutorCore -eq 0) { $buildName += '-core0' }
 else { $buildName += '-core1' }
+if ($ImageCachePsram) { $buildName += '-psram' }
 $build = Join-Path $root "artifacts\build\$buildName"
 $config = Get-Content -LiteralPath (Join-Path $build 'sdkconfig') -Raw
 $configuredCore = $null
@@ -34,6 +35,7 @@ if ($flashExit -eq 0) {
         tcpPacketSize = $TcpPacketSize
         requestedExecutorCore = $ExecutorCore
         configuredExecutorCore = $configuredCore
+        imageCachePsram = [bool]$ImageCachePsram
     }
     $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'artifacts\hardware\rmlink-last-flash.json') -Encoding utf8
 }
