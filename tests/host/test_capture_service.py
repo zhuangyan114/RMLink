@@ -201,4 +201,27 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(inspect_recording(status['path'])['sha256'],status['sha256'])
         self.assertEqual((await self.http('DELETE',root))[0],200)
 
+    async def test_delayed_storage_failure_cannot_pause_replacement_capture_or_start_a_new_recording(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]})
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        await self.http('POST',root+'/recordings',{})
+        captures=self.connector.sessions[session['session_id']]['captures'];rec=captures.recording
+        def full(data):raise OSError('disk full')
+        rec.write=full
+        await captures.target.lock.acquire()
+        try:
+            captures.accept_frames([record(10)])
+            await asyncio.wait_for(asyncio.shield(rec.task),1)
+            self.assertFalse(rec.progress['finalized'])
+            self.assertFalse(rec.failure_task.done())
+            with self.assertRaises(ValueError):await captures.start_recording(self.tmp.name,{})
+            before=len(self.probe.requests)
+            captures.configs[1]=dict(captures.configs[1],capture_id=8)
+        finally:captures.target.lock.release()
+        await rec.stop()
+        self.assertFalse(any(p[:2]==b'\x81\x05' for p in self.probe.requests[before:]))
+
 if __name__=='__main__':unittest.main()

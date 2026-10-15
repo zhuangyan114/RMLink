@@ -18,6 +18,7 @@ class TargetEngine:
         self.connected=False
         self.clock=DEFAULT_CLOCK_HZ
         self.breakpoints={}
+        self.capture_features=0
 
     async def packet(self, request, priority='control'):
         return (await self.broker.submit(self.source,[request],priority))[0]
@@ -64,6 +65,8 @@ class TargetEngine:
                 device_id=await self.read_word(0xe0042000)
                 if cpuid!=0x411fc231 or device_id&0xfff!=0x410:
                     raise ValueError('Enhanced profile currently supports STM32F103 medium-density Cortex-M3 only')
+                capabilities=await self.vendor(0)
+                self.capture_features=int.from_bytes(capabilities[17:21],'little') if len(capabilities)>=21 else 0
                 self.connected=True; self.clock=clock_hz
                 return {'connected':True,'clock_hz':clock_hz,'dp_idcode':dp,'cpuid':cpuid,'device_id':device_id,'profile':'stm32f103-medium-density'}
             except BaseException:
@@ -184,6 +187,13 @@ class TargetEngine:
 
     async def execute(self, command, body):
         if command=='connect': return await self.connect(body.get('clock_hz',DEFAULT_CLOCK_HZ))
+        if command=='state' and self.capture_features&16:
+            if not self.connected:raise ValueError('Connect the target first')
+            async with self.lock:reply=await self.packet(b'\x81\x11','background')
+            if len(reply)!=7 or reply[:3]!=b'\x81\x11\x00':
+                raise TargetAccessError('Core state read failed: '+reply.hex(),'DapStateReadFailed')
+            value=int.from_bytes(reply[3:7],'little')
+            return {'dhcsr':value,'state':'Halted' if value&0x20000 else 'Running'}
         async with self.control():
             if command=='read_memory':
                 address,size=body.get('address'),body.get('byte_length')

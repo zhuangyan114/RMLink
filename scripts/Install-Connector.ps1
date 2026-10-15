@@ -22,7 +22,7 @@ Get-ChildItem -LiteralPath $source -Filter '*.txt' | Copy-Item -Destination $tar
 $sdkSource = Join-Path $root 'artifacts\build\sdk'
 $sdkTarget = Join-Path $target 'sdk'
 New-Item -ItemType Directory -Force $sdkTarget | Out-Null
-foreach ($name in @('rmlink.dll','rmlink.h','librmlink.a','rmlink.def','rmlink-client-0.2.3.tgz')) {
+foreach ($name in @('rmlink.dll','rmlink.h','librmlink.a','rmlink.def','rmlink-client-0.2.4.tgz')) {
     $path = Join-Path $sdkSource $name
     if (Test-Path -LiteralPath $path) { Copy-Item -LiteralPath $path -Destination $sdkTarget }
 }

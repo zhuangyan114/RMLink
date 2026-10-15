@@ -372,7 +372,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
-        w32(out+20,15); /* time sync, drop-old, USB pull, deadline policy */
+        w32(out+20,31); /* time sync, drop-old, USB pull, deadline policy, core state */
         return 24;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
@@ -381,6 +381,13 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(!rmlink_owner_matches(owner,transport,session)) { out[2]=2; return 3; }
     if(s_session && (s_session!=session || s_transport!=transport)) { out[2]=2; return 3; }
     s_session=session; s_transport=transport; s_lease=esp_timer_get_time()+LEASE_US;
+    if(r[1]==17) {
+        /* A single independently addressed read on this same executor. State
+         * monitoring must not hold the sampling barrier across Wi-Fi RTTs. */
+        uint32_t dhcsr;
+        if(!word(0xe000edf0u,&dhcsr,false)) {out[2]=5;return 3;}
+        out[2]=0;w32(out+3,dhcsr);return 7;
+    }
     if(r[1]==16) { /* USB_PULL: frame_id32, offset16; duplicate reads are stable. */
         if(transport!=RMLINK_USB || len<8) {out[2]=2;return 3;}
         uint32_t id=u32(r+2);unsigned offset=r[6]|(unsigned)r[7]<<8;

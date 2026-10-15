@@ -19,6 +19,16 @@ from rmlink_usb import UsbClient
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def wait_virtual_usb(timeout=30):
+    # Broker TCP readiness precedes Windows UDE/WinUSB enumeration after a restart.
+    deadline=time.perf_counter()+timeout
+    while True:
+        try:return UsbClient(bcd_device=0x0100)
+        except (RuntimeError,OSError):
+            if time.perf_counter()>=deadline:raise
+            time.sleep(.2)
+
+
 def program(openocd, serial, image, label, log_directory, clock=4000000):
     command = [str(openocd), '-c', 'adapter driver cmsis-dap', '-c', 'cmsis-dap backend usb_bulk',
                '-c', 'adapter usb vid_pid 0x303a 0x1002', '-c', f'adapter serial {serial}',
@@ -62,7 +72,7 @@ def main():
                   virtualBcdDevice='0x0100', physicalNrstTested=False)
     modified = False
     try:
-        with UsbClient(bcd_device=0x0100) as c, SwdSession(c, args.clock) as s:
+        with wait_virtual_usb() as c, SwdSession(c, args.clock) as s:
             report['virtualSerial'] = serial = c.serial
             require(serial != '50787D15A924', 'Virtual serial must distinguish the physical USB device')
             report['device'] = status(c)

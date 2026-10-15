@@ -15,8 +15,10 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
     for(unsigned i=0;i<r[2];i++) {
         uint8_t flags=r[pos++];uint32_t value;
         if(flags&2) {
-            assert(flags==15 && address>=0x20000000 && address<0x20005000 && !(address&3));
-            memcpy(out+n,&ram[(address-0x20000000)/4],4);n+=4;reads++;address=(address&~0x3ffu)|((address+4)&0x3ff);
+            assert(flags==15 && !(address&3));
+            uint32_t observed=0x30003;
+            if(address!=0xe000edf0) {assert(address>=0x20000000 && address<0x20005000);observed=ram[(address-0x20000000)/4];}
+            memcpy(out+n,&observed,4);n+=4;reads++;address=(address&~0x3ffu)|((address+4)&0x3ff);
         }else {
             memcpy(&value,r+pos,4);pos+=4;
             if(flags==5)address=value;
@@ -51,6 +53,10 @@ int main(void) {
     uint8_t frame[384]; assert(rmlink_capture_take(frame,sizeof(frame),0)==64);
     assert(memcmp(frame,"RML1",4)==0 && frame[5]==1 && frame[48]==3);
     uint32_t v; memcpy(&v,frame+56,4); assert(v==ram[0]);
+    uint8_t state_query[]={0x81,17};unsigned state_reads=reads;
+    owner.session=8;assert(command(state_query,2)==3 && out[2]==2 && reads==state_reads);
+    owner.session=7;assert(command(state_query,2)==7 && out[2]==0);memcpy(&v,out+3,4);assert(v==0x30003);
+    assert(!rmlink_capture_raw_allowed()); /* no pause or partial-frame flush */
     action(8,1); assert(rmlink_capture_raw_allowed()); host_clock+=2000;
     assert(!rmlink_capture_run()); action(9,1); assert(rmlink_capture_run());
     assert(rmlink_capture_take(frame,sizeof(frame),0)==64); assert(frame[16]==2); /* one missed slot */

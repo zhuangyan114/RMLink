@@ -46,14 +46,15 @@ class ApiClient:
             raise RMLinkError(error.code,result) from error
 
     def open(self, device_id):
+        if self.session:raise RuntimeError('RMLink session already open')
         result = self.request('POST', '/v1/sessions', {'device_id': device_id})
         self.session = result['session_id']
         self.packet_size = result.get('packet_size', 64)
-        self._stop.clear()
+        self._stop=stop=threading.Event();session=self.session
         def heartbeat_loop():
-            while not self._stop.wait(5):
-                try: self.heartbeat()
-                except Exception: self._stop.set()
+            while not stop.wait(5):
+                try:self.request('POST',f'/v1/sessions/{session}/heartbeat')
+                except Exception:stop.set()
         self._heartbeat=threading.Thread(target=heartbeat_loop,daemon=True)
         self._heartbeat.start()
         return self

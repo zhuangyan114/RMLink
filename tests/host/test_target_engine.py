@@ -5,7 +5,7 @@ from rmlink_connector.broker import Broker
 from rmlink_connector.target import TargetEngine,TargetAccessError
 
 class TargetModel:
-    def __init__(self,capacity):self.packet_size=capacity;self.memory={0xe000edf0:0x30000,0xe0002000:0x60,0xe000ed00:0x411fc231,0xe0042000:0x410};self.requests=[];self.fault=False;self.regs={};self.mask=0xffffffff
+    def __init__(self,capacity):self.packet_size=capacity;self.memory={0xe000edf0:0x30000,0xe0002000:0x60,0xe000ed00:0x411fc231,0xe0042000:0x410};self.requests=[];self.fault=False;self.regs={};self.mask=0xffffffff;self.features=0
     async def connect(self):pass
     async def close(self):pass
     async def abort(self):pass
@@ -14,7 +14,11 @@ class TargetModel:
         out=[]
         for p in packets:
             self.requests.append(p)
-            if p[0]==0x81:out.append(bytes([0x81,p[1],0]));continue
+            if p[0]==0x81:
+                if p[1]==0:out.append(bytes([0x81,0,0])+bytes(17)+struct.pack('<I',self.features))
+                elif p[1]==17:out.append(b'\x81\x11\x05' if self.fault else b'\x81\x11\x00'+struct.pack('<I',self.memory[0xe000edf0]))
+                else:out.append(bytes([0x81,p[1],0]))
+                continue
             if p[0]!=5:out.append(bytes([p[0],1 if p[0]==2 else 0]));continue
             if self.fault:out.append(b'\x05\x00\x07');continue
             pos=3;address=None;data=[]
@@ -40,6 +44,16 @@ class TargetModel:
         return out
 
 class TargetEngineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_advertised_core_state_uses_one_owner_packet_without_sampling_barrier(self):
+        model=TargetModel(512);model.features=16;broker=Broker(model,'model');await broker.start()
+        engine=TargetEngine(broker,'owner')
+        try:
+            await engine.connect();before=len(model.requests)
+            self.assertEqual((await engine.execute('state',{}))['state'],'Halted')
+            self.assertEqual(model.requests[before:],[b'\x81\x11'])
+            model.fault=True
+            with self.assertRaises(TargetAccessError):await engine.execute('state',{})
+        finally:await broker.close()
     async def check_capacity(self,capacity):
         model=TargetModel(capacity);broker=Broker(model,'model');await broker.start()
         engine=TargetEngine(broker,'owner');await engine.connect()

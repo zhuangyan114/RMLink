@@ -1,6 +1,6 @@
 # 开发与验证进度
 
-最新状态（2026-10-15）：固件／服务／SDK 0.2.3。用户重新插紧接线后 STM32F103C8 恢复应答；请求 4 MHz 的虚拟 USB 完整烧录、调试、异常与取消验收通过，64 KiB 烧录／校验约 5.65 秒，新 fixture 保留。板端三订阅已有有效样本，10 离散字段五轮采样、ESP32 本地连续／离散吞吐和增强 Flash 实板对照已完成。增强 64 KiB 烧录经寄存器批量操作约 104.35 → 21.89 秒。最新结果见 [采样性能记录](subscription-performance-20261015.md)，代码和检查点见 [实施记录](subscriptions-implementation.md)。实际 SWCLK 与物理 NRST 未量测，已安装 VS Code 界面仍待验证。
+最新状态（2026-10-15）：固件／服务／SDK 0.2.4。用户重新插紧接线后 STM32F103C8 恢复应答；请求 4 MHz 的虚拟 USB 完整烧录、调试、异常与取消验收通过，最新64 KiB烧录／校验约5.51秒，新 fixture 保留。板端三订阅已有有效样本，10 离散字段五轮采样、ESP32 本地连续／离散吞吐和增强 Flash 实板对照已完成。增强 64 KiB 烧录经寄存器批量操作约 104.35 → 21.89 秒。最新结果见 [采样性能记录](subscription-performance-20261015.md)，代码和检查点见 [实施记录](subscriptions-implementation.md)。实际 SWCLK 与物理 NRST 未量测，已安装 VS Code 界面仍待验证。
 
 用户决定：默认请求 SWD 4000 kHz，标准 CMSIS-DAP 主线为虚拟 USB，STM32 测试后无需恢复旧程序；Watch、Timeline、RTT 全部板端订阅，优先提高 Timeline 采样率。已形成 [完整设计与 P0–P5 验收方案](subscription-design.md)，默认和恢复脚本已调整；下文历史测量和恢复记录保留原条件。
 

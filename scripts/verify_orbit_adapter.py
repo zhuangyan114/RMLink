@@ -8,10 +8,13 @@ import json
 from pathlib import Path
 import queue
 import subprocess
+import sys
 import threading
 import time
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'host'))
+from rmlink_connector.client import ApiClient
 
 
 class Adapter:
@@ -78,11 +81,21 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--worktree',type=Path,default=ROOT/'artifacts/worktrees/orbit-rmlink')
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--seconds',type=float,default=10)
+    p.add_argument('--period-us',type=int,default=2000)
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 2<=args.seconds<=300:p.error('seconds must be 2..300')
+    if not 200<=args.period_us<=10000000:p.error('period-us must be 200..10000000')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
         'scope':'real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded',
-        'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False}
+        'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False,'periodUs':args.period_us}
+    deadline=time.perf_counter()+30
+    while True:
+        try:
+            status=ApiClient().request('GET','/v1/status')
+            if any(d['device_id']==args.device_id and d['connected'] for d in status['devices']):break
+        except OSError:pass
+        if time.perf_counter()>deadline:raise ConnectionError('RMLink did not become ready in 30 seconds')
+        time.sleep(.2)
     adapter=Adapter(args.worktree)
     try:
         report['initialize']=adapter.request('initialize',{'adapterID':'ozone','clientID':'rmlink-acceptance','linesStartAt1':True})
@@ -94,7 +107,7 @@ def main():
         # Current Orbit planner supports scalar struct members, not 2D arrays.
         # The separate service benchmark uses all ten discrete capture words.
         expressions=['fixture_state.counter','fixture_state.boots','fixture_state.guard']
-        report['samplingStart']=adapter.request('dataSamplingStart',{'expressions':expressions,'sampleIntervalMs':2,'sendIntervalMs':16})
+        report['samplingStart']=adapter.request('dataSamplingStart',{'expressions':expressions,'sampleIntervalMs':args.period_us/1000,'sendIntervalMs':16})
         assert len(report['samplingStart']['activeExpressions'])==3,report['samplingStart']
         adapter.request('watchEvaluate',{'expressions':expressions[:4]});adapter.collect(args.seconds)
         report['watch']=adapter.request('watchEvaluate',{'expressions':expressions[:4]})

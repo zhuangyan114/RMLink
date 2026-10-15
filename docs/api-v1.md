@@ -1,6 +1,6 @@
 # RMLink 公开连接组件 API v1.2（开发版）
 
-适用于固件/服务/SDK 0.2.3。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
+适用于固件/服务/SDK 0.2.3–0.2.4。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
 
 ## 接入与能力
 
@@ -19,7 +19,7 @@
 | command | 参数 / 结果 |
 | --- | --- |
 | connect | 可选 clock_hz；返回 DP/CPUID/DEV_ID 和 profile，实际 SWCLK 尚未量测 |
-| state | 返回 dhcsr 与 Running/Halted |
+| state | 返回 dhcsr 与 Running/Halted；0.2.4协商能力后通过同一执行器的一次只读操作查询，不跨无线往返持有采样屏障；旧固件保持原路径 |
 | halt / run / step / reset | 有界状态确认；reset 为 SYSRESETREQ，物理 NRST 不在当前验收内 |
 | read_memory | address、byte_length，最多 4096 B；返回 data hex |
 | read_batch | reads 数组，1..32 个范围，总量最多 4096 B |
@@ -29,6 +29,8 @@
 | benchmark_local | address、stride、read_count≤10000、field_count≤32；ESP32 本地计时连续块/离散组读，最长约 500 ms |
 
 目标控制通过同一 owner 和控制屏障执行。halt/step 使 Timeline 暂停，run 只恢复由控制操作暂停的订阅；用户显式暂停不会自动恢复。复位和烧录先撤销所有旧订阅，重新配置地址/RTT 后才开始新的采集。
+
+0.2.4板端能力0x81/0的feature word bit4表示CORE_STATE（0x81/17）。它只读取DHCSR，要求匹配现有owner，不接受任意地址，也不创建第二执行器；成功返回command/sub/status+dhcsr32。STATE查询失败明确传播，不重放控制。服务连接时读取能力后选择此路径，标准CMSIS-DAP流量不插入该命令。
 
 ## Watch / Timeline / RTT 订阅
 

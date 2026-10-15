@@ -62,15 +62,18 @@ class Subscriptions:
             self.records.append((cursor,frame));self.next_sequence+=1
 
     async def start_recording(self,directory,body):
-        if self.recording and self.recording.task and not self.recording.task.done():raise ValueError('Recording already active or finalizing')
+        if self.recording and any(task and not task.done() for task in (self.recording.task,self.recording.failure_task)):
+            raise ValueError('Recording already active or finalizing')
         ids=body.get('subscription_ids',list(self.configs));strict=body.get('strict',True)
         if type(strict) is not bool or not isinstance(ids,list) or not ids or any(type(i) is not int or i not in self.configs for i in ids) or len(set(ids))!=len(ids):
             raise ValueError('Existing subscription_ids and boolean strict required')
         configs={i:self.configs[i] for i in ids}
         async def failed():
             for sid in ids:
-                if sid not in self.configs:continue
-                if (await self.action(sid,'status'))['state']==2:await self.action(sid,'pause')
+                async with self.target.lock:
+                    if self.configs.get(sid,{}).get('capture_id')!=configs[sid]['capture_id']:continue
+                    state=await self.target.vendor(7,bytes([sid]))
+                    if state[0]==2:await self.target.vendor(5,bytes([sid]))
         recording=Recording(directory,self.target.broker.device_id,configs,failed,strict)
         result=await recording.start();self.recording=recording;return result
 

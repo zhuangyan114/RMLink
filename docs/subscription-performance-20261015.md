@@ -1,5 +1,7 @@
 # 2026-10-15 实板采样与增强组件验收
 
+**最新版本为0.2.4，新增对照见文末。** 以下0.2.3测量保留原条件与身份。
+
 当前检查点为 0.2.3。用户重新插紧 SWD 线后，STM32F103C8 恢复应答；此前 NO_ACK 的失败日志保留。ESP32-S3 经电脑 2.4 GHz 热点通信，请求 SWD 4,000,000 Hz，实际 SWCLK 未用仪表量测。GPIO4→SWDIO、GPIO5→SWCLK，共地；没有实体 NRST 线。
 
 ## 条件与性能口径
@@ -64,3 +66,19 @@ STM32 保留同一份 64 KiB fixture，SHA256 `2a65c721fa1be9c4fcddba2a32bb96cca
 先构建并保留 `Build-Stm32Fixture.ps1` 的 fixture；目标可擦写的标准验收使用 `accept_virtual_usb.py --allow-target-write --clock 4000000`，默认不恢复旧 Flash。采样使用 `benchmark_subscriptions.py --seconds 5 --repetitions 5 --periods-us 2000 1000 200 --output FILE`；正确性/录制用 `verify_subscriptions.py`，控制和 C SDK 用 `verify_enhanced_target.py`，Orbit 子进程用 `verify_orbit_adapter.py`。各工具需依次占用同一物理目标。
 
 本地原始文件位于 `artifacts/logs/subscriptions-20261015/`：`subscriptions-{swd023,batch8}-five-runs.json`、`recording-target-023.json`、`controls-c-sdk-023.json`、`accept-4mhz-batch8.json`、`pyocd-batch8.json`、`orbit-adapter-scalars-023.json`、两份 enhanced-flash 对照。早期失败文件保留在同目录。该目录按仓库约定不提交，汇总与原始文件校验值进入本页 JSON。
+
+## 0.2.4：状态监控、持续录制与有线目标
+
+Orbit监控原来每次state查询都经过BEGIN/read/END控制屏障，采样在多个无线往返期间被阻挡。新增经能力协商的CORE_STATE只读命令，同一owner、同一SWD执行器内一次读取DHCSR；每个采样块仍独立建立DP/AP状态。旧固件保持原查询路径，halt/run/reset等控制继续使用屏障。未引入状态推测或第二条目标访问链。
+
+相同三标量+Watch+RTT+连接监控，五次各10秒的500 Hz请求实际为499.9796–500.0037 Hz，中位500.0001 Hz；相比0.2.3的单轮约457.57 Hz，消除了当时可见的监控干扰。另一次1 kHz请求实际996.52 Hz、每字段10016点；这一档仅一轮，不能作为五轮或长期承诺。新测量仍是实际Orbit调试适配器子进程，未覆盖用户已安装VS Code界面；也不能替换上文10字段基准。
+
+原生USB64三订阅严格录制10秒通过：2032帧、gaps=0、invalid_samples=0，15632 B RTT逐条校验；包含USB_PULL重组及实际核心状态查询，结束后恢复Wi-Fi512。当前有线结果是有效采样正确性验收，没有声称达到有线吞吐极限。
+
+无线60秒三订阅严格录制保存12065帧：Timeline6010、Watch601、RTT5454，gaps=0、invalid_samples=0，87328 B RTT校验通过。独立单字段1 kHz实时录制60秒保存60006帧，3次sequence缺口与板端deadline_missed=3一致，SWD失败和ring_dropped均0。该消费者落后窗口56035条，独立文件完整封存；实时模式允许有已标注缺口，不能说无损。
+
+最终服务还通过真实超载失败与恢复：10字段/200 us请求触发严格录制invalid_sample，文件封存为phase=failed、finalized=true，所选任务暂停；显式新建实时文件并resume后继续保存611帧，预算超限和跳号均如实保留。新增模型覆盖磁盘失败回调延迟时不能暂停同槽的新capture，也不能在失败收尾前启动另一录制；Python SDK重开会话时隔离旧心跳的迟到失败。主机69项、采集C模型与核心64/USB64边界检查通过。
+
+最终固件0.2.4+服务0.2.4再次通过虚拟USB完整验收：64 KiB擦除/编程/校验5512.83 ms，独立回读1282.76 ms、SHA一致，选项字节未变，新fixture保留、核心运行；pyOCD回归通过。服务重启后TCP就绪早于Windows虚拟设备枚举，验收脚本已增加最多30秒精确虚拟接口等待；首次过早访问的失败文件保留，没有改用原生USB代测。
+
+身份、上述原始证据SHA256及结构化结果另存 [0.2.4检查点](subscription-checkpoint-024.json)。60秒是持续性检查，不能替代数小时稳定性、真实热点掉线、完整掉电末尾处理、应用ACK或跨系统兼容验收。

@@ -81,6 +81,28 @@ def pointer_fields(client):
     finally:client.unsubscribe(1)
 
 
+def strict_overload(client):
+    client.subscribe('memory_series',addresses=[0x20000100+i*64 for i in range(10)],period_us=200)
+    recording=client.start_recording(strict=True)
+    try:
+        deadline=time.perf_counter()+5
+        while time.perf_counter()<deadline:
+            status=client.recording(recording['recording_id'])
+            if status['finalized']:break
+            time.sleep(.02)
+        probe=client.subscription(1)
+        require(status['phase']=='failed' and status['finalized'],'Strict overload was not sealed as failed')
+        require(status['error'] in ('sequence_gap','invalid_sample'),'Unexpected strict failure')
+        require(probe['state']==3 and probe['stop_reason']=='paused','Failed recording did not pause capture')
+        require(inspect_recording(status['path'])['summary']['phase']=='failed','Failed footer missing')
+        # Recovery is explicit, starts another file and never replays old reads.
+        replacement=client.start_recording(strict=False);client.subscription(1,'resume');time.sleep(.5)
+        replacement=client.recording(replacement['recording_id'],stop=True)
+        require(replacement['phase']=='complete' and replacement['frames']>0,'Explicit realtime restart failed')
+        return {'strictFailure':status,'pausedStatus':probe,'realtimeReplacement':replacement}
+    finally:client.unsubscribe(1)
+
+
 def slow_consumer(client,seconds):
     sub=client.subscribe('memory_series',addresses=[0x20000100],period_us=1000)
     recording=client.start_recording(strict=False)
@@ -112,6 +134,7 @@ def main():
             report['target']=client.target('connect')
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             report['strictThreeSubscriptions']=strict_recording(client,args.seconds)
+            report['strictOverload']=strict_overload(client)
             report['pointerFields']=pointer_fields(client)
             report['slowConsumer']=slow_consumer(client,args.seconds)
             report['stateAtEnd']=client.target('state')
