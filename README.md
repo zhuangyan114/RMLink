@@ -2,11 +2,11 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
-2026-10-15 最新实板检查点为 **0.2.6**：STM32F103C8 请求 SWD 4000 kHz 的虚拟 USB 完整烧录／调试、pyOCD、原生 USB 三订阅和 RTT 连续重建通过。指针依赖分批读取使共享三级链、末端连续十变量的一对短测由 498.51 提高到 958.04 Hz；最终五轮中位 958.62 Hz。十条独立四级链与 Watch／RTT 共存的十分钟测试为 232.36 Hz，不能套用共享连续布局的数字。重启后的网络恢复、一次 Orbit 子进程异常退出和控制长尾仍待处理，条件与证据见 [采样性能记录](docs/subscription-performance-20261015.md) 和 [检查点](docs/subscription-checkpoint-026.json)。实际 SWCLK 尚未仪表量测。
+2026-10-15 已封存开发包的实板基线为 **0.2.6**：STM32F103C8 请求 SWD 4000 kHz 的虚拟 USB 完整烧录／调试、pyOCD、原生 USB 三订阅和 RTT 连续重建通过。指针依赖分批读取使共享三级链、末端连续十变量的一对短测由 498.51 提高到 958.04 Hz；最终五轮中位 958.62 Hz。十条独立四级链与 Watch／RTT 共存的十分钟测试为 232.36 Hz，不能套用共享连续布局的数字。完整电脑重启后的网络恢复、一次 Orbit 子进程异常退出和控制长尾仍待验收，条件与证据见 [采样性能记录](docs/subscription-performance-20261015.md) 和 [检查点](docs/subscription-checkpoint-026.json)。实际 SWCLK 尚未仪表量测。
 
 标准 CMSIS-DAP 以虚拟 USB 为主入口，测试 STM32 默认保留新程序。完整架构、协议、调度和实施验收见 [订阅采集与 Orbit 接入方案](docs/subscription-design.md)；第三方接入见 [公开 API 与 SDK](docs/api-v1.md)。
 
-后续网络恢复候选固件 **0.2.7** 已刷入，服务／SDK 仍为 0.2.6：健康空闲 20 秒、五轮仅 STA 重连期间 USB 调试、连接服务恢复及标准接口回归通过。完整电脑重启／静默失联仍待验证，见 [网络恢复记录](docs/network-recovery-027.md)。已封存的 0.2.6 包不覆盖。
+当前固件候选 **0.2.8** 已刷入，服务／SDK 仍为 0.2.6：Watch 支持复用相同多重指针表达式，过期／暂停／控制屏障后自行读取，专项及标准接口回归通过，见 [指针复用记录](docs/pointer-watch-028.md)。继承的 TCP 保活和 STA generation 在 0.2.7 完成五轮仅 STA 重连、USB owner 保留与服务恢复检查，见 [网络恢复记录](docs/network-recovery-027.md)；完整电脑重启／静默失联仍待验证。已封存的 0.2.6 包不覆盖。
 
 连接组件按通用平台设计：虚拟 USB 驱动、用户态服务/目标引擎、公开 API 和 SDK 统一提供，第三方前端无需依赖 Orbit 即可接入；通用订阅与数据管理集中在组件中。
 

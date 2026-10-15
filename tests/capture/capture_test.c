@@ -35,18 +35,20 @@ static uint8_t out[512];
 static size_t command(uint8_t *r,size_t n) { return rmlink_capture_command(2,7,r,n,out,&owner); }
 static size_t usb_command(uint8_t *r,size_t n) {return rmlink_capture_command(1,7,r,n,out,&owner);}
 static void action(unsigned sub,unsigned sid) { uint8_t r[]={0x81,sub,sid}; command(r,3); assert(out[2]==0); }
-static void prepare(unsigned sid,unsigned kind,unsigned count) {
-    uint8_t r[17]={0x81,1,sid,kind,count}; uint32_t period=1000; memcpy(r+5,&period,4);
+static void prepare_period(unsigned sid,unsigned kind,unsigned count,uint32_t period) {
+    uint8_t r[17]={0x81,1,sid,kind,count}; memcpy(r+5,&period,4);
     command(r,sizeof(r)); assert(out[2]==0);
 }
+static void prepare(unsigned sid,unsigned kind,unsigned count) {prepare_period(sid,kind,count,1000);}
 static void address(unsigned sid,unsigned index,uint32_t a) {
     uint8_t r[9]={0x81,2,sid,index,1}; memcpy(r+5,&a,4); command(r,9); assert(out[2]==0);
 }
-static void pointer(unsigned field,unsigned depth,int32_t last_offset) {
-    uint8_t r[22]={0x81,15,1,field,depth,4};
+static void pointer_at(unsigned sid,unsigned field,unsigned depth,int32_t last_offset) {
+    uint8_t r[22]={0x81,15,sid,field,depth,4};
     assert(depth && depth<=4);memcpy(r+6+4*(depth-1),&last_offset,4);
     command(r,6+4*depth);assert(out[2]==0);
 }
+static void pointer(unsigned field,unsigned depth,int32_t last_offset) {pointer_at(1,field,depth,last_offset);}
 static size_t next_record(uint8_t *frame) {
     for(unsigned i=0;i<32;i++) {
         unsigned before=reads;if(!rmlink_capture_run())host_clock+=1000;assert(reads-before<=8);
@@ -146,6 +148,42 @@ int main(void) {
     assert(next_record(frame)==184 && reads==before+160 && commands-before_commands<=20);
     assert(frame[48]==255 && frame[49]==255 && frame[50]==255 && frame[51]==255 && frame[52]==0);
     for(unsigned i=0;i<32;i++){memcpy(&v,frame+56+i*4,4);assert(v==0x5000+i);}
+    rmlink_capture_closed(2,7);
+    /* Watch reuses an identical pointer expression without rereading its chain,
+     * but a faster Watch takes over when the Timeline result is too old. */
+    prepare_period(1,1,4,10000);ram[0]=0x20000004;ram[1]=0x20000008;ram[2]=0x20001000;
+    for(unsigned i=0;i<4;i++){address(1,i,0x20000000);pointer(i,3,i*4);ram[1024+i]=i+100;}
+    action(3,1);assert(next_record(frame)==72);uint64_t timeline_timestamp;memcpy(&timeline_timestamp,frame+36,8);
+    prepare(2,2,4);
+    for(unsigned i=0;i<4;i++){address(2,i,0x20000000);pointer_at(2,i,3,i*4);}
+    action(3,2);before=reads;assert(next_record(frame)==72 && reads==before && (frame[52]&4));
+    uint64_t watch_timestamp;memcpy(&watch_timestamp,frame+36,8);assert(watch_timestamp==timeline_timestamp);
+    for(unsigned i=0;i<4;i++){memcpy(&v,frame+56+i*4,4);assert(v==i+100);}
+    ram[0]=0x2000000c;ram[3]=0x20000010;ram[4]=0x20001100;
+    for(unsigned i=0;i<4;i++)ram[1088+i]=i+200;
+    host_clock+=1500;before=reads;assert(next_record(frame)==72 && reads==before+7 && !(frame[52]&4));
+    for(unsigned i=0;i<4;i++){memcpy(&v,frame+56+i*4,4);assert(v==i+200);}
+    rmlink_capture_closed(2,7);
+    /* A control barrier invalidates even a fresh completed Timeline result.
+     * A newly started Watch must observe writes before the next Timeline tick. */
+    prepare_period(1,1,4,10000);
+    for(unsigned i=0;i<4;i++){address(1,i,0x20000000);pointer(i,3,i*4);}
+    action(3,1);assert(next_record(frame)==72);action(8,1);ram[1088]=300;action(9,1);
+    prepare(2,2,1);address(2,0,0x20000000);pointer_at(2,0,3,0);action(3,2);
+    before=reads;assert(next_record(frame)==60 && reads==before+4 && !(frame[52]&4));
+    memcpy(&v,frame+56,4);assert(v==300);
+    /* Matching only the root would incorrectly reuse a different leaf. */
+    action(4,2);action(4,1);prepare_period(1,1,1,10000);address(1,0,0x20000000);pointer(0,3,0);action(3,1);
+    assert(next_record(frame)==60);
+    prepare(2,2,1);address(2,0,0x20000000);pointer_at(2,0,3,16);ram[1092]=444;action(3,2);
+    before=reads;assert(next_record(frame)==60 && reads==before+4 && !(frame[52]&4));memcpy(&v,frame+56,4);assert(v==444);
+    /* A byte load is not the same expression as a uint32 load at that root. */
+    action(4,2);prepare(2,2,1);address(2,0,0x20000000);
+    uint8_t byte_pointer[18]={0x81,15,2,0,3,1};command(byte_pointer,sizeof(byte_pointer));assert(out[2]==0);action(3,2);
+    before=reads;assert(next_record(frame)==60 && reads==before+4 && !(frame[52]&4));memcpy(&v,frame+56,4);assert(v==(300&255));
+    /* Paused Timeline cannot keep Watch pinned to its old pointer result. */
+    action(5,1);action(4,2);prepare(2,2,1);address(2,0,0x20000000);pointer_at(2,0,3,0);ram[1088]=555;action(3,2);
+    before=reads;assert(next_record(frame)==60 && reads==before+4 && !(frame[52]&4));memcpy(&v,frame+56,4);assert(v==555);
     rmlink_capture_closed(2,7);
     /* Normal STOP before the RdOff write leaves target data unconsumed. A
      * replacement must be allowed to read it once, without getting BUSY from

@@ -1,0 +1,2000 @@
+{
+  "generatedAt": "2026-10-15T19:56:12.439279+08:00",
+  "complete": true,
+  "firmwareVersion": "0.2.8",
+  "serviceVersion": "0.2.6",
+  "sdkVersion": "0.2.6",
+  "sourceParentCommit": "1fc221d8ab3fa1f90e11c6f806148a76fb55613b",
+  "sourceFilesSha256": {
+    "firmware/CMakeLists.txt": "a5396435403e104a258a8b6b58443dab750fd22d43923b19a63f766fd9185ed9",
+    "firmware/components/debug_probe/swd.c": "a2866a7771ac11639a9369d58a88d0185b13f683ee049464576b8d14c5baf2f0",
+    "firmware/components/debug_probe/rmlink_capture.c": "4da2288a31f8792397ccfa5ee8f298152cc678095fcc6da01e331de675a8425b",
+    "tests/capture/capture_test.c": "6e9e315e32898076d5bc778129aae6e1c3ee6717fa3c5c6bb25b9d1f07d57051",
+    "scripts/verify_pointer_watch.py": "72d35b850202199f4793c0bc11af1d495195d83332323d96ba4b62283947e399",
+    "scripts/inspect_fixture_recording.py": "8a44fad574d8bc7214078e0fa57f01c845a07ea17e5b7a395f369ab1fe86fdfc",
+    "scripts/verify_subscription_soak.py": "03d0806d20abc806e9f3eb7a9bf1bdf2e782ce142f31e0d56c5b9beafa19e291",
+    "scripts/verify_orbit_adapter.py": "166c0062b8da171256d3c29fcc3775f9ed8d74344a3b73ff4c4a3e6a4743f7ba",
+    "docs/api-v1.md": "cac7f42a93aa31bacb141dc2df24551957fac866890f60bafd5911fb4c15680c",
+    "docs/pointer-watch-028.md": "3eb85bb05b366e245d5686ac091e78bc167e5858b044a036aea9e24c6f66cfc7"
+  },
+  "flashReceipt": {
+    "flashedAt": "2026-10-15T19:39:53.4817636+08:00",
+    "profile": "firmware-target-tcp512-core0",
+    "port": "COM13",
+    "binarySha256": "8ACF0AA665CCB3553CE06802E1E88DB4C8B45B85CACC4D490AC75549076C62F2",
+    "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+    "targetGpioEnabled": true,
+    "tcpPacketSize": 512,
+    "requestedExecutorCore": 0,
+    "configuredExecutorCore": 0
+  },
+  "serviceExeSha256": "bc68689058779dfd6ea0c73818ce3556c51bbfdcb751d650e5e52e69aaa5214d",
+  "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+  "qualifiedPackage": {
+    "path": "artifacts/packages/RMLink-0.2.6-windows-x64-dev.zip",
+    "sha256": "69aab1c6822eaca8908960c5b06d4af35c6454da1855ea27b6933164f4950afb"
+  },
+  "hostTests": {
+    "passed": 79,
+    "modelPassed": true,
+    "oldImplementationRejected": {
+      "baseline": "1fc221d",
+      "expectedRejection": true,
+      "exitCode": 3
+    }
+  },
+  "pointerWatch": {
+    "capturedAt": "2026-10-15T19:40:40.437641+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureFlashRetained": true,
+    "pointerDepth": 3,
+    "leafStrideBytes": 64,
+    "secondsPerPhase": 2,
+    "scratchRam": [
+      536875008,
+      536879104
+    ],
+    "flashReceipt": {
+      "flashedAt": "2026-10-15T19:39:53.4817636+08:00",
+      "profile": "firmware-target-tcp512-core0",
+      "port": "COM13",
+      "binarySha256": "8ACF0AA665CCB3553CE06802E1E88DB4C8B45B85CACC4D490AC75549076C62F2",
+      "sdkconfigSha256": "0401E92008615BF8F8CA8E39649894F3BDA799504DE339207112F1BA566B2211",
+      "targetGpioEnabled": true,
+      "tcpPacketSize": 512,
+      "requestedExecutorCore": 0,
+      "configuredExecutorCore": 0
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "activeTimeline": {
+      "watchFrames": 20,
+      "reusedFrames": 20,
+      "ownReadFrames": 0,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "reused": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 2,
+          "revision": 1,
+          "sequence": 0,
+          "timestamp_us": 47768308,
+          "duration_us": 730,
+          "valid_bitmap": 15,
+          "flags": 4,
+          "values": [
+            23707,
+            16800923,
+            33578139,
+            50355355
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 1,
+        "last_sequence": 1067,
+        "completed": 1067,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 2,
+        "last_sequence": 21,
+        "completed": 21,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "pausedAndRetargeted": {
+      "watchFrames": 21,
+      "reusedFrames": 0,
+      "ownReadFrames": 21,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "ownRead": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 2,
+          "revision": 1,
+          "sequence": 22,
+          "timestamp_us": 49968457,
+          "duration_us": 658,
+          "valid_bitmap": 15,
+          "flags": 0,
+          "values": [
+            16801123,
+            33578339,
+            50355555,
+            67132771
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 1,
+        "last_sequence": 1086,
+        "completed": 1086,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": "paused",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 2,
+        "last_sequence": 43,
+        "completed": 43,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "resumedTimeline": {
+      "watchFrames": 21,
+      "reusedFrames": 20,
+      "ownReadFrames": 1,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "ownRead": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 2,
+          "revision": 1,
+          "sequence": 43,
+          "timestamp_us": 52068460,
+          "duration_us": 657,
+          "valid_bitmap": 15,
+          "flags": 0,
+          "values": [
+            16801314,
+            33578530,
+            50355746,
+            67132962
+          ]
+        },
+        "reused": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 2,
+          "revision": 1,
+          "sequence": 44,
+          "timestamp_us": 52168270,
+          "duration_us": 784,
+          "valid_bitmap": 15,
+          "flags": 4,
+          "values": [
+            16801323,
+            33578539,
+            50355755,
+            67132971
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 1,
+        "last_sequence": 2099,
+        "completed": 2099,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 2,
+        "last_sequence": 64,
+        "completed": 64,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowTimelineFreshness": {
+      "watchFrames": 201,
+      "reusedFrames": 20,
+      "ownReadFrames": 181,
+      "consumerGap": 0,
+      "sequenceGaps": 0,
+      "examples": {
+        "ownRead": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 4,
+          "revision": 1,
+          "sequence": 0,
+          "timestamp_us": 54511898,
+          "duration_us": 823,
+          "valid_bitmap": 15,
+          "flags": 0,
+          "values": [
+            24320,
+            16801536,
+            33578752,
+            50355968
+          ]
+        },
+        "reused": {
+          "subscription_id": 2,
+          "kind": 2,
+          "capture_id": 4,
+          "revision": 1,
+          "sequence": 3,
+          "timestamp_us": 54536488,
+          "duration_us": 5386,
+          "valid_bitmap": 15,
+          "flags": 4,
+          "values": [
+            24323,
+            16801539,
+            33578755,
+            50355971
+          ]
+        }
+      },
+      "timelineStatus": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 4,
+        "capture_id": 3,
+        "last_sequence": 22,
+        "completed": 22,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "watchStatus": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 4,
+        "last_sequence": 209,
+        "completed": 209,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "finalCoreState": {
+      "dhcsr": 50397184,
+      "state": "Running"
+    }
+  },
+  "virtualUsb": {
+    "capturedAt": "2026-10-15T19:41:20.308352+08:00",
+    "complete": true,
+    "transport": "Windows virtual USB -> loopback USB/IP -> WiFi TCP DAP",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "restoreRequested": false,
+    "virtualBcdDevice": "0x0100",
+    "physicalNrstTested": false,
+    "virtualSerial": "RM50787D15A924",
+    "device": {
+      "version": "0.2.8",
+      "capabilities": 7,
+      "targetPinsConfirmed": true,
+      "ownerTransport": 2,
+      "ownerSession": 3,
+      "packetSize": 512
+    },
+    "cpuid": "0x411fc231",
+    "flashBeforeSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "optionBytesBefore": [
+      4294924965,
+      4294967295,
+      4294967295,
+      4294967295
+    ],
+    "openocdProgram": {
+      "exitCode": 0,
+      "elapsedMs": 5379.14,
+      "verified": true,
+      "log": "artifacts\\logs\\accept-pointer-watch-028-accept-virtual-openocd-fixture.log",
+      "errorLines": []
+    },
+    "debug": {
+      "flashReadback": {
+        "bytes": 65536,
+        "sha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+        "elapsedMs": 1168.29
+      },
+      "haltRegisterRun": {
+        "counterBefore": 143,
+        "counterRunning": 152,
+        "counterHalted": 156,
+        "registersBefore": [
+          536870912,
+          15,
+          156,
+          6653,
+          536871936,
+          536870912,
+          536871168,
+          536872448,
+          1380799060,
+          0,
+          3724538879,
+          4139474767,
+          82,
+          536891328,
+          134218089,
+          134218198,
+          2164260864
+        ]
+      },
+      "ramWriteRead": {
+        "address": "0x20004000",
+        "bytes": 3072,
+        "crosses1KiBBoundaries": true
+      },
+      "hardwareBreakpointAndStep": {
+        "pc": "0x80000c2",
+        "dfsr": "0x2",
+        "pcAfterStep": "0x80000c4"
+      },
+      "softwareBreakpointAndStep": {
+        "pc": "0x20004000",
+        "register0AfterTwoSteps": 18
+      },
+      "nrstAndResetTarget": {
+        "tested": false,
+        "passed": null,
+        "reason": "User confirmed no spare NRST jumper; three-wire SWD acceptance uses SYSRESETREQ"
+      },
+      "softwareSystemReset": {
+        "passed": true
+      },
+      "dataWatchpoint": {
+        "dfsr": "0x4",
+        "pc": "0x8000168"
+      },
+      "faultRecovery": {
+        "faultResponse": "050204",
+        "recoveryCpuid": "0x411FC231"
+      },
+      "swdSequence": "1d00ff",
+      "swclkPinMonitor": {
+        "highAndLow": true
+      },
+      "asynchronousAbort": {
+        "actualResponse": "050011",
+        "elapsedMs": 84.56,
+        "hostDelayMs": 80
+      },
+      "boundedTransferDeadline": {
+        "elapsedMs": 1002.95,
+        "response": "050011"
+      },
+      "blockAbort": {
+        "requestedWords": 15,
+        "actualWords": 2,
+        "elapsedMs": 178.95,
+        "response": "060200017714a01b7714a01b"
+      },
+      "coreRunningAtEnd": true,
+      "ownerDuring": {
+        "version": "0.2.8",
+        "capabilities": 7,
+        "targetPinsConfirmed": true,
+        "ownerTransport": 2,
+        "ownerSession": 3,
+        "packetSize": 512
+      },
+      "ownerAfter": {
+        "version": "0.2.8",
+        "capabilities": 7,
+        "targetPinsConfirmed": true,
+        "ownerTransport": 0,
+        "ownerSession": 0,
+        "packetSize": 512
+      }
+    },
+    "finalFlashSha256": "2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4",
+    "optionBytesUnchanged": true,
+    "coreHaltedAtEnd": false,
+    "fixtureRetained": true,
+    "restored": false,
+    "finalStateVerified": true
+  },
+  "pyocd": {
+    "capturedAt": "2026-10-15T19:41:33.652327+08:00",
+    "complete": true,
+    "requestedSerial": "RM50787D15A924",
+    "pyocdVersion": "0.45.1",
+    "probeSerial": "RM50787D15A924",
+    "cpuid": "0x411fc231",
+    "pcWhileHalted": "0x80001d2",
+    "haltReadRegisterResume": true
+  },
+  "wirelessSubscriptions": {
+    "capturedAt": "2026-10-15T19:41:34.755760+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "strictThreeSubscriptions": {
+      "recording": {
+        "recording_id": "17004dc0f6a34dc880452ac518ed95e4",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\17004dc0f6a34dc880452ac518ed95e4.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2044,
+        "bytes": 211536,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "9603b4ae8adc7cd3bd8c8489d6512f47a73f706039f3c12674d4f3c1e99241b6",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1014,
+        "2": 102,
+        "3": 928
+      },
+      "watchReusedFrames": 102,
+      "rttBytesVerified": 15504,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "strictOverload": {
+      "strictFailure": {
+        "recording_id": "a497a17fb8614c46bb67a55ff246ba64",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\a497a17fb8614c46bb67a55ff246ba64.rmlrec",
+        "strict": true,
+        "phase": "failed",
+        "frames": 0,
+        "bytes": 0,
+        "gaps": 0,
+        "invalid_samples": 1,
+        "error": "invalid_sample",
+        "finalized": true,
+        "sha256": "ea61449c24a6a386fadb74fc3423395b1e534109e629e967d533c7fe7828e7f0",
+        "queued_frames": 0
+      },
+      "pausedStatus": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 8,
+        "last_sequence": 333,
+        "completed": 78,
+        "deadline_missed": 255,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": "paused",
+        "budget_overrun": 77,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      },
+      "realtimeReplacement": {
+        "recording_id": "c4129e780c864c59a28b70310302f670",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\c4129e780c864c59a28b70310302f670.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 553,
+        "bytes": 59724,
+        "gaps": 552,
+        "invalid_samples": 553,
+        "error": null,
+        "finalized": true,
+        "sha256": "686f1e38fb858283af0eb6d33124dcc62342f5dfdd67caab09eb0df48cb9400f",
+        "queued_frames": 0
+      }
+    },
+    "pointerFields": {
+      "samples": 8,
+      "threeLevelPointer": true,
+      "widths": [
+        1,
+        2,
+        4
+      ],
+      "invalidFieldIsolated": true,
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 5,
+        "capture_id": 9,
+        "last_sequence": 8,
+        "completed": 8,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 8,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 0,
+        "host_dropped": 0,
+        "stream_error": null
+      }
+    },
+    "slowConsumer": {
+      "recording": {
+        "recording_id": "8c3e6aa71fac44e487401e5455d33621",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\8c3e6aa71fac44e487401e5455d33621.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 10020,
+        "bytes": 721440,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "2d891e58ebaf4cc991a975f82cf866ef9321429435170bf2d95a8258b6be5298",
+        "queued_frames": 0
+      },
+      "consumerGap": 5972,
+      "hostHistoryEvicted": 8749,
+      "status": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 1,
+        "capture_id": 10,
+        "last_sequence": 10122,
+        "completed": 10122,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 8800,
+        "host_dropped": 8800,
+        "stream_error": null
+      },
+      "recorderIndependentOfHistory": true
+    },
+    "rttReconfiguration": {
+      "replacements": 50,
+      "rttFramesChecked": 167,
+      "rttBytesChecked": 4896,
+      "timelineAndWatchStayedActive": true,
+      "statuses": {
+        "1": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 11,
+          "last_sequence": 3277,
+          "completed": 3277,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 12624,
+          "host_dropped": 12624,
+          "stream_error": null
+        },
+        "2": {
+          "state": 2,
+          "kind": 2,
+          "field_count": 4,
+          "capture_id": 12,
+          "last_sequence": 65,
+          "completed": 65,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 12629,
+          "host_dropped": 12629,
+          "stream_error": null
+        }
+      }
+    },
+    "stateAtEnd": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    }
+  },
+  "wiredSubscriptions": {
+    "capturedAt": "2026-10-15T19:42:03.579504+08:00",
+    "complete": true,
+    "transport": "native USB64",
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "selection": {
+      "device_id": "50787d15a924",
+      "transport": "usb",
+      "connected": true,
+      "connection_error": null
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "coreState": {
+      "dhcsr": 16842752,
+      "state": "Running"
+    },
+    "threeSubscriptions": {
+      "recording": {
+        "recording_id": "37954b7da650453e9c52ff441b7ba46c",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\37954b7da650453e9c52ff441b7ba46c.rmlrec",
+        "strict": true,
+        "phase": "complete",
+        "frames": 2026,
+        "bytes": 209792,
+        "gaps": 0,
+        "invalid_samples": 0,
+        "error": null,
+        "finalized": true,
+        "sha256": "0997371f8ae09b7e7bbfe22fff86760e8fd1ad29f8e3c863c8e9f408ee8cd2b5",
+        "queued_frames": 0
+      },
+      "counts": {
+        "1": 1005,
+        "2": 100,
+        "3": 921
+      },
+      "watchReusedFrames": 100,
+      "rttBytesVerified": 15488,
+      "withoutUiEventPolling": true,
+      "independentHashAndCrcVerified": true
+    },
+    "wifiRestored": {
+      "device_id": "50787d15a924",
+      "transport": "wifi",
+      "connected": true,
+      "connection_error": null
+    }
+  },
+  "pointerMatrix": {
+    "rows": [
+      {
+        "depth": 0,
+        "shared": false,
+        "coexist": false,
+        "samples": 1816,
+        "effectiveHz": 925.0877686577206,
+        "sequenceGaps": 147,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 704,
+          "p95": 897,
+          "p99": 1039,
+          "max": 1389
+        }
+      },
+      {
+        "depth": 0,
+        "shared": false,
+        "coexist": true,
+        "samples": 1840,
+        "effectiveHz": 924.1034211926712,
+        "sequenceGaps": 151,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 704,
+          "p95": 894,
+          "p99": 1054,
+          "max": 1365
+        }
+      },
+      {
+        "depth": 1,
+        "shared": false,
+        "coexist": false,
+        "samples": 963,
+        "effectiveHz": 494.1031206566949,
+        "sequenceGaps": 985,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 1456,
+          "p95": 1754,
+          "p99": 1926,
+          "max": 2191
+        }
+      },
+      {
+        "depth": 1,
+        "shared": false,
+        "coexist": true,
+        "samples": 1012,
+        "effectiveHz": 491.4826685515748,
+        "sequenceGaps": 1046,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 1476,
+          "p95": 1766,
+          "p99": 1984,
+          "max": 2241
+        }
+      },
+      {
+        "depth": 1,
+        "shared": true,
+        "coexist": false,
+        "samples": 1728,
+        "effectiveHz": 882.0418425940917,
+        "sequenceGaps": 231,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 838,
+          "p95": 1011,
+          "p99": 1126,
+          "max": 1457
+        }
+      },
+      {
+        "depth": 1,
+        "shared": true,
+        "coexist": true,
+        "samples": 1613,
+        "effectiveHz": 774.1874753563928,
+        "sequenceGaps": 470,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 844,
+          "p95": 1041,
+          "p99": 1206,
+          "max": 1676
+        }
+      },
+      {
+        "depth": 2,
+        "shared": false,
+        "coexist": false,
+        "samples": 658,
+        "effectiveHz": 333.3387452256962,
+        "sequenceGaps": 1314,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 2239,
+          "p95": 2547,
+          "p99": 2705,
+          "max": 2873
+        }
+      },
+      {
+        "depth": 2,
+        "shared": false,
+        "coexist": true,
+        "samples": 718,
+        "effectiveHz": 332.56739243972737,
+        "sequenceGaps": 1439,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 2227,
+          "p95": 2569,
+          "p99": 2738,
+          "max": 3030
+        }
+      },
+      {
+        "depth": 2,
+        "shared": true,
+        "coexist": false,
+        "samples": 1295,
+        "effectiveHz": 651.5779869362138,
+        "sequenceGaps": 692,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 981,
+          "p95": 1161,
+          "p99": 1320,
+          "max": 1754
+        }
+      },
+      {
+        "depth": 2,
+        "shared": true,
+        "coexist": true,
+        "samples": 1341,
+        "effectiveHz": 629.0716545476482,
+        "sequenceGaps": 790,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 981,
+          "p95": 1187,
+          "p99": 1351,
+          "max": 1506
+        }
+      },
+      {
+        "depth": 3,
+        "shared": false,
+        "coexist": false,
+        "samples": 545,
+        "effectiveHz": 275.03056176003383,
+        "sequenceGaps": 1434,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 2991,
+          "p95": 3437,
+          "p99": 3707,
+          "max": 3976
+        }
+      },
+      {
+        "depth": 3,
+        "shared": false,
+        "coexist": true,
+        "samples": 573,
+        "effectiveHz": 262.2475809723792,
+        "sequenceGaps": 1609,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 3009,
+          "p95": 3435,
+          "p99": 3744,
+          "max": 3989
+        }
+      },
+      {
+        "depth": 3,
+        "shared": true,
+        "coexist": false,
+        "samples": 990,
+        "effectiveHz": 500.0098586372532,
+        "sequenceGaps": 989,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 1077,
+          "p95": 1265,
+          "p99": 1455,
+          "max": 1852
+        }
+      },
+      {
+        "depth": 3,
+        "shared": true,
+        "coexist": true,
+        "samples": 1037,
+        "effectiveHz": 499.7691703204649,
+        "sequenceGaps": 1037,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 1084,
+          "p95": 1324,
+          "p99": 1458,
+          "max": 1605
+        }
+      },
+      {
+        "depth": 4,
+        "shared": false,
+        "coexist": false,
+        "samples": 483,
+        "effectiveHz": 238.127821283588,
+        "sequenceGaps": 1542,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 3782,
+          "p95": 4219,
+          "p99": 4415,
+          "max": 4570
+        }
+      },
+      {
+        "depth": 4,
+        "shared": false,
+        "coexist": true,
+        "samples": 491,
+        "effectiveHz": 231.55608524666394,
+        "sequenceGaps": 1626,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 3807,
+          "p95": 4287,
+          "p99": 4458,
+          "max": 4934
+        }
+      },
+      {
+        "depth": 4,
+        "shared": true,
+        "coexist": false,
+        "samples": 979,
+        "effectiveHz": 499.4989688257484,
+        "sequenceGaps": 980,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 1204,
+          "p95": 1436,
+          "p99": 1640,
+          "max": 1816
+        }
+      },
+      {
+        "depth": 4,
+        "shared": true,
+        "coexist": true,
+        "samples": 1037,
+        "effectiveHz": 499.25978472072296,
+        "sequenceGaps": 1039,
+        "consumerGap": 0,
+        "invalidFrames": 0,
+        "captureSpanUs": {
+          "p50": 1208,
+          "p95": 1503,
+          "p99": 1671,
+          "max": 2002
+        }
+      }
+    ],
+    "retarget": [
+      {
+        "step": "initial",
+        "checked": 14,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 102,
+          "last_sequence": 18,
+          "completed": 18,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18563,
+          "host_dropped": 18563,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "retarget",
+        "checked": 10,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 102,
+          "last_sequence": 43,
+          "completed": 43,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 0,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18588,
+          "host_dropped": 18588,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "null",
+        "checked": 34,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 102,
+          "last_sequence": 86,
+          "completed": 86,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 400,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18633,
+          "host_dropped": 18633,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "unaligned",
+        "checked": 12,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 102,
+          "last_sequence": 107,
+          "completed": 107,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 610,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18653,
+          "host_dropped": 18653,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "outside_ram",
+        "checked": 11,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 102,
+          "last_sequence": 125,
+          "completed": 125,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 790,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18670,
+          "host_dropped": 18670,
+          "stream_error": null
+        }
+      },
+      {
+        "step": "recovered",
+        "checked": 10,
+        "status": {
+          "state": 2,
+          "kind": 1,
+          "field_count": 10,
+          "capture_id": 102,
+          "last_sequence": 138,
+          "completed": 138,
+          "deadline_missed": 0,
+          "ring_dropped": 0,
+          "failures": 820,
+          "stop_reason": null,
+          "budget_overrun": 0,
+          "host_history_evicted": 18685,
+          "host_dropped": 18685,
+          "stream_error": null
+        }
+      }
+    ],
+    "signedOffsetsAndWidths": {
+      "samples": 20,
+      "fourSignedOffsets": [
+        4,
+        -4,
+        4,
+        -4
+      ],
+      "widths": [
+        4,
+        2,
+        1
+      ],
+      "invalidCases": [
+        "uint32_overflow",
+        "uint32_underflow",
+        "unaligned",
+        "outside_ram"
+      ],
+      "status": {
+        "state": 3,
+        "kind": 1,
+        "field_count": 7,
+        "capture_id": 103,
+        "last_sequence": 20,
+        "completed": 20,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 80,
+        "stop_reason": "sample_limit",
+        "budget_overrun": 0,
+        "host_history_evicted": 18716,
+        "host_dropped": 18716,
+        "stream_error": null
+      }
+    }
+  },
+  "orbit": {
+    "rounds": [
+      {
+        "report": "artifacts/logs/orbit-pointers-watch-028-1.json",
+        "nodeVersion": "v24.15.0",
+        "periodUs": 1000,
+        "fieldSet": "ten_three_level_pointer_fields",
+        "samplesPerExpression": {
+          "capture_root->next->leaf->values[0]": 4647,
+          "capture_root->next->leaf->values[1]": 4647,
+          "capture_root->next->leaf->values[2]": 4647,
+          "capture_root->next->leaf->values[3]": 4647,
+          "capture_root->next->leaf->values[4]": 4647,
+          "capture_root->next->leaf->values[5]": 4647,
+          "capture_root->next->leaf->values[6]": 4647,
+          "capture_root->next->leaf->values[7]": 4647,
+          "capture_root->next->leaf->values[8]": 4647,
+          "capture_root->next->leaf->values[9]": 4647
+        },
+        "effectiveHz": 920.3355241620758,
+        "timestampSpanMs": 5048.158935546875,
+        "events": 174,
+        "pauseContinue": true,
+        "rttOutputEvents": 12
+      },
+      {
+        "report": "artifacts/logs/orbit-pointers-watch-028-2.json",
+        "nodeVersion": "v24.15.0",
+        "periodUs": 1000,
+        "fieldSet": "ten_three_level_pointer_fields",
+        "samplesPerExpression": {
+          "capture_root->next->leaf->values[0]": 4713,
+          "capture_root->next->leaf->values[1]": 4713,
+          "capture_root->next->leaf->values[2]": 4713,
+          "capture_root->next->leaf->values[3]": 4713,
+          "capture_root->next->leaf->values[4]": 4713,
+          "capture_root->next->leaf->values[5]": 4713,
+          "capture_root->next->leaf->values[6]": 4713,
+          "capture_root->next->leaf->values[7]": 4713,
+          "capture_root->next->leaf->values[8]": 4713,
+          "capture_root->next->leaf->values[9]": 4713
+        },
+        "effectiveHz": 937.3395108546549,
+        "timestampSpanMs": 5026.993896484375,
+        "events": 175,
+        "pauseContinue": true,
+        "rttOutputEvents": 8
+      },
+      {
+        "report": "artifacts/logs/orbit-pointers-watch-028-3.json",
+        "nodeVersion": "v24.15.0",
+        "periodUs": 1000,
+        "fieldSet": "ten_three_level_pointer_fields",
+        "samplesPerExpression": {
+          "capture_root->next->leaf->values[0]": 4757,
+          "capture_root->next->leaf->values[1]": 4757,
+          "capture_root->next->leaf->values[2]": 4757,
+          "capture_root->next->leaf->values[3]": 4757,
+          "capture_root->next->leaf->values[4]": 4757,
+          "capture_root->next->leaf->values[5]": 4757,
+          "capture_root->next->leaf->values[6]": 4757,
+          "capture_root->next->leaf->values[7]": 4757,
+          "capture_root->next->leaf->values[8]": 4757,
+          "capture_root->next->leaf->values[9]": 4757
+        },
+        "effectiveHz": 934.1977828133023,
+        "timestampSpanMs": 5090.9990234375,
+        "events": 163,
+        "pauseContinue": true,
+        "rttOutputEvents": 8
+      },
+      {
+        "report": "artifacts/logs/orbit-pointers-watch-028-4.json",
+        "nodeVersion": "v24.15.0",
+        "periodUs": 1000,
+        "fieldSet": "ten_three_level_pointer_fields",
+        "samplesPerExpression": {
+          "capture_root->next->leaf->values[0]": 4748,
+          "capture_root->next->leaf->values[1]": 4748,
+          "capture_root->next->leaf->values[2]": 4748,
+          "capture_root->next->leaf->values[3]": 4748,
+          "capture_root->next->leaf->values[4]": 4748,
+          "capture_root->next->leaf->values[5]": 4748,
+          "capture_root->next->leaf->values[6]": 4748,
+          "capture_root->next->leaf->values[7]": 4748,
+          "capture_root->next->leaf->values[8]": 4748,
+          "capture_root->next->leaf->values[9]": 4748
+        },
+        "effectiveHz": 936.2758177282243,
+        "timestampSpanMs": 5070.087158203125,
+        "events": 179,
+        "pauseContinue": true,
+        "rttOutputEvents": 8
+      },
+      {
+        "report": "artifacts/logs/orbit-pointers-watch-028-5.json",
+        "nodeVersion": "v24.15.0",
+        "periodUs": 1000,
+        "fieldSet": "ten_three_level_pointer_fields",
+        "samplesPerExpression": {
+          "capture_root->next->leaf->values[0]": 4818,
+          "capture_root->next->leaf->values[1]": 4818,
+          "capture_root->next->leaf->values[2]": 4818,
+          "capture_root->next->leaf->values[3]": 4818,
+          "capture_root->next->leaf->values[4]": 4818,
+          "capture_root->next->leaf->values[5]": 4818,
+          "capture_root->next->leaf->values[6]": 4818,
+          "capture_root->next->leaf->values[7]": 4818,
+          "capture_root->next->leaf->values[8]": 4818,
+          "capture_root->next->leaf->values[9]": 4818
+        },
+        "effectiveHz": 946.8894474865075,
+        "timestampSpanMs": 5087.18310546875,
+        "events": 164,
+        "pauseContinue": true,
+        "rttOutputEvents": 8
+      }
+    ],
+    "medianEffectiveHz": 936.2758177282243,
+    "scope": "actual Orbit adapter child; installed VS Code UI excluded",
+    "historical026MedianHz": 958.6152122125653,
+    "comparison": "Uncontrolled network/host conditions; no overall speed-up conclusion."
+  },
+  "soak": {
+    "capturedAt": "2026-10-15T19:44:18.227262+08:00",
+    "complete": true,
+    "requestedSeconds": 600.0,
+    "pointerDepth": 4,
+    "shared": false,
+    "requestedPeriodUs": 1000,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "scope": "public service + real F103 fixture + independent recording; installed VS Code UI excluded",
+    "fixtureFlashRetained": true,
+    "wirelessAtStart": {
+      "connected": true,
+      "rssiDbm": -19,
+      "scope": "probe snapshot before capture; not continuous RF measurement"
+    },
+    "target": {
+      "connected": true,
+      "clock_hz": 4000000,
+      "dp_idcode": 463475831,
+      "cpuid": 1092600369,
+      "device_id": 25616,
+      "profile": "stm32f103-medium-density"
+    },
+    "elapsedSeconds": 600.0053091999998,
+    "statuses": {
+      "1": {
+        "state": 2,
+        "kind": 1,
+        "field_count": 10,
+        "capture_id": 119,
+        "last_sequence": 600153,
+        "completed": 141143,
+        "deadline_missed": 459010,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 141143,
+        "host_history_evicted": 193199,
+        "host_dropped": 193199,
+        "stream_error": null
+      },
+      "2": {
+        "state": 2,
+        "kind": 2,
+        "field_count": 4,
+        "capture_id": 120,
+        "last_sequence": 6002,
+        "completed": 6002,
+        "deadline_missed": 0,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 193203,
+        "host_dropped": 193203,
+        "stream_error": null
+      },
+      "3": {
+        "state": 2,
+        "kind": 3,
+        "field_count": 1,
+        "capture_id": 121,
+        "last_sequence": 92234,
+        "completed": 872112,
+        "deadline_missed": 42081,
+        "ring_dropped": 0,
+        "failures": 0,
+        "stop_reason": null,
+        "budget_overrun": 0,
+        "host_history_evicted": 193231,
+        "host_dropped": 193231,
+        "stream_error": null
+      }
+    },
+    "recording": {
+      "recording_id": "6dedf802751949d890291988c2e42498",
+      "path": "C:\\Users\\22690\\.rmlink\\recordings\\6dedf802751949d890291988c2e42498.rmlrec",
+      "strict": false,
+      "phase": "complete",
+      "frames": 197303,
+      "bytes": 20833076,
+      "gaps": 167632,
+      "invalid_samples": 141145,
+      "error": null,
+      "finalized": true,
+      "sha256": "57a0c7b7f586b85b9ce637bfaeebac3318667940d7d899e67fd950df57e89d1e",
+      "queued_frames": 0
+    },
+    "live": {
+      "kinds": {
+        "1": {
+          "frames": 141131,
+          "gaps": 458968,
+          "budgetFlags": 141131,
+          "firstUs": 265450204,
+          "lastUs": 865548318,
+          "lastSequence": 600098,
+          "effectiveHz": 235.178209541915
+        },
+        "2": {
+          "frames": 6001,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 265488167,
+          "lastUs": 865486155,
+          "lastSequence": 6000,
+          "effectiveHz": 10.000033533445782
+        },
+        "3": {
+          "frames": 50143,
+          "gaps": 42073,
+          "budgetFlags": 0,
+          "firstUs": 265557160,
+          "lastUs": 865536152,
+          "lastSequence": 92215,
+          "effectiveHz": 83.57292616672152
+        }
+      },
+      "rttBytes": 871952,
+      "rttRecordsChecked": 54497,
+      "rttProducerSkipped": 21,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4067,
+      "recentTimelineIntervalP99Us": 5099
+    },
+    "disk": {
+      "kinds": {
+        "1": {
+          "frames": 141145,
+          "gaps": 459008,
+          "budgetFlags": 141145,
+          "firstUs": 265565253,
+          "lastUs": 865717172,
+          "lastSequence": 600267,
+          "effectiveHz": 235.18045270134346
+        },
+        "2": {
+          "frames": 6002,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 265587306,
+          "lastUs": 865688318,
+          "lastSequence": 6002,
+          "effectiveHz": 9.999983136172414
+        },
+        "3": {
+          "frames": 50156,
+          "gaps": 42087,
+          "budgetFlags": 0,
+          "firstUs": 265574103,
+          "lastUs": 865717143,
+          "lastSequence": 92245,
+          "effectiveHz": 83.57174316309658
+        }
+      },
+      "rttBytes": 872144,
+      "rttRecordsChecked": 54509,
+      "rttProducerSkipped": 21,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4067,
+      "recentTimelineIntervalP99Us": 5100
+    },
+    "consumerGap": 0,
+    "independentFileValidation": {
+      "metadata": {
+        "version": 1,
+        "connector_version": "0.2.6",
+        "device_id": "50787d15a924",
+        "created_at": "2026-10-15T19:44:18.949052+08:00",
+        "strict": false,
+        "starts_mid_capture": true,
+        "configs": {
+          "1": {
+            "subscription_id": 1,
+            "kind": "memory_series",
+            "addresses": [
+              536875008,
+              536875072,
+              536875136,
+              536875200,
+              536875264,
+              536875328,
+              536875392,
+              536875456,
+              536875520,
+              536875584
+            ],
+            "fields": [
+              {
+                "address": 536875008,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875072,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875136,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875200,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875264,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875328,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875392,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875456,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875520,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875584,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ],
+            "period_us": 1000,
+            "sample_limit": 0,
+            "channel": 0,
+            "strict_deadlines": false,
+            "stream_cursor": -1,
+            "capture_id": 119
+          },
+          "2": {
+            "subscription_id": 2,
+            "kind": "memory_snapshot",
+            "addresses": [
+              536875008,
+              536875072,
+              536875136,
+              536875200
+            ],
+            "fields": [
+              {
+                "address": 536875008,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875072,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875136,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "address": 536875200,
+                "offsets": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ],
+            "period_us": 100000,
+            "sample_limit": 0,
+            "channel": 0,
+            "strict_deadlines": false,
+            "stream_cursor": 4,
+            "capture_id": 120
+          },
+          "3": {
+            "subscription_id": 3,
+            "kind": "rtt_stream",
+            "addresses": [
+              536871936
+            ],
+            "fields": [
+              {
+                "address": 536871936,
+                "offsets": [],
+                "byte_length": 4
+              }
+            ],
+            "period_us": 5000,
+            "sample_limit": 0,
+            "channel": 0,
+            "strict_deadlines": false,
+            "stream_cursor": 20,
+            "capture_id": 121
+          }
+        }
+      },
+      "summary": {
+        "recording_id": "6dedf802751949d890291988c2e42498",
+        "path": "C:\\Users\\22690\\.rmlink\\recordings\\6dedf802751949d890291988c2e42498.rmlrec",
+        "strict": false,
+        "phase": "complete",
+        "frames": 197303,
+        "bytes": 20833076,
+        "gaps": 167632,
+        "invalid_samples": 141145,
+        "error": null,
+        "finalized": true,
+        "queued_frames": 0,
+        "window_end": "last_received_record"
+      },
+      "frames": 197303,
+      "sha256": "57a0c7b7f586b85b9ce637bfaeebac3318667940d7d899e67fd950df57e89d1e"
+    },
+    "progressReports": 19
+  },
+  "rttOfflineAudit": {
+    "complete": true,
+    "source": "artifacts\\logs\\pointer-soak-independent4-watch-028.json",
+    "offline": true,
+    "recordingSha256": "57a0c7b7f586b85b9ce637bfaeebac3318667940d7d899e67fd950df57e89d1e",
+    "frames": 197303,
+    "validated": {
+      "kinds": {
+        "1": {
+          "frames": 141145,
+          "gaps": 459008,
+          "budgetFlags": 141145,
+          "firstUs": 265565253,
+          "lastUs": 865717172,
+          "lastSequence": 600267,
+          "effectiveHz": 235.18045270134346
+        },
+        "2": {
+          "frames": 6002,
+          "gaps": 0,
+          "budgetFlags": 0,
+          "firstUs": 265587306,
+          "lastUs": 865688318,
+          "lastSequence": 6002,
+          "effectiveHz": 9.999983136172414
+        },
+        "3": {
+          "frames": 50156,
+          "gaps": 42087,
+          "budgetFlags": 0,
+          "firstUs": 265574103,
+          "lastUs": 865717143,
+          "lastSequence": 92245,
+          "effectiveHz": 83.57174316309658
+        }
+      },
+      "rttBytes": 872144,
+      "rttRecordsChecked": 54509,
+      "rttProducerSkipped": 21,
+      "rttPartialBytes": 0,
+      "intervalWindow": 8192,
+      "recentTimelineIntervalP50Us": 4067,
+      "recentTimelineIntervalP99Us": 5100
+    },
+    "producerGaps": [
+      {
+        "previous": 15045,
+        "next": 15067,
+        "skipped": 21,
+        "atUsFromFirstRttFrame": 169173
+      }
+    ],
+    "producerGapEvents": 1,
+    "producerGapListTruncated": false,
+    "note": "Producer sequence gaps, committed byte continuity and missed poll deadlines are separate."
+  },
+  "controlsAndCSdk": {
+    "capturedAt": "2026-10-15T19:55:21.523115+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "actualClockMeasured": false,
+    "fixtureRetained": true,
+    "idleControls": {
+      "loaded": false,
+      "pointerDepth": 0,
+      "independentChains": false,
+      "rows": [
+        {
+          "halt_ms": 85.696299999654,
+          "run_ms": 90.88320000000749
+        },
+        {
+          "halt_ms": 83.092299999862,
+          "run_ms": 84.41369999991366
+        },
+        {
+          "halt_ms": 76.02539999970759,
+          "run_ms": 95.30290000020614
+        },
+        {
+          "halt_ms": 88.33119999962946,
+          "run_ms": 81.03819999996631
+        },
+        {
+          "halt_ms": 100.5710999997973,
+          "run_ms": 103.12019999992117
+        },
+        {
+          "halt_ms": 67.94059999992896,
+          "run_ms": 80.92050000004747
+        },
+        {
+          "halt_ms": 66.07179999991786,
+          "run_ms": 94.56609999961074
+        },
+        {
+          "halt_ms": 89.03989999998885,
+          "run_ms": 12.09919999973863
+        },
+        {
+          "halt_ms": 56.83019999969474,
+          "run_ms": 87.52550000008341
+        },
+        {
+          "halt_ms": 160.79549999994924,
+          "run_ms": 79.51300000013362
+        },
+        {
+          "halt_ms": 63.67950000003475,
+          "run_ms": 94.95659999993222
+        },
+        {
+          "halt_ms": 80.67170000003898,
+          "run_ms": 87.75050000031115
+        },
+        {
+          "halt_ms": 73.95530000030703,
+          "run_ms": 103.90019999977085
+        },
+        {
+          "halt_ms": 58.99189999990995,
+          "run_ms": 99.530699999832
+        },
+        {
+          "halt_ms": 62.76579999985188,
+          "run_ms": 98.83450000006633
+        },
+        {
+          "halt_ms": 85.75109999992492,
+          "run_ms": 33.16540000014356
+        },
+        {
+          "halt_ms": 62.03509999977541,
+          "run_ms": 91.00740000030783
+        },
+        {
+          "halt_ms": 102.78659999994488,
+          "run_ms": 28.699200000119163
+        },
+        {
+          "halt_ms": 94.59319999996296,
+          "run_ms": 96.41269999974611
+        },
+        {
+          "halt_ms": 65.35150000036083,
+          "run_ms": 85.23290000039196
+        }
+      ],
+      "median_halt_ms": 78.34854999987328,
+      "max_halt_ms": 160.79549999994924,
+      "median_run_ms": 89.31685000015932,
+      "max_run_ms": 103.90019999977085,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "loadedControls": {
+      "loaded": true,
+      "pointerDepth": 4,
+      "independentChains": true,
+      "rows": [
+        {
+          "halt_ms": 74.62799999984782,
+          "run_ms": 87.02069999981177
+        },
+        {
+          "halt_ms": 79.67650000000503,
+          "run_ms": 78.5396999999648
+        },
+        {
+          "halt_ms": 89.52229999977135,
+          "run_ms": 20.559900000080233
+        },
+        {
+          "halt_ms": 97.29089999973439,
+          "run_ms": 21.374400000240712
+        },
+        {
+          "halt_ms": 101.85469999987617,
+          "run_ms": 29.014100000040344
+        },
+        {
+          "halt_ms": 54.88779999996041,
+          "run_ms": 86.46970000017973
+        },
+        {
+          "halt_ms": 138.31000000027416,
+          "run_ms": 36.18490000008023
+        },
+        {
+          "halt_ms": 94.03229999998075,
+          "run_ms": 39.3248999998832
+        },
+        {
+          "halt_ms": 49.66229999990901,
+          "run_ms": 80.91889999968771
+        },
+        {
+          "halt_ms": 103.59339999968142,
+          "run_ms": 32.357199999751174
+        },
+        {
+          "halt_ms": 47.126099999786675,
+          "run_ms": 45.5032999998366
+        },
+        {
+          "halt_ms": 86.24230000032185,
+          "run_ms": 72.93720000006942
+        },
+        {
+          "halt_ms": 21.014200000081473,
+          "run_ms": 45.8771000003253
+        },
+        {
+          "halt_ms": 186.1682999997356,
+          "run_ms": 75.61470000018744
+        },
+        {
+          "halt_ms": 65.34389999978885,
+          "run_ms": 42.429099999935715
+        },
+        {
+          "halt_ms": 165.13080000004265,
+          "run_ms": 83.33700000002864
+        },
+        {
+          "halt_ms": 68.35210000008374,
+          "run_ms": 85.61979999967662
+        },
+        {
+          "halt_ms": 121.30609999985609,
+          "run_ms": 35.69980000020223
+        },
+        {
+          "halt_ms": 103.21160000012242,
+          "run_ms": 23.046399999657297
+        },
+        {
+          "halt_ms": 60.06699999988996,
+          "run_ms": 44.22219999969457
+        }
+      ],
+      "median_halt_ms": 87.8823000000466,
+      "max_halt_ms": 186.1682999997356,
+      "median_run_ms": 44.86274999976558,
+      "max_run_ms": 87.02069999981177,
+      "scope": "local API round trip including WiFi and control barriers"
+    },
+    "cSdk": {
+      "samples": 40,
+      "crcVerified": true,
+      "cursorResumeWithoutReplay": true,
+      "firstCursor": 0,
+      "lastCursor": 39,
+      "captureId": 123
+    }
+  },
+  "notVerified": [
+    "actual SWCLK measurement",
+    "physical NRST",
+    "installed VS Code UI",
+    "Keil/IAR and other targets",
+    "formal driver signing",
+    "real PC restart and silent TCP blackhole after 0.2.7 fix",
+    "continuous complete 1 kHz for independent four-level pointers",
+    "control latency tail target",
+    "root cause of previous Orbit 0xc0000409"
+  ],
+  "rawFilesSha256": {
+    "artifacts/logs/pointer-watch-ready-028.json": "7976e19ef0ee1f184d916b48ecfa68974faee6177e79447d19ab4f55fb730949",
+    "artifacts/logs/accept-pointer-watch-028.json": "b3ccb05b5f03bfe0e682337d935de76a2f5da80908dc3366719f770b45eaaf47",
+    "artifacts/logs/pyocd-pointer-watch-028.json": "3c1e09fc3e8b698e94d2d4d9903fdcb43b977074edac1987baa78986edb13ffc",
+    "artifacts/logs/subscriptions-pointer-watch-028.json": "a2905018025dd7cebf81a0830d3aa717ae22232af71c4156a44a09582ea0e828",
+    "artifacts/logs/wired-pointer-watch-028.json": "ec1ecb5c79255d8cecc3ef7bfe24f5f0f167230927c0f32b41679aaa6cba7514",
+    "artifacts/logs/pointer-timing-watch-028.json": "65a8c0c84c597b640ba0d9352b2a730e475cacec1b4489fac9f6e4f824fa8829",
+    "artifacts/logs/pointer-soak-independent4-watch-028.json": "66389f69b61f3758d103eafe901a76dee0c900b0fc5ad4f1f43cc49c05c74c5c",
+    "artifacts/logs/pointer-soak-independent4-watch-rtt-028.json": "f8260c01392d01c71e14b4dd3891da144365e9f8937fd17bc629942efd398bf7",
+    "artifacts/logs/control-pointer4-watch-028.json": "398830d56da01897cd13ffd4f3fe7a5c612301fe9a78f6a2926f698c6eec1fc5",
+    "artifacts/logs/orbit-pointers-watch-028-1.json": "9a4c3e03488ac8eb9865cddbd92c5775951cbb89b562ca53856932ff69d1dd34",
+    "artifacts/logs/orbit-pointers-watch-028-2.json": "357a83f29ac5f4746e16992dd75f98443f7826ca918431aeffa81279d45128f1",
+    "artifacts/logs/orbit-pointers-watch-028-3.json": "20b342800411c3f2bbe6e5318ef710c15c6c866af8a0279a477bef6a315d653d",
+    "artifacts/logs/orbit-pointers-watch-028-4.json": "7f26c63ee6b3728c80e141f2a102d2f51920cd95003420393fceee72e2ac0afa",
+    "artifacts/logs/orbit-pointers-watch-028-5.json": "b1de5613184f5ab5b13a06044e6916dc7ff3c3c472c15e64984c8e180255ec63",
+    "artifacts/logs/orbit-pointers-final-026-1.json": "e6c559b0dfef839916aed520e1d12c0d5819323eae61dcc09babc760a92d90bd",
+    "artifacts/logs/orbit-pointers-final-026-2.json": "3e99774e24306ce300d3ef104f0fc5166fdc687a57315168f16ecfc7b6e377cd",
+    "artifacts/logs/orbit-pointers-final-026-3.json": "ef18e315c37faa416b9cf4995ae71fc2e258be40382dcce203439d08427dbec8",
+    "artifacts/logs/orbit-pointers-final-026-4.json": "1215ac0fac66baf2698b5c8d04aa0a3cb471eb6f0f781eb5533687c2ffc698d5",
+    "artifacts/logs/orbit-pointers-final-026-5.json": "21fc2b67fecbc90e602c2b735af60cfeabc84d4a7982f12bfd97240304f3a9c3",
+    "artifacts/logs/capture-pointer-watch-negative-028.json": "be9a6f1df3eacde8308841f9f881899937f4200e8af0fad18897e417c4930d52",
+    "artifacts/logs/capture-pointer-watch-negative-028.log": "76fa660db081be2b280dad44b7d4621d35dd8360d7a07497f4e99d108e264a3b",
+    "artifacts/logs/capture-pointer-watch-028-recheck.log": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1",
+    "artifacts/logs/host-pointer-watch-028.log": "c4a33b84352a3b0889bb9bf7d3b7ec61cffb3ef36392b1204a5a09927c28ee19",
+    "artifacts/logs/host-pointer-watch-paths-028.log": "0a0e4da2275b4a5c6ba5d932aff9faadd684382186d2bb19a80699b45cc344ea",
+    "artifacts/logs/pointer-watch-028.json": "2a5c330cd7a57d6b74adb842eeba5d25e7466cf1e7c05c8813e8ba0b481c3d25",
+    "artifacts/logs/pointer-watch-028.log": "21f02ec573927ddc595a09ccf0918973545c57c4d1ae2d313e1431dc2e8d91c6",
+    "artifacts/logs/build-pointer-watch-028.log": "a968785f32431f12f4964a2062d52bee04afa921d2ffcdb3d2547c8b4561a2b1",
+    "artifacts/logs/build-pointer-watch-usb64-028.log": "36ded21ed9017ca3dd0e218bbe4c01f3ae85427a2907a1762c752053e85d852e",
+    "artifacts/logs/flash-pointer-watch-028.log": "c41598f545c32093b072ed401542449eea2eb50251819c1df49da020c31d26b9",
+    "artifacts/logs/pointer-soak-independent4-watch-uart-028.log": "0087e3f6a903b230d31db8c8f08ccf067a9ba0a30d8c8d55fbb2cfe5117968f2"
+  }
+}

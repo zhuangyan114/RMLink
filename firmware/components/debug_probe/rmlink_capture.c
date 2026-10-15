@@ -245,10 +245,16 @@ static void sample_finish(subscription_t *s,unsigned id) {
     }
     if(s->limit && s->frames>=s->limit) { s->state=3; s->reason=7; }
 }
-static bool reuse_timeline(uint32_t address,uint32_t *value) {
+static bool reuse_timeline(const subscription_t *watch,unsigned field,uint32_t *value) {
     subscription_t *t=&s_sub[0];
-    if(t->state!=2 || !t->frames || t->started) return false;
-    for(unsigned i=0;i<t->count;i++) if(t->address[i]==address && !t->depth[i] && t->width[i]==4 && (t->valid&(1u<<i))) {
+    uint64_t now=esp_timer_get_time();
+    if(t->state!=2 || !t->frames || t->started || !t->last_timestamp ||
+       now<t->last_timestamp || now-t->last_timestamp>watch->period) return false;
+    /* Match the logical expression, never only a previously resolved address.
+     * A changed root must remain observable on the next Timeline frame. */
+    for(unsigned i=0;i<t->count;i++) if(t->address[i]==watch->address[field] &&
+        t->depth[i]==watch->depth[field] && t->width[i]==watch->width[field] &&
+        !memcmp(t->offset[i],watch->offset[field],t->depth[i]*sizeof(int32_t)) && (t->valid&(1u<<i))) {
         *value=t->values[i]; return true;
     }
     return false;
@@ -265,6 +271,11 @@ static unsigned resolve_fields(subscription_t *s,uint32_t missing[8]) {
     for(unsigned i=0;i<s->count;i++) {
         uint32_t bit=1u<<i,a=s->resolve_address[i],value=0;
         if(s->resolved&bit)continue;
+        if(s->kind==2 && reuse_timeline(s,i,&value)) {
+            s->reused=true;
+            if(s_sub[0].last_timestamp<s->timestamp)s->timestamp=s_sub[0].last_timestamp;
+            goto valid;
+        }
         while(s->resolve_depth[i]<s->depth[i]) {
             unsigned d=s->resolve_depth[i];
             if((a&3) || !memory(a,4,false))goto invalid;
@@ -275,15 +286,13 @@ static unsigned resolve_fields(subscription_t *s,uint32_t missing[8]) {
         }
         unsigned width=s->width[i];
         if(a%width || !memory(a,width,false))goto invalid;
-        if(s->kind==2 && !s->depth[i] && width==4 && reuse_timeline(a,&value)) {
-            s->reused=true;
-            if(s_sub[0].last_timestamp<s->timestamp)s->timestamp=s_sub[0].last_timestamp;
-        }else {
+        {
             uint32_t aligned=a&~3u;
             if(!cached_word(s,aligned,&value)) {a=aligned;goto pending;}
             value>>=(a&3)*8;
             if(width<4)value&=(1u<<(width*8))-1;
         }
+valid:
         s->values[i]=value;s->valid|=bit;s->resolved|=bit;continue;
 invalid:
         s->failures++;s->resolved|=bit;continue;
@@ -413,6 +422,9 @@ static void pause_all(void) {
         if(s->started && s->kind!=3) sample_finish(s,i+1);
         s->started=0;s->rtt_phase=0;
     }
+    /* Control may change memory or pointer roots before the next Timeline
+     * period is due. Its old completed values must not feed Watch afterward. */
+    s_sub[0].last_timestamp=0;
 }
 size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *r,
                             size_t len,uint8_t *out,const rmlink_owner_t *owner) {

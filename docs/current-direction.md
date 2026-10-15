@@ -1,6 +1,6 @@
 # 当前项目方向
 
-更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，当前 0.2.6 实现与证据见 [实施记录](subscriptions-implementation.md) 和 [采样性能记录](subscription-performance-20261015.md)。
+更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，已封存 0.2.6 基线见 [实施记录](subscriptions-implementation.md) 和 [采样性能记录](subscription-performance-20261015.md)，当前固件候选见 [0.2.8 指针 Watch 复用记录](pointer-watch-028.md)。
 
 RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基座，保留一套 ARM CMSIS-DAP / SWD 内核，为 Orbit 增加无线接入、板端采样和批量操作。
 

@@ -1,6 +1,6 @@
 # RMLink 公开连接组件 API v1.2（开发版）
 
-适用于固件/服务/SDK 0.2.3–0.2.5。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
+本文按服务／SDK 0.2.6 和固件候选 0.2.8 描述；较早固件的差异另行标注。2026-10-15 接线恢复后，STM32F103C8 已通过请求 4 MHz 的虚拟 USB 完整烧录/调试、三订阅有效采样与增强 Flash 引擎验收；实际 SWCLK 尚未用仪表测量。性能条件和原始证据见 [采样性能记录](subscription-performance-20261015.md)。公开 API 的实现和测量不等同于已安装 VS Code 界面验收。
 
 ## 接入与能力
 
@@ -48,7 +48,7 @@
 {"kind":"rtt_stream","control_block_address":536871936,"channel":0,"period_us":5000}
 ```
 
-固定字段可用 addresses（默认 32-bit）；fields 支持 byte_length 1/2/4 和最多 4 层 offsets。每层读取当前地址的 ptr32，再加该 offset；到最后地址读取字段。指针存储地址须 4 字节对齐，最终值按宽度对齐。只在一帧内复用相同指针前缀，下一帧重新解析；空指针/越界字段无效但其他字段继续，SWD 通信错误则暂停任务。
+固定字段可用 addresses（默认 32-bit）；fields 支持 byte_length 1/2/4 和最多 4 层 offsets。每层读取当前地址的 ptr32，再加该 offset；到最后地址读取字段。指针存储地址须 4 字节对齐，最终值按宽度对齐。Timeline 只在一帧内复用相同指针依赖，下一帧重新解析；空指针/越界字段无效但其他字段继续，SWD 通信错误则暂停任务。
 
 当前固定槽：Timeline=1、Watch=2、RTT channel0=3、第二个 RTT channel=4。每类槽只允许一个订阅，字段最多 32，周期 200..10000000 us；这些是输入范围，不保证对应采样率。`strict_deadlines` 默认 false：来不及执行的周期增加序号与 deadline_missed，完整采样继续回传，预算超限保留 flags bit1。true 时完整帧执行超过周期便暂停并报告 budget_overrun。旧版未带该字段的板端 PREPARE 命令保持严格行为。
 
@@ -56,7 +56,11 @@
 
 `POST .../subscriptions/{id}` 支持 action=stop/pause/resume；`DELETE` 停止并移除服务注册。配置更新首版采用停止/删除/重新创建，不提供运行中原子 PATCH。重新创建产生新的 capture_id；不能把旧缓存的帧当作新任务数据。
 
-Watch 静态 32-bit 重合字段复用正在运行的 Timeline；Timeline 停止/暂停后，Watch 自身读取继续。复用标记为 sample flags bit2，时间戳与跨度包含较早源样本时间。RTT Up 根据控制块和环形描述符读取、提交 RdOff；完成状态未知时保留待提交记录并暂停，显式恢复前重读偏移。目标端已丢弃的日志数量不可从环形缓冲精确推断。
+固件 0.2.8 起，Watch 可复用正在运行的 Timeline 的相同逻辑字段，包括最多四层指针。根地址、全部 offsets、指针深度、byte_length 必须完全相同，源字段有效且整帧已完成；执行器选用结果时，源样本距当前时间不得超过 Watch 的 period_us。Timeline 停止／暂停、正在采集下一帧、源结果过期或计划不匹配时，Watch 自行解析指针并读取。目标控制屏障清除旧源结果，避免内存写入、暂停或复位后继续复用先前值。Timeline 重新配置会清除其旧状态；不将上次解析到的物理地址长期绑定为 Watch 地址。0.2.7 及以前仅复用静态重合 32-bit 字段，且没有上述年龄限制。
+
+复用标记为 sample flags bit2：表示本 Watch 帧至少有一个字段复用，不能据此认定所有字段来自同一次采样。时间戳取本帧最早的采样来源，duration_us 包含到帧结束的跨度，不是纯 SWD 执行时间。年龄条件检查发生在板端选用字段时；网络与服务排队会继续增加前端收到数据时的年龄，前端可结合 TIME_SYNC 估计，不能把 period_us 当作端到端最大延迟。
+
+RTT Up 根据控制块和环形描述符读取、提交 RdOff；完成状态未知时保留待提交记录并暂停，显式恢复前重读偏移。目标端已丢弃的日志数量不可从环形缓冲精确推断。
 
 ## 二进制流与缓存
 
