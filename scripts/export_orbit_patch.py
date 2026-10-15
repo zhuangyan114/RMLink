@@ -22,8 +22,8 @@ def main():
     record={'repository':'https://github.com/zhuangyan114/Orbit','base_commit':BASE,
         'implementation_commit':head,'branch':'rmlink/subscriptions-20261014','patch':name,
         'sha256':hashlib.sha256(payload).hexdigest(),'validation':{
-            'typecheck':True,'build':True,'test_files':76,'tests_passed':1053,'tests_skipped':1,
-            'hardware':True,'hardware_scope':'real debug adapter child: 3 scalar Timeline, Watch, RTT, halt/run',
+            'typecheck':True,'build':True,'test_files':76,'tests_passed':1055,'tests_skipped':1,
+            'hardware':True,'hardware_scope':'real debug adapter child: 10 discrete matrix words, Watch, RTT, halt/run',
             'installed_vscode':False}}
     (out/'provenance.json').write_text(json.dumps(record,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(record))

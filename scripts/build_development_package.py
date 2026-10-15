@@ -18,7 +18,8 @@ def main():
     for name in ('rmlink.dll','rmlink.h','rmlink.def','librmlink.a',f'rmlink-client-{version}.tgz'):
         add('sdk/'+name,ROOT/'artifacts/build/sdk'/name)
     for name in ('api-v1.md','subscriptions-implementation.md','quickstart.md','recording-format.md',
-                 'subscription-performance-20261015.md','subscription-performance-20261015.json','subscription-checkpoint-024.json'):
+                 'subscription-performance-20261015.md','subscription-performance-20261015.json','subscription-checkpoint-024.json',
+                 'orbit-matrix-acceptance-024.json'):
         add('docs/'+name,ROOT/'docs'/name)
     for name in ('Start.ps1','Install.ps1','README.md'):
         add(name,ROOT/'host/distribution'/name)

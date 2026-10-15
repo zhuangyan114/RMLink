@@ -82,12 +82,14 @@ def main():
     p.add_argument('--worktree',type=Path,default=ROOT/'artifacts/worktrees/orbit-rmlink')
     p.add_argument('--device-id',default='50787d15a924');p.add_argument('--seconds',type=float,default=10)
     p.add_argument('--period-us',type=int,default=2000)
+    p.add_argument('--matrix',action='store_true',help='Use all ten original discrete 2D-array fields')
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 2<=args.seconds<=300:p.error('seconds must be 2..300')
     if not 200<=args.period_us<=10000000:p.error('period-us must be 200..10000000')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
         'scope':'real Orbit debug adapter child + public SDK + connector + real STM32; VS Code UI excluded',
-        'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False,'periodUs':args.period_us}
+        'fixtureRetained':True,'requestedClockHz':4000000,'actualClockMeasured':False,'periodUs':args.period_us,
+        'fieldSet':'ten_discrete_matrix_words' if args.matrix else 'three_struct_scalars'}
     deadline=time.perf_counter()+30
     while True:
         try:
@@ -104,16 +106,16 @@ def main():
             'flashBeforeDebug':False,'runToEntryPoint':False,'speedKHz':4000,'loggingEnabled':False,
             'rttLogEnabled':True,'rttControlBlockAddress':'0x20000400','rttStripAnsi':False})
         adapter.request('configurationDone');adapter.request('continue',{'threadId':1})
-        # Current Orbit planner supports scalar struct members, not 2D arrays.
-        # The separate service benchmark uses all ten discrete capture words.
-        expressions=['fixture_state.counter','fixture_state.boots','fixture_state.guard']
+        expressions=[f'capture_values[{i}][0]' for i in range(10)] if args.matrix else [
+            'fixture_state.counter','fixture_state.boots','fixture_state.guard']
         report['samplingStart']=adapter.request('dataSamplingStart',{'expressions':expressions,'sampleIntervalMs':args.period_us/1000,'sendIntervalMs':16})
-        assert len(report['samplingStart']['activeExpressions'])==3,report['samplingStart']
+        assert len(report['samplingStart']['activeExpressions'])==len(expressions),report['samplingStart']
         adapter.request('watchEvaluate',{'expressions':expressions[:4]});adapter.collect(args.seconds)
         report['watch']=adapter.request('watchEvaluate',{'expressions':expressions[:4]})
         for i,value in enumerate(report['watch']['results']):
             assert not value.get('error'),value
-            assert int(value['value'])>0 if i==0 else int(value['value'])==[0,1,0x13579bdf][i],value
+            if args.matrix:assert int(value['value'])>>24==i,value
+            else:assert int(value['value'])>0 if i==0 else int(value['value'])==[0,1,0x13579bdf][i],value
         report['samplingStop']=adapter.request('dataSamplingStop')
         rows={expression:[] for expression in expressions}
         for event in adapter.events:
@@ -121,7 +123,8 @@ def main():
                 for row in event['body']['snapshots']:rows[row['expression']].extend(row['data'])
         for i,expression in enumerate(expressions):
             assert rows[expression],f'No samples: {expression}'
-            if i:assert all(int(point['value'])==[0,1,0x13579bdf][i] for point in rows[expression]),f'Field identity: {expression}'
+            if args.matrix:assert all(int(point['value'])>>24==i for point in rows[expression]),f'Field identity: {expression}'
+            elif i:assert all(int(point['value'])==[0,1,0x13579bdf][i] for point in rows[expression]),f'Field identity: {expression}'
         assert int(rows[expressions[0]][-1]['value'])>int(rows[expressions[0]][0]['value']),'Counter did not run'
         first=rows[expressions[0]];span=first[-1]['timestamp']-first[0]['timestamp']
         report['timeline']={'samplesPerExpression':{key:len(value) for key,value in rows.items()},

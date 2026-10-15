@@ -1,0 +1,436 @@
+{
+  "firmware_and_service": "0.2.4",
+  "orbit_commit": "db81bf1",
+  "scope": "same 10 discrete fixture fields + Watch4 + RTT + actual Orbit monitor; child debug adapter, not installed VS Code",
+  "requested_clock_hz": 4000000,
+  "actual_clock_measured": false,
+  "groups": [
+    {
+      "period_us": 2000,
+      "median_hz": 499.9989096561962,
+      "min_hz": 499.80802144466014,
+      "max_hz": 500.0003122619153
+    },
+    {
+      "period_us": 1000,
+      "median_hz": 847.8687897892687,
+      "min_hz": 792.9780879469013,
+      "max_hz": 855.4087185227396
+    },
+    {
+      "period_us": 200,
+      "median_hz": 1057.9592940159084,
+      "min_hz": 1055.8195034238051,
+      "max_hz": 1063.9274408988445
+    }
+  ],
+  "rows": [
+    {
+      "period_us": 2000,
+      "repetition": 1,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 2542,
+          "capture_values[1][0]": 2542,
+          "capture_values[2][0]": 2542,
+          "capture_values[3][0]": 2542,
+          "capture_values[4][0]": 2542,
+          "capture_values[5][0]": 2542,
+          "capture_values[6][0]": 2542,
+          "capture_values[7][0]": 2542,
+          "capture_values[8][0]": 2542,
+          "capture_values[9][0]": 2542
+        },
+        "effectiveHz": 500.0003122619153,
+        "timestampSpanMs": 5081.996826171875,
+        "events": 184
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 2000,
+      "repetition": 2,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 2520,
+          "capture_values[1][0]": 2520,
+          "capture_values[2][0]": 2520,
+          "capture_values[3][0]": 2520,
+          "capture_values[4][0]": 2520,
+          "capture_values[5][0]": 2520,
+          "capture_values[6][0]": 2520,
+          "capture_values[7][0]": 2520,
+          "capture_values[8][0]": 2520,
+          "capture_values[9][0]": 2520
+        },
+        "effectiveHz": 499.9989096561962,
+        "timestampSpanMs": 5038.010986328125,
+        "events": 185
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 2000,
+      "repetition": 3,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 2551,
+          "capture_values[1][0]": 2551,
+          "capture_values[2][0]": 2551,
+          "capture_values[3][0]": 2551,
+          "capture_values[4][0]": 2551,
+          "capture_values[5][0]": 2551,
+          "capture_values[6][0]": 2551,
+          "capture_values[7][0]": 2551,
+          "capture_values[8][0]": 2551,
+          "capture_values[9][0]": 2551
+        },
+        "effectiveHz": 499.9995930992895,
+        "timestampSpanMs": 5100.004150390625,
+        "events": 196
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 2000,
+      "repetition": 4,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 2607,
+          "capture_values[1][0]": 2607,
+          "capture_values[2][0]": 2607,
+          "capture_values[3][0]": 2607,
+          "capture_values[4][0]": 2607,
+          "capture_values[5][0]": 2607,
+          "capture_values[6][0]": 2607,
+          "capture_values[7][0]": 2607,
+          "capture_values[8][0]": 2607,
+          "capture_values[9][0]": 2607
+        },
+        "effectiveHz": 499.80802144466014,
+        "timestampSpanMs": 5214.001953125,
+        "events": 193
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 2000,
+      "repetition": 5,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 2520,
+          "capture_values[1][0]": 2520,
+          "capture_values[2][0]": 2520,
+          "capture_values[3][0]": 2520,
+          "capture_values[4][0]": 2520,
+          "capture_values[5][0]": 2520,
+          "capture_values[6][0]": 2520,
+          "capture_values[7][0]": 2520,
+          "capture_values[8][0]": 2520,
+          "capture_values[9][0]": 2520
+        },
+        "effectiveHz": 499.97906622979696,
+        "timestampSpanMs": 5038.2109375,
+        "events": 193
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 1000,
+      "repetition": 1,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 4052,
+          "capture_values[1][0]": 4052,
+          "capture_values[2][0]": 4052,
+          "capture_values[3][0]": 4052,
+          "capture_values[4][0]": 4052,
+          "capture_values[5][0]": 4052,
+          "capture_values[6][0]": 4052,
+          "capture_values[7][0]": 4052,
+          "capture_values[8][0]": 4052,
+          "capture_values[9][0]": 4052
+        },
+        "effectiveHz": 792.9780879469013,
+        "timestampSpanMs": 5108.590087890625,
+        "events": 197
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 1000,
+      "repetition": 2,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 4345,
+          "capture_values[1][0]": 4345,
+          "capture_values[2][0]": 4345,
+          "capture_values[3][0]": 4345,
+          "capture_values[4][0]": 4345,
+          "capture_values[5][0]": 4345,
+          "capture_values[6][0]": 4345,
+          "capture_values[7][0]": 4345,
+          "capture_values[8][0]": 4345,
+          "capture_values[9][0]": 4345
+        },
+        "effectiveHz": 855.4087185227396,
+        "timestampSpanMs": 5078.274169921875,
+        "events": 185
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 1000,
+      "repetition": 3,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 4294,
+          "capture_values[1][0]": 4294,
+          "capture_values[2][0]": 4294,
+          "capture_values[3][0]": 4294,
+          "capture_values[4][0]": 4294,
+          "capture_values[5][0]": 4294,
+          "capture_values[6][0]": 4294,
+          "capture_values[7][0]": 4294,
+          "capture_values[8][0]": 4294,
+          "capture_values[9][0]": 4294
+        },
+        "effectiveHz": 852.2962124617848,
+        "timestampSpanMs": 5036.981201171875,
+        "events": 176
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 1000,
+      "repetition": 4,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 4309,
+          "capture_values[1][0]": 4309,
+          "capture_values[2][0]": 4309,
+          "capture_values[3][0]": 4309,
+          "capture_values[4][0]": 4309,
+          "capture_values[5][0]": 4309,
+          "capture_values[6][0]": 4309,
+          "capture_values[7][0]": 4309,
+          "capture_values[8][0]": 4309,
+          "capture_values[9][0]": 4309
+        },
+        "effectiveHz": 847.8687897892687,
+        "timestampSpanMs": 5080.974853515625,
+        "events": 193
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 1000,
+      "repetition": 5,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 4277,
+          "capture_values[1][0]": 4277,
+          "capture_values[2][0]": 4277,
+          "capture_values[3][0]": 4277,
+          "capture_values[4][0]": 4277,
+          "capture_values[5][0]": 4277,
+          "capture_values[6][0]": 4277,
+          "capture_values[7][0]": 4277,
+          "capture_values[8][0]": 4277,
+          "capture_values[9][0]": 4277
+        },
+        "effectiveHz": 845.084201807186,
+        "timestampSpanMs": 5059.850830078125,
+        "events": 191
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 200,
+      "repetition": 1,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 5396,
+          "capture_values[1][0]": 5396,
+          "capture_values[2][0]": 5396,
+          "capture_values[3][0]": 5396,
+          "capture_values[4][0]": 5396,
+          "capture_values[5][0]": 5396,
+          "capture_values[6][0]": 5396,
+          "capture_values[7][0]": 5396,
+          "capture_values[8][0]": 5396,
+          "capture_values[9][0]": 5396
+        },
+        "effectiveHz": 1055.8195034238051,
+        "timestampSpanMs": 5109.77490234375,
+        "events": 190
+      },
+      "rttOutputEvents": 12,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 200,
+      "repetition": 2,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 5382,
+          "capture_values[1][0]": 5382,
+          "capture_values[2][0]": 5382,
+          "capture_values[3][0]": 5382,
+          "capture_values[4][0]": 5382,
+          "capture_values[5][0]": 5382,
+          "capture_values[6][0]": 5382,
+          "capture_values[7][0]": 5382,
+          "capture_values[8][0]": 5382,
+          "capture_values[9][0]": 5382
+        },
+        "effectiveHz": 1057.9592940159084,
+        "timestampSpanMs": 5086.20703125,
+        "events": 165
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 200,
+      "repetition": 3,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 5373,
+          "capture_values[1][0]": 5373,
+          "capture_values[2][0]": 5373,
+          "capture_values[3][0]": 5373,
+          "capture_values[4][0]": 5373,
+          "capture_values[5][0]": 5373,
+          "capture_values[6][0]": 5373,
+          "capture_values[7][0]": 5373,
+          "capture_values[8][0]": 5373,
+          "capture_values[9][0]": 5373
+        },
+        "effectiveHz": 1058.6276880277092,
+        "timestampSpanMs": 5074.494140625,
+        "events": 162
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 200,
+      "repetition": 4,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 5390,
+          "capture_values[1][0]": 5390,
+          "capture_values[2][0]": 5390,
+          "capture_values[3][0]": 5390,
+          "capture_values[4][0]": 5390,
+          "capture_values[5][0]": 5390,
+          "capture_values[6][0]": 5390,
+          "capture_values[7][0]": 5390,
+          "capture_values[8][0]": 5390,
+          "capture_values[9][0]": 5390
+        },
+        "effectiveHz": 1056.2182835603069,
+        "timestampSpanMs": 5102.1650390625,
+        "events": 152
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    },
+    {
+      "period_us": 200,
+      "repetition": 5,
+      "timeline": {
+        "samplesPerExpression": {
+          "capture_values[0][0]": 5345,
+          "capture_values[1][0]": 5345,
+          "capture_values[2][0]": 5345,
+          "capture_values[3][0]": 5345,
+          "capture_values[4][0]": 5345,
+          "capture_values[5][0]": 5345,
+          "capture_values[6][0]": 5345,
+          "capture_values[7][0]": 5345,
+          "capture_values[8][0]": 5345,
+          "capture_values[9][0]": 5345
+        },
+        "effectiveHz": 1063.9274408988445,
+        "timestampSpanMs": 5022.89892578125,
+        "events": 141
+      },
+      "rttOutputEvents": 8,
+      "hostPollingCaptures": 0
+    }
+  ],
+  "sources": [
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-2000-1.json",
+      "sha256": "7d58b7ff6fe4ad58cc6fdaca5f2964a8bc92141d9f39f0a17ae79096729165d1"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-2000-2.json",
+      "sha256": "f8659700b5d981cf123e20284ddadc143df07abc79f262db4672fc437a61a0ba"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-2000-3.json",
+      "sha256": "e695c9c986cba1de08c1555b61bd515c5c450b3db177a28e886fab9d93424d6f"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-2000-4.json",
+      "sha256": "51e3a1ebbcf83d8a8923bb861709f6a519869eac30f2d220236bb59e8ee24f1d"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-2000-5.json",
+      "sha256": "df412da042ca7d7b85ab6ea291a48869f3fdfb218805513d61eab7672f1fe0ff"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-1000-1.json",
+      "sha256": "758ac290b5d25f81de93235443a55b82cfb466bdf9925afe4e50e091444b82d1"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-1000-2.json",
+      "sha256": "ff09160bcecd5e3ffbc76fb1ba7d59693f508df0b5b0837964856a4f8a7c8e87"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-1000-3.json",
+      "sha256": "cf478785494256c41bced98c41d213f935a7ec007fe5b3101230c5712009ec22"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-1000-4.json",
+      "sha256": "44f448ec747268342c7a88365cc28e8317d2ee401c7f9709622a59ec418d51a2"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-1000-5.json",
+      "sha256": "c54add28a4ff0cb08a1c6c45b1a0c5f4ee12b599ca2550f9f0f8ee26880ec774"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-200-1.json",
+      "sha256": "cbee7582c5417f049365e96c1bb71be21c07b470dbc7d55b63bf4463ccc85430"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-200-2.json",
+      "sha256": "f9c691f54af9ad2cdc3fa55ccbb25787310287be1e8121a7fe3508f76862dc24"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-200-3.json",
+      "sha256": "64e8504155837ff9a181798c8082ebbc8a364aa6f84f7b726be831d20de57a7e"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-200-4.json",
+      "sha256": "2a060c659601a012dd920b6a383592dda052cadbf3af0c231583954779dd08ec"
+    },
+    {
+      "path": "artifacts/logs/subscriptions-20261015/orbit-matrix-200-5.json",
+      "sha256": "c38a3bb3332b7264d1996a5950e71c347609f040a6bca38ca3b6d25ea3d4b03a"
+    }
+  ]
+}
