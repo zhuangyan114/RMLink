@@ -54,7 +54,12 @@
  // RMLink: executor resets before publishing the active session; RX abort cannot
  // be lost to a reset inside Transfer. Atomic access covers the second CPU.
  static int64_t transfer_deadline;
+ static uint8_t transfer_abort_reason;
+ static uint32_t requested_swj_clock;
+ uint8_t DAP_GetTransferAbortReason(void) { return transfer_abort_reason; }
+ uint32_t DAP_GetSWJClock(void) { return requested_swj_clock; }
  void DAP_TransferDeadline(uint32_t timeout_us) {
+   transfer_abort_reason = 0;
    transfer_deadline = esp_timer_get_time() + timeout_us;
  }
  void DAP_TransferBeginBounded(uint32_t timeout_us) {
@@ -63,8 +68,9 @@
  }
  void DAP_TransferBegin(void) { DAP_TransferBeginBounded(1000000); }
  static uint8_t TransferAborted(void) {
-   return __atomic_load_n(&DAP_TransferAbort, __ATOMIC_RELAXED) ||
-          esp_timer_get_time() >= transfer_deadline;
+   if (__atomic_load_n(&DAP_TransferAbort, __ATOMIC_RELAXED)) { transfer_abort_reason=1; return 1; }
+   if (esp_timer_get_time() >= transfer_deadline) { transfer_abort_reason=2; return 1; }
+   return 0;
  }
  
  
@@ -75,6 +81,7 @@
  //   clock:    requested SWJ frequency in Hertz
  static void Set_Clock_Delay(uint32_t clock) {
    uint32_t delay;
+   requested_swj_clock=clock;
  
    if (clock >= MAX_SWJ_CLOCK(DELAY_FAST_CYCLES)) {
      DAP_Data.fast_clock  = 1U;

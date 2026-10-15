@@ -20,6 +20,7 @@ from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
 from .flash import FlashProgrammer, FlashJobError
 from .clock_sync import ClockSync
+from .diagnostics import decode_health
 from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
 
@@ -125,18 +126,27 @@ class Connector:
 
     async def route(self, method, path, body):
         if method=='GET' and path=='/v1/capabilities':
-            return {'api_version':{'major':1,'minor':2},'default_clock_hz':4000000,
+            return {'api_version':{'major':1,'minor':3},'default_clock_hz':4000000,
                 'enhanced_profile':'stm32f103-medium-density','subscription_kinds':['memory_series','memory_snapshot','rtt_stream'],
-                'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local'],
+                'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local','measure_swd_clock'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
                 'capture_wire_version':1,'flash_api':True,'flash_profile':'stm32f103c8-page-images','source_stepping':False,
                 'flash_backends':['auto','host','probe'],'flash_verification':{'full_image_required':True,'optional_host_readback':True},
-                'time_sync':True,'memory_overflow_policy':'drop_old_bounded',
+                'time_sync':True,'device_health':True,'memory_overflow_policy':'drop_old_bounded',
                 'recording':{'format':'rmlrec','version':1,'strict_gap_detection':True,
                     'scope':'existing subscriptions in one owner session','acknowledged_retransmission':False},
                 'validation':'development; F103C8 virtual USB 4 MHz acceptance measured; physical NRST and other target families pending'}
         if method == 'GET' and path == '/v1/status': return self.snapshot()
         if method == 'GET' and path == '/v1/devices': return self.snapshot()['devices']
+        if method=='GET' and path.startswith('/v1/devices/') and path.endswith('/health'):
+            parts=path.split('/')
+            if len(parts)!=5:raise ValueError('Health route invalid')
+            key=parts[3]
+            if key not in self.devices and key not in self.state.data['paired']:raise ValueError('Unknown device')
+            broker=self.brokers.get(key)
+            if not broker or broker.failed:return {'device_id':key,'connected':False,'supported':None,'error':self.connection_errors.get(key)}
+            reply=(await broker.submit('device-health',[b'\x80\x0a'],'background'))[0]
+            return dict(decode_health(reply),device_id=key,connected=True)
         if method=='POST' and path=='/v1/transport':
             key,mode=body.get('device_id'),body.get('transport')
             if mode not in ('usb','wifi') or key not in self.state.data['paired']:raise ValueError('Paired device and usb/wifi transport required')

@@ -22,10 +22,13 @@ class Measurements:
         self.recent_intervals=deque(maxlen=8192)
         self.rtt_pending=bytearray();self.rtt_next=None;self.rtt_records=0;self.rtt_bytes=0
         self.rtt_last_sequence=None;self.rtt_producer_skipped=0
+        self.first_invalid=None
 
     def accept(self,cursor,sample):
         kind=sample['kind'];m=self.kinds[kind];seq=sample['sequence'];stamp=sample['timestamp_us']
-        require(not sample['flags']&1,'Invalid/partial sample')
+        if sample['flags']&1:
+            self.first_invalid={'cursor':cursor,'sample':{k:v.hex() if isinstance(v,bytes) else v for k,v in sample.items()}}
+            raise AssertionError(f'Invalid/partial sample kind={kind} seq={seq} flags={sample["flags"]} span={sample.get("duration_us")}')
         if m['lastSequence'] is not None:
             delta=(seq-m['lastSequence'])&0xffffffff
             require(0<delta<0x80000000,'Repeated/reordered sequence')
@@ -64,7 +67,8 @@ class Measurements:
         return {'kinds':result,'rttBytes':self.rtt_bytes,'rttRecordsChecked':self.rtt_records,
                 'rttProducerSkipped':self.rtt_producer_skipped,
                 'rttPartialBytes':len(self.rtt_pending),'intervalWindow':len(intervals),
-                'recentTimelineIntervalP50Us':q(.5),'recentTimelineIntervalP99Us':q(.99)}
+                'recentTimelineIntervalP50Us':q(.5),'recentTimelineIntervalP99Us':q(.99),
+                'firstInvalidSample':self.first_invalid}
 
 
 def main():
@@ -91,6 +95,7 @@ def main():
                 'rssiDbm':struct.unpack('b',network[5:6])[0],
                 'scope':'probe snapshot before capture; not continuous RF measurement'}
             report['target']=client.target('connect')
+            report['healthBefore']=client.device_health(args.device_id)
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             image,fields=layout(args.pointer_depth,not args.independent)
             client.target('write_memory',address=0x20001000,data=image.hex())
@@ -112,6 +117,7 @@ def main():
                         require(client.target('state')['state']=='Running','Target stopped')
                         statuses={str(i):client.subscription(i) for i in ids}
                         report['statuses']=statuses
+                        report['healthLatest']=client.device_health(args.device_id)
                         require(all(s['state']==2 and not s['failures'] for s in statuses.values()),f'Probe stopped: {statuses}')
                         require(all(not s['ring_dropped'] for s in statuses.values()),f'Probe data loss: {statuses}')
                         next_state=now+2
@@ -133,6 +139,12 @@ def main():
                 require(all(not s['ring_dropped'] and not s['failures'] for s in report['statuses'].values()),'Probe data loss')
                 report['complete']=True
             finally:
+                report['finalStatuses']={}
+                try:report['healthAfter']=client.device_health(args.device_id)
+                except Exception as error:report['healthAfter']={'queryError':str(error)}
+                for sid in ids:
+                    try:report['finalStatuses'][str(sid)]=client.subscription(sid)
+                    except Exception as error:report['finalStatuses'][str(sid)]={'queryError':str(error)}
                 if begin is not None:
                     report.setdefault('elapsedSeconds',time.perf_counter()-begin)
                 report.setdefault('live',live.summary())

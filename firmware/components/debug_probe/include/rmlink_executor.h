@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #pragma once
+/* Last successfully requested setting, not a physical frequency measurement. */
+unsigned rmlink_requested_swj_clock(void);
 #include "esp_err.h"
 #include "rmlink_core.h"
 /* Calls block until this executor owns/completes the request. No GPIO access here. */

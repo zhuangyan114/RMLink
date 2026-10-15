@@ -19,6 +19,8 @@ bool rmlink_capture_raw_allowed(void);
 void rmlink_capture_closed(uint8_t transport, uint32_t session);
 /* Executor-only: every queued external command/close invalidates MEM-AP state. */
 void rmlink_capture_invalidate_ap(void);
+/* Executor snapshot, 24 LE bytes; persists across owner close for diagnostics. */
+void rmlink_capture_failure_stats(uint8_t output[24]);
 /* These only move completed records. They never touch the target. */
 bool rmlink_capture_bind(const uint8_t ticket[16], uint32_t *generation);
 bool rmlink_capture_stream_live(uint32_t generation);

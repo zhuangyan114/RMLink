@@ -16,6 +16,7 @@ export class RMLinkClient {
   request<T=unknown>(method:string,path:string,body?:unknown,timeoutMs?:number):Promise<T>;
   open(deviceId:string):Promise<void>;
   target<T=Record<string,unknown>>(command:string,params?:Record<string,unknown>):Promise<T>;
+  deviceHealth(deviceId:string):Promise<Record<string,unknown>>;
   flashImage(data:Uint8Array,address?:number,signal?:AbortSignal,options?:{backend?:'auto'|'host'|'probe';verifyOnHost?:boolean}):Promise<Record<string,unknown>>;
   flashStatus():Promise<Record<string,unknown>>;
   cancelFlash():Promise<Record<string,unknown>>;

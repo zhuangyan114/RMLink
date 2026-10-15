@@ -105,6 +105,11 @@ int rm_time_sync(rm_client *c,const char *device,unsigned samples,char *out,size
     snprintf(body,sizeof(body),"{\"samples\":%u}",samples);
     return call_path(c,"POST",path,body,out,capacity,required);
 }
+int rm_device_health(rm_client *c,const char *device,char *out,size_t capacity,size_t *required) {
+    if(!c || !device || strlen(device)!=12 || strspn(device,"0123456789abcdefABCDEF")!=12)return -87;
+    char path[128];snprintf(path,sizeof(path),"/v1/devices/%s/health",device);
+    return call_path(c,"GET",path,NULL,out,capacity,required);
+}
 int rm_set_transport(rm_client *c,const char *device,int native_usb,char *out,size_t capacity,size_t *required) {
     if(!c || !device || strlen(device)!=12 || strspn(device,"0123456789abcdefABCDEF")!=12 || (native_usb!=0 && native_usb!=1))return -87;
     char body[128];snprintf(body,sizeof(body),"{\"device_id\":\"%s\",\"transport\":\"%s\"}",device,native_usb?"usb":"wifi");

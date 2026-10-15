@@ -22,7 +22,7 @@ def denied(command):
 
 def informational(p):
     return p[0] in (0, 1) or (len(p) >= 2 and (
-        (p[0] == 0x80 and p[1] in (0, 4, 6, 7, 9)) or (p[0] == 0x81 and p[1] in (0,13)) or
+        (p[0] == 0x80 and p[1] in (0, 4, 6, 7, 9, 10)) or (p[0] == 0x81 and p[1] in (0,13)) or
         (p[0] == 0x82 and p[1] == 0)))
 
 

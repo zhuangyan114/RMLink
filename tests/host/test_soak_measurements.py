@@ -89,6 +89,7 @@ class SoakMeasurementsTests(unittest.TestCase):
             def __enter__(self):return self
             def __exit__(self,*args):pass
             def exchange(self,request):return b'\x80\x04\x00\x00\x01\xe0\x00\x00\x00\x00'
+            def device_health(self,device_id):return {'supported':True,'last_capture_io_failure':None}
             def target(self,action,**options):
                 if action=='read_memory':return {'data':'4b4c4d52'}
                 return {'state':'Running'}

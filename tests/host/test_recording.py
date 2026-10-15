@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import struct
+import zlib
 from pathlib import Path
 from rmlink_connector.recording import Recording
 from rmlink_connector.recording_reader import inspect_recording
@@ -32,6 +33,17 @@ class RecordingTests(unittest.IsolatedAsyncioTestCase):
         result=await rec.stop();parsed=inspect_recording(rec.path)
         self.assertEqual((result['error'],result['frames'],self.pauses),('sequence_gap',2,1))
         self.assertEqual(parsed['summary']['phase'],'failed');self.assertTrue(result['finalized'])
+    async def test_valid_over_budget_and_invalid_data_are_counted_separately(self):
+        rec=Recording(self.temp.name,'model',self.config,self.pause,strict=False);await rec.start()
+        for sequence,flags in enumerate((0,2,1,3)):
+            frame=bytearray(record(sequence))
+            struct.pack_into('<H',frame,52,flags)
+            struct.pack_into('<I',frame,28,zlib.crc32(frame[32:]))
+            rec.offer(sequence,frame)
+        result=await rec.stop();summary=inspect_recording(rec.path)['summary']
+        self.assertEqual((result['frames'],result['invalid_samples']), (4,3))
+        self.assertEqual((summary['invalid_data_samples'],summary['budget_overrun_samples']),(2,2))
+        self.assertEqual(self.pauses,0)
     async def test_queue_overflow_and_disk_failure_cannot_report_success(self):
         rec=Recording(self.temp.name,'model',self.config,self.pause,queue_capacity=2);await rec.start()
         for i in range(3):rec.offer(i,record(i))

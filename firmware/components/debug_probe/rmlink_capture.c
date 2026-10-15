@@ -22,6 +22,9 @@
 #include "DAP.h"
 #endif
 #include "rmlink_capture.h"
+#ifndef RMLINK_HOST_TEST
+#include "rmlink_clock_trace.h"
+#endif
 
 #define SLOTS 4
 #define FIELDS 32
@@ -76,6 +79,7 @@ static atomic_bool s_stream_failed;
 /* Only consecutive work within a capture frame reuses SELECT=0 / CSW32.
  * No TAR, target value or resolved pointer survives through this cache. */
 static bool s_memap_configured;
+static uint8_t s_failure[24];
 void rmlink_capture_invalidate_ap(void) { s_memap_configured=false; }
 
 static uint32_t u32(const uint8_t *p) { return p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
@@ -93,19 +97,27 @@ static bool memory(uint32_t a, size_t n, bool write) {
     return (a>=0x20000000u && a+n<=0x20005000u) ||
         (!write && a>=0x08000000u && a+n<=0x08010000u);
 }
-static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count) {
+void rmlink_capture_failure_stats(uint8_t output[24]) {memcpy(output,s_failure,24);}
+static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count,bool target_write) {
     /* Bound bad-address WAIT handling, keep asynchronous Abort effective. */
     int64_t started=esp_timer_get_time();
     DAP_TransferDeadline(2000);
     size_t n=DAP_ProcessCommand(request,out)&0xffff;
     bool ok=n>=3 && out[0]==5 && out[1]==count && out[2]==1;
     s_memap_configured=ok; /* any partial/failed response makes state unknown */
+    if(!ok) {
+        uint64_t now=esp_timer_get_time(),elapsed=now-started;
+        w32(s_failure,u32(s_failure)+1);w64(s_failure+4,now);
+        w32(s_failure+12,elapsed>UINT32_MAX?UINT32_MAX:(uint32_t)elapsed);w16(s_failure+16,n);
+        s_failure[18]=count;s_failure[19]=n>=3?out[1]:0;s_failure[20]=n>=3?out[2]:0;
+        s_failure[21]=DAP_GetTransferAbortReason();s_failure[22]=target_write;s_failure[23]=0;
+    }
 #ifndef RMLINK_HOST_TEST
     /* Subscriptions stop on failure. Preserve the DAP reason without logging
      * successful samples or retrying a possibly completed target write. */
-    if(!ok) ESP_LOGW("rmlink_capture","SWD failed: reply=%u count=%u/%u status=0x%02x elapsed=%u us",
+    if(!ok) ESP_LOGW("rmlink_capture","SWD failed: reply=%u count=%u/%u status=0x%02x elapsed=%u us abort=%u target_write=%u",
         (unsigned)n,n>=3?out[1]:0,count,n>=3?out[2]:0,
-        (unsigned)(esp_timer_get_time()-started));
+        (unsigned)(esp_timer_get_time()-started),s_failure[21],s_failure[22]);
 #else
     (void)started;
 #endif
@@ -123,7 +135,7 @@ static bool word(uint32_t addr,uint32_t *value,bool write) {
     req[p++]=5;w32(req+p,addr);p+=4;req[p++]=write?13:15;
     if(write)w32(req+p,*value);
     req[2]+=2;
-    if(!transfer(req,reply,req[2])) return false;
+    if(!transfer(req,reply,req[2],write)) return false;
     if(!write) *value=u32(reply+3);
     return true;
 }
@@ -134,7 +146,7 @@ static bool block(uint32_t address,uint32_t *values,unsigned count) {
     size_t p=memap_prefix(request);
     request[p++]=5;w32(request+p,address);p+=4;
     memset(request+p,15,count);request[2]+=1+count;
-    if(!transfer(request,reply,request[2]))return false;
+    if(!transfer(request,reply,request[2],false))return false;
     for(unsigned i=0;i<count;i++) values[i]=u32(reply+3+i*4);
     return true;
 }
@@ -144,7 +156,7 @@ static bool scattered(const uint32_t *addresses,uint32_t *values,unsigned count)
     size_t p=memap_prefix(request);
     for(unsigned i=0;i<count;i++) { request[p++]=5;w32(request+p,addresses[i]);p+=4;request[p++]=15; }
     request[2]+=count*2;
-    if(!transfer(request,reply,request[2]))return false;
+    if(!transfer(request,reply,request[2],false))return false;
     for(unsigned i=0;i<count;i++)values[i]=u32(reply+3+i*4);
     return true;
 }
@@ -223,6 +235,9 @@ static void stream_reset(void) {
 void rmlink_capture_closed(uint8_t transport,uint32_t session) {
     rmlink_capture_invalidate_ap();
     if(s_transport!=transport || s_session!=session) return;
+#ifndef RMLINK_HOST_TEST
+    rmlink_clock_trace_clear();
+#endif
     memset(s_sub,0,sizeof(s_sub)); s_session=0; s_transport=0; s_barrier=false;
     timer_refresh(); stream_reset();
 }
@@ -471,7 +486,11 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
-        w32(out+20,63); /* plus bit5: buffered Flash protocol 0x82 */
+        w32(out+20,63
+#ifndef RMLINK_HOST_TEST
+            |64 /* RMT clock trace, owner control only */
+#endif
+        );
         return 24;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
@@ -480,6 +499,12 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(!rmlink_owner_matches(owner,transport,session)) { out[2]=2; return 3; }
     if(s_session && (s_session!=session || s_transport!=transport)) { out[2]=2; return 3; }
     s_session=session; s_transport=transport; s_lease=esp_timer_get_time()+LEASE_US;
+#ifndef RMLINK_HOST_TEST
+    if(r[1]==18 || r[1]==19) {
+        if(r[1]==18 && !rmlink_capture_raw_allowed()) {out[2]=3;return 3;}
+        return rmlink_clock_trace_command(r,len,out,transport==RMLINK_USB?RMLINK_USB_PACKET_SIZE:RMLINK_PACKET_SIZE);
+    }
+#endif
     if(r[1]==17) {
         /* A single independently addressed read on this same executor. State
          * monitoring must not hold the sampling barrier across Wi-Fi RTTs. */

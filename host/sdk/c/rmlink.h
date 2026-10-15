@@ -21,6 +21,7 @@ RM_API rm_client *rm_open(const char *device_id,uint16_t api_port,const char *to
 RM_API void rm_close(rm_client *client);
 RM_API int rm_devices(rm_client *client,char *out,size_t capacity,size_t *required);
 RM_API int rm_capabilities(rm_client *client,char *out,size_t capacity,size_t *required);
+RM_API int rm_device_health(rm_client *client,const char *device_id,char *out,size_t capacity,size_t *required);
 RM_API int rm_time_sync(rm_client *client,const char *device_id,unsigned samples,char *out,size_t capacity,size_t *required);
 RM_API int rm_set_transport(rm_client *client,const char *device_id,int native_usb,char *out,size_t capacity,size_t *required);
 /* Generic authenticated public API. Return HTTP status, or negative Win32 error.

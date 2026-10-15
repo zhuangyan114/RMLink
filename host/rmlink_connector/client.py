@@ -21,6 +21,7 @@ class ApiClient:
         return self.request('POST',f'/v1/devices/{device_id}/time-sync',{'samples':samples})
     def set_transport(self,device_id,transport):
         return self.request('POST','/v1/transport',{'device_id':device_id,'transport':transport})
+    def device_health(self,device_id):return self.request('GET',f'/v1/devices/{device_id}/health')
 
     def __init__(self, directory=None, port=3243):
         for attempt in range(25):

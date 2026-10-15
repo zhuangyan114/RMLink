@@ -87,10 +87,10 @@ static size_t process(const request_t *job, uint8_t *out)
         if (job->len >= 2 && r[1] == 0) {
             memset(out, 0, RMLINK_PACKET_SIZE);
             out[0] = 0x80; out[2] = 0; out[3] = 1;
-            out[5] = 2; out[6] = 14; /* firmware 0.2.14: integrated page verification */
+            out[5] = 2; out[6] = 15; /* firmware 0.2.15: health and SWCLK trace */
             out[7] = 1; /* USB */
 #if CONFIG_RMLINK_WIFI_ENABLED
-            out[7] |= 6; /* TCP + USB provisioning */
+            out[7] |= 14; /* TCP + USB provisioning + runtime health */
 #endif
 #if CONFIG_RMLINK_TARGET_PINS_CONFIRMED
             out[9] = 1;
@@ -276,6 +276,7 @@ void rmlink_transport_closed(uint8_t transport, uint32_t session)
     if (job.done) { xSemaphoreTake(job.done, portMAX_DELAY); vSemaphoreDelete(job.done); }
 }
 void rmlink_tcp_session_open(uint32_t session) { atomic_store(&s_tcp_session, session); }
+unsigned rmlink_requested_swj_clock(void) { return DAP_GetSWJClock(); }
 esp_err_t rmlink_submit_tcp(uint32_t session, const uint8_t *data, size_t len,
         rmlink_reply_fn reply, void *context)
 {

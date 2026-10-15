@@ -20,12 +20,14 @@
 #include "esp_check.h"
 #include "esp_timer.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "esp_mac.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "mdns.h"
 #include "lwip/sockets.h"
 #include "rmlink_executor.h"
+#include "rmlink_capture.h"
 #include "rmlink_network.h"
 #include "rmlink_transport_bench.h"
 
@@ -276,6 +278,23 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         for (unsigned i = 0; i < 8; ++i) out[3 + i] = (uint8_t)(uptime >> (8 * i));
         for (unsigned i = 0; i < 4; ++i) out[11 + i] = (uint8_t)(reason >> (8 * i));
         return 15;
+    }
+    if (r[1] == 10) { /* Fixed USB64 snapshot; no target GPIO or owner claim. */
+        out[2]=0;out[3]=1;
+        const uint32_t caps[]={MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT};
+        for(unsigned j=0;j<2;j++) {
+            uint32_t stats[]={heap_caps_get_free_size(caps[j]),heap_caps_get_largest_free_block(caps[j]),heap_caps_get_minimum_free_size(caps[j])};
+            for(unsigned k=0;k<3;k++)for(unsigned i=0;i<4;i++)out[4+j*12+k*4+i]=stats[k]>>(i*8);
+        }
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        uint32_t requested=rmlink_requested_swj_clock();
+        rmlink_capture_failure_stats(out+40);
+#else
+        uint32_t requested=0;memset(out+40,0,24);
+#endif
+        for(unsigned i=0;i<4;i++)out[28+i]=requested>>(i*8);
+        uint64_t now=esp_timer_get_time();for(unsigned i=0;i<8;i++)out[32+i]=now>>(i*8);
+        return 64;
     }
     if (r[1] == 4) {
         out[2] = 0; out[3] = s_config.ssid[0] != 0; out[4] = atomic_load(&s_up);

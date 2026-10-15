@@ -1,6 +1,7 @@
 """Reusable Cortex-M target engine. One lock and owner for control + captures."""
 import asyncio
 import struct
+from .diagnostics import decode_clock_header,summarize_clock
 from contextlib import asynccontextmanager
 
 DEFAULT_CLOCK_HZ=4_000_000
@@ -268,6 +269,22 @@ class TargetEngine:
                 data=await self.vendor(10,struct.pack('<IIIB',a,stride,count,fields))
                 reads,us,checksum=struct.unpack('<IQI',data)
                 return {'reads':reads,'elapsed_us':us,'checksum':checksum,'clock_hz':self.clock,'actual_clock_measured':False}
+            if command=='measure_swd_clock':
+                if not self.capture_features&64:raise ValueError('Firmware does not support SWCLK trace')
+                mode=body.get('mode','dp_read')
+                if mode not in ('sequence','dp_read'):raise ValueError('Trace mode must be sequence or dp_read')
+                reply=await self.packet(bytes([0x81,18,int(mode=='dp_read')]))
+                if len(reply)==3 and reply[:2]==b'\x81\x12' and reply[2]:
+                    return {'measurement_valid':False,'device_status':reply[2],'mode':mode}
+                if reply[:3]!=b'\x81\x12\0':raise ValueError('Clock trace response')
+                header=decode_clock_header(reply[3:]);words=[]
+                while len(words)<header['symbol_count']:
+                    offset=len(words);count=min(header['symbol_count']-offset,(self.broker.packet_size-9)//4)
+                    data=await self.vendor(19,struct.pack('<IBB',header['trace_id'],offset,count))
+                    if len(data)!=6+4*count or data[:6]!=struct.pack('<IBB',header['trace_id'],offset,count):
+                        raise ValueError('Clock trace fragment identity or length')
+                    words.extend(struct.unpack('<'+'I'*count,data[6:]))
+                return summarize_clock(header,words)
             raise ValueError('Unsupported target command')
 
     async def cleanup(self):

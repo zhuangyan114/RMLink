@@ -19,7 +19,8 @@ class Recording:
         self.task=None;self.failure_task=None;self.file=None;self.accepting=False;self.stopping=False;self.footer_offset=None
         self.last_sequence={};self.last_byte={};self.hash=hashlib.sha256()
         self.progress={'recording_id':self.id,'path':str(self.path),'strict':strict,'phase':'starting',
-            'frames':0,'bytes':0,'gaps':0,'invalid_samples':0,'error':None,'finalized':False}
+            'frames':0,'bytes':0,'gaps':0,'invalid_samples':0,
+            'invalid_data_samples':0,'budget_overrun_samples':0,'error':None,'finalized':False}
         self.metadata={'version':1,'connector_version':__version__,'device_id':device_id,'created_at':datetime.now().astimezone().isoformat(),
             'strict':strict,'starts_mid_capture':True,'configs':self.configs}
 
@@ -50,7 +51,13 @@ class Recording:
         gap=previous is not None and sequence!=((previous+1)&0xffffffff)
         invalid=False
         if sample['kind']!=3:
-            count=len(config['addresses']);invalid=sample['valid_bitmap']!=(1<<count)-1 or bool(sample['flags']&3)
+            count=len(config['addresses'])
+            bad_data=sample['valid_bitmap']!=(1<<count)-1 or bool(sample['flags']&1)
+            budget=bool(sample['flags']&2)
+            self.progress['invalid_data_samples']+=int(bad_data)
+            self.progress['budget_overrun_samples']+=int(budget)
+            # Keep the historical strict-mode aggregate for existing clients.
+            invalid=bad_data or budget
         else:
             begin=sample['byte_sequence'];expected=self.last_byte.get(sid)
             gap=gap or expected is not None and begin!=expected

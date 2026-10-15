@@ -31,7 +31,9 @@ RAM 算法从 1464 B 增至 1856 B，原有 Init／UnInit／EraseSector／Progra
 - 实板缓存路径完整镜像交替重复通过。USB 上传异常及最后 1 KiB 页烧录后全镜像一致；批量擦除后取消／暂停和新作业完整恢复通过。
 - 实际关闭 TCP 后约 27.40 ms 释放，USB 可接手，旧作业不能从 USB 或新 TCP 会话重放；新操作恢复完整 fixture。
 - C ABI 经真实 WinHTTP 调用支持并发 cancel、409/FlashCancelled 进度及新操作恢复。小输出缓冲返回 -122 时，commit 已完成；GET /flash 可确认终态，重复 POST commit 被拒绝。调用方不能用副作用请求探测输出大小。
-- 标准虚拟 USB 的 OpenOCD 完整烧录／校验／复位和调试检查、pyOCD 暂停／寄存器／继续通过；C ABI 最终复测通过首 1 KiB 页烧录后其余页保持。十分钟独立四级指针共存持续验收仍在运行，单独记录终态。
+- 标准虚拟 USB 的 OpenOCD 完整烧录／校验／复位和调试检查、pyOCD 暂停／寄存器／继续通过；C ABI 最终复测通过首 1 KiB 页烧录后其余页保持。
+
+持续采样首轮十分钟在约430 s出现一个 Timeline partial 帧（flags=1、valid_bitmap=0、duration=4527 us），独立保存失败录制，SHA256 `206b3d784b02a229b8ad8c01edb29ea3c962fa385cf9ce98510024d7ee70eaa2`。其他历史 budget 标志不是无效数据。未改固件的第二轮十分钟通过，同步750 s UART未记录SWD失败；209384帧录制独立校验通过，SHA256 `2a6846e1a971d8d878ad5651a585ca30eea72fd4746ac6de1a2ee1ea9f7e7c8b`。板端 failures/ring_dropped=0，期限跳过仍存在。不能据此称首轮故障已修复；0.2.15新增失败原因与内存快照用于继续定位。
 
 0.2.12 的 54 轮多级指针／Watch／RTT 和改向测试已经完成；不把它当成新增烧录算法或后续时钟诊断的持续采样验收。数据文件与选中二进制应以实际刷写 receipt 和每次测试身份为准。
 

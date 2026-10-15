@@ -324,6 +324,8 @@
  extern void     DAP_Setup (void);
  extern void     DAP_TransferBeginBounded(uint32_t timeout_us);
  extern void     DAP_TransferDeadline(uint32_t timeout_us);
+ extern uint8_t  DAP_GetTransferAbortReason(void);
+ extern uint32_t DAP_GetSWJClock(void);
  
  // Configurable delay for clock generation
  #ifndef DELAY_SLOW_CYCLES

@@ -108,6 +108,7 @@ export class RMLinkClient {
   async target(command, parameters = {}) {
     return this.request('POST', `/sessions/${this.session}/target`, {command, ...parameters});
   }
+  async deviceHealth(deviceId) {return this.request('GET',`/devices/${deviceId}/health`);}
   async flashImage(data, address = 0x08000000, signal, {backend = 'auto',verifyOnHost = false} = {}) {
     if (!this.session) throw new Error('RMLink owner lost or session closed');
     if (this.flashPending) throw new Error('Flash upload already running');
