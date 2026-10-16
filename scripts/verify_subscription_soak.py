@@ -13,6 +13,7 @@ sys.path.insert(0,str(ROOT/'host'))
 from rmlink_connector.client import ApiClient
 from rmlink_connector.recording_reader import inspect_recording
 from benchmark_pointer_subscriptions import layout,require
+from fixture_clock import require_fixture_72mhz,discard_pretest_rtt
 
 
 class Measurements:
@@ -108,6 +109,7 @@ def main():
                 'rssiDbm':struct.unpack('b',network[5:6])[0],
                 'scope':'probe snapshot before capture; not continuous RF measurement'}
             report['target']=client.target('connect')
+            report['targetClock']=require_fixture_72mhz(client)
             report['healthBefore']=client.device_health(args.device_id)
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             image,fields=layout(args.pointer_depth,not args.independent)
@@ -115,13 +117,14 @@ def main():
                 for i in range(10-args.direct_fields,10):fields[i]={'address':0x20000100+i*64,'offsets':[]}
             report['fields']=fields
             client.target('write_memory',address=0x20001000,data=image.hex())
+            report['rttSetup']=discard_pretest_rtt(client)
             ids=[];recording=None;begin=None;live=Measurements();after=-1;consumer_gap=0
             try:
                 sub=client.subscribe('memory_series',fields=fields,period_us=args.period_us)
                 ids.append(sub['subscription_id']);after=sub['stream_cursor']
                 ids.append(client.subscribe('memory_snapshot',fields=fields[:4],period_us=100000)['subscription_id'])
                 ids.append(client.subscribe('rtt_stream',control_block_address=0x20000400,period_us=5000)['subscription_id'])
-                recording=client.start_recording(strict=False);begin=time.perf_counter()
+                recording=client.start_recording(strict=False);report['recordingStarted']=recording;begin=time.perf_counter()
                 next_state=begin;next_progress=begin+30
                 while time.perf_counter()-begin<args.seconds:
                     batch=client.events(after,256,500);after=batch['cursor'];consumer_gap+=batch['consumer_gap']

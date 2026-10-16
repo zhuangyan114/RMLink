@@ -3,6 +3,25 @@ import statistics
 import struct
 
 
+def decode_read_recovery(reply):
+    if len(reply)>=3 and reply[:2]==b'\x80\x0c' and reply[2]:return {'supported':False}
+    if len(reply)!=24 or reply[:4]!=b'\x80\x0c\0\x01':raise ValueError('Malformed read recovery snapshot')
+    attempts,recovered,exhausted,at=struct.unpack_from('<3IQ',reply,4)
+    return dict(supported=True,attempts=attempts,recovered=recovered,exhausted=exhausted,last_retry_uptime_us=at)
+
+
+def decode_performance(reply):
+    if len(reply)>=3 and reply[:2]==b'\x80\x0b' and reply[2]:return {'supported':False}
+    if len(reply)!=63 or reply[:3]!=b'\x80\x0b\0' or reply[3] not in (1,2):raise ValueError('Malformed performance snapshot')
+    if reply[3]==2 and reply[60]>1:raise ValueError('Malformed performance flags')
+    calls,waits,errors,cycles,clocks,commands,io_us,words,frames,maximum=struct.unpack_from('<3I2QIQ3I',reply,4)
+    return dict(supported=True,swd_metrics_active=reply[3]==1 or bool(reply[60]),
+        swd_transfers=calls,swd_waits=waits,swd_errors=errors,
+        swd_cpu_cycles=cycles,swd_wire_clocks=clocks,capture_dap_commands=commands,
+        capture_dap_us=io_us,capture_words=words,capture_frames=frames,max_capture_dap_us=maximum,
+        cpu_hz=int.from_bytes(reply[56:60],'little'))
+
+
 def decode_health(reply):
     if len(reply)>=3 and reply[:2]==b'\x80\x0a' and reply[2]:return {'supported':False}
     if len(reply)!=64 or reply[:4]!=b'\x80\x0a\0\x01':raise ValueError('Malformed runtime health snapshot')

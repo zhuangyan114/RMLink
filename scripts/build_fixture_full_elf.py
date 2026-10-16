@@ -4,6 +4,7 @@ Only changes program headers of this test artifact. Existing section/symbol/debu
 metadata retains its addresses; the original ELF is never modified.
 """
 import hashlib
+import argparse
 from pathlib import Path
 import struct
 
@@ -11,10 +12,14 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--replace-with-backup',type=Path,help='Exact archived previous output, required before replacement')
+    args=parser.parse_args()
     directory=ROOT/'artifacts/build/stm32-fixture'
     data=bytearray((directory/'fixture.elf').read_bytes())
     image=(directory/'fixture-64k.bin').read_bytes()
-    assert len(image)==65536 and hashlib.sha256(image).hexdigest()=='2a65c721fa1be9c4fcddba2a32bb96ccaeece439b517adb167f00ea928c031a4'
+    code=(directory/'fixture.bin').read_bytes()
+    assert len(image)==65536 and image[:len(code)]==code
     assert data[:7]==b'\x7fELF\x01\x01\x01' and struct.unpack_from('<H',data,18)[0]==40
     phoff=struct.unpack_from('<I',data,28)[0]
     size,count=struct.unpack_from('<HH',data,42);assert size==32 and count>0 and phoff+size*count<=len(data)
@@ -28,7 +33,9 @@ def main():
         else:struct.pack_into('<I',data,at,0)
     assert first is not None
     output=directory/'fixture-full-image.elf'
-    if output.exists() and output.read_bytes()!=data:raise ValueError('Preserve the existing fixture ELF artifact')
+    if output.exists() and output.read_bytes()!=data:
+        if not args.replace_with_backup or not args.replace_with_backup.is_file() or args.replace_with_backup.read_bytes()!=output.read_bytes():
+            raise ValueError('Preserve the existing fixture ELF artifact with --replace-with-backup')
     output.write_bytes(data)
     print(output,hashlib.sha256(data).hexdigest())
 

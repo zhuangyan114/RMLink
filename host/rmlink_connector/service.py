@@ -20,7 +20,8 @@ from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
 from .flash import FlashProgrammer, FlashJobError
 from .clock_sync import ClockSync
-from .diagnostics import decode_health
+from .diagnostics import decode_health,decode_performance,decode_read_recovery
+from .runtime_diagnostics import monitor_event_loop
 from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
 
@@ -34,6 +35,7 @@ class Connector:
         self.usbip_port = None
         self.stopping = asyncio.Event()
         self.background = None
+        self.loop_monitor = None
         self.scan_error = None
         self.mount_errors = {}
         self.connection_errors = {}
@@ -119,6 +121,7 @@ class Connector:
         self.usbip_port = await self.usbip.start(usbip_port)
         self.api = await asyncio.start_server(self.handle_http, '127.0.0.1', api_port, limit=16384)
         self.background = asyncio.create_task(self.upkeep())
+        self.loop_monitor = asyncio.create_task(monitor_event_loop())
         return self.api.sockets[0].getsockname()[1]
 
     def snapshot(self):
@@ -153,8 +156,9 @@ class Connector:
             if key not in self.devices and key not in self.state.data['paired']:raise ValueError('Unknown device')
             broker=self.brokers.get(key)
             if not broker or broker.failed:return {'device_id':key,'connected':False,'supported':None,'error':self.connection_errors.get(key)}
-            reply=(await broker.submit('device-health',[b'\x80\x0a'],'background'))[0]
-            return dict(decode_health(reply),device_id=key,connected=True)
+            replies=await broker.submit('device-health',[b'\x80\x0a',b'\x80\x0b',b'\x80\x0c'],'background')
+            return dict(decode_health(replies[0]),performance=decode_performance(replies[1]),
+                read_deadline_recovery=decode_read_recovery(replies[2]),device_id=key,connected=True)
         if method=='POST' and path=='/v1/transport':
             key,mode=body.get('device_id'),body.get('transport')
             if mode not in ('usb','wifi') or key not in self.state.data['paired']:raise ValueError('Paired device and usb/wifi transport required')
@@ -360,6 +364,7 @@ class Connector:
 
     async def close(self):
         self.stopping.set()
+        if self.loop_monitor:self.loop_monitor.cancel();await asyncio.gather(self.loop_monitor,return_exceptions=True)
         if self.background: self.background.cancel(); await asyncio.gather(self.background, return_exceptions=True)
         for sid in list(self.sessions):await self.close_session(sid)
         for key in list(self.driver.ports):

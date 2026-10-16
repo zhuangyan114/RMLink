@@ -6,7 +6,7 @@
 
 已有开发服务在线时不应启动第二份服务；安装脚本不会替换正在运行的已安装EXE。配对／目标会话沿用当前用户`.rmlink`状态，公共API和SDK用法见docs/api-v1.md。SDK包含Node／TypeScript包及独立WinHTTP C DLL，前端不需要Orbit或Python。
 
-当前增强目标profile限于STM32F103中容量Cortex-M3，Flash接口进一步限于F103C8的64 KiB。Watch／Timeline／RTT板端订阅、有线分片、无线流、独立录制和错误处理已经实现；真实F103C8有效采样、增强烧录及标准虚拟USB调试已验收，性能与条件见随包文档。默认请求4 MHz不等于已量测的SWCLK，其他目标和已安装VS Code界面仍需单独验证。
+当前增强目标profile限于STM32F103中容量Cortex-M3，Flash接口进一步限于F103C8的64 KiB。Watch／Timeline／RTT板端订阅、有线分片、无线流、独立录制和错误处理已经实现；真实F103C8有效采样、增强烧录及标准虚拟USB调试已有分版本验收，性能与条件见随包文档。后续性能测试使用72 MHz STM32基线；连接服务不修改用户应用时钟。默认请求4 MHz，内部RMT典型DP周期约4 MHz，目标端外部波形仍未量测；其他目标和已安装VS Code界面仍需单独验证。
 
 firmware/包含已确认开发板GPIO4=SWDIO、GPIO5=SWCLK、GPIO6=预留NRST的应用镜像、bootloader、分区表和flasher_args.json；仅适用本轮已验证的ESP32-S3、16MB Flash／8MB Octal PSRAM开发板。不能直接套用于不同GPIO或内存的成品调试器。请从源仓库构建／刷写脚本操作；manifest分别记录组件版本、固件版本、实际刷入profile和配置哈希，二者版本号不要求相同。
 

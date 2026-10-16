@@ -3,6 +3,9 @@
 #include "capture_platform.h"
 #include "rmlink_capture.h"
 uint64_t host_clock=1000000;
+uint8_t host_abort_reason;
+static unsigned deadline_failures;
+static uint8_t injected_status=2,injected_abort=2;
 static uint32_t ram[5120], reads, writes, commands;
 static uint32_t dp_select,ap_csw,select_writes,csw_writes;
 static uint32_t operation_us=20;
@@ -16,6 +19,10 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
     if(fail) {dp_select=0x10;ap_csw=0;return 3;}
     unsigned pos=3,n=3;uint32_t address=0;
     for(unsigned i=0;i<r[2];i++) {
+        if(deadline_failures && i+1==r[2]) {
+            deadline_failures--;host_abort_reason=injected_abort;host_clock+=2100;
+            out[1]=i;out[2]=injected_status;dp_select=0x10;ap_csw=0;return n;
+        }
         uint8_t flags=r[pos++];uint32_t value;
         if(flags&2) {
             assert(flags==15 && !(address&3) && dp_select==0 && ap_csw==0x23000052);
@@ -28,7 +35,7 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
             else if(flags==1){assert(dp_select==0);ap_csw=value;csw_writes++;}
             else if(flags==5){assert(dp_select==0 && ap_csw==0x23000052);address=value;}
             else if(flags==13){assert(dp_select==0 && ap_csw==0x23000052 && address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;
-                if(fail_after_write){dp_select=0x10;ap_csw=0;out[1]=0;out[2]=4;return 3;}}
+                if(fail_after_write){dp_select=0x10;ap_csw=0;host_abort_reason=2;out[1]=0;out[2]=2;return 3;}}
             else assert(false);
         }
     }
@@ -68,10 +75,10 @@ static void memap_cache_test(void) {
     unsigned sel=select_writes,csw=csw_writes,cmd=commands;
     assert(next_record(frame)==96 && commands==cmd+2);
     assert(select_writes==sel+1 && csw_writes==csw+1);
-    /* Each new frame reestablishes AP configuration and rereads every leaf. */
+    /* Consecutive frames reuse only AP configuration and reread every leaf. */
     ram[0]++;host_clock+=2000;sel=select_writes;csw=csw_writes;unsigned before=reads;
     assert(next_record(frame)==96 && reads==before+10);
-    assert(select_writes==sel+1 && csw_writes==csw+1);
+    assert(select_writes==sel && csw_writes==csw);
     uint32_t value;memcpy(&value,frame+56,4);assert(value==ram[0]);
     /* A queued external access can change the bank and CSW arbitrarily. */
     sel=select_writes;csw=csw_writes;
@@ -98,8 +105,77 @@ static void memap_cache_test(void) {
     assert(next_record(frame)==96 && select_writes==sel+2 && csw_writes==csw+2);
     rmlink_capture_closed(2,7);
 }
+static void bounded_read_recovery_test(void) {
+    uint8_t frame[384],stats[21];uint32_t v;
+    rmlink_capture_read_recovery_stats(stats);uint32_t attempted;memcpy(&attempted,stats+1,4);
+    prepare(1,1,8);
+    for(unsigned i=0;i<8;i++){address(1,i,0x20000100+i*8);ram[64+i*2]=100+i;}
+    action(3,1);deadline_failures=1;unsigned before=reads;
+    assert(rmlink_capture_run() && reads-before==7);
+    assert(!rmlink_capture_take(frame,sizeof(frame),0)); /* yield before retry */
+    unsigned sel=select_writes;before=reads;
+    assert(rmlink_capture_run() && reads-before==8 && select_writes==sel+1);
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==88 && frame[48]==255 && !(frame[52]&1));
+    for(unsigned i=0;i<8;i++){memcpy(&v,frame+56+i*4,4);assert(v==100+i);}
+    rmlink_capture_read_recovery_stats(stats);memcpy(&v,stats+1,4);assert(v==attempted+1);
+    memcpy(&v,stats+5,4);assert(v==1);rmlink_capture_closed(2,7);
+    prepare(1,1,8);for(unsigned i=0;i<8;i++)address(1,i,0x20000100+i*8);action(3,1);
+    deadline_failures=2;assert(rmlink_capture_run());assert(rmlink_capture_run());
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==88 && (frame[52]&1));
+    action(7,1);assert(out[3]==3 && out[50]==3);
+    rmlink_capture_read_recovery_stats(stats);memcpy(&v,stats+9,4);assert(v==1);
+    rmlink_capture_closed(2,7);
+    for(unsigned i=0;i<2;i++) {
+        /* NO_ACK and explicit Abort must not enter read-deadline recovery. */
+        injected_status=i?2:7;injected_abort=i?1:0;
+        prepare(1,1,1);address(1,0,0x20000100);action(3,1);deadline_failures=1;
+        rmlink_capture_read_recovery_stats(stats);memcpy(&attempted,stats+1,4);
+        assert(rmlink_capture_run() && rmlink_capture_take(frame,sizeof(frame),0)==60 && (frame[52]&1));
+        action(7,1);assert(out[3]==3);
+        rmlink_capture_read_recovery_stats(stats);memcpy(&v,stats+1,4);assert(v==attempted);
+        rmlink_capture_closed(2,7);
+    }
+    injected_status=2;injected_abort=2;
+}
+static void independent_pointer_prefetch_test(void) {
+    uint8_t frame[384];uint32_t v;
+    prepare(1,1,10);
+    for(unsigned i=0;i<10;i++) {
+        ram[64+i*16]=100+i;
+        if(i<5) {
+            unsigned root=1024+i*16;
+            ram[root]=0x20000000+(root+1)*4;ram[root+1]=0x20000000+(root+2)*4;
+            ram[root+2]=0x20000100+i*64;address(1,i,0x20000000+root*4);pointer(i,3,0);
+        } else address(1,i,0x20000100+i*64);
+    }
+    action(3,1);unsigned before=reads;
+    assert(next_record(frame)==96 && reads-before==25 && frame[48]==255 && frame[49]==3);
+    for(unsigned i=0;i<10;i++){memcpy(&v,frame+56+i*4,4);assert(v==100+i);}
+    rmlink_capture_closed(2,7);
+    /* Arbitrary nodes outside the speculative window still resolve normally. */
+    prepare(1,1,5);
+    for(unsigned i=0;i<5;i++) {
+        unsigned root=1024+i*16,middle=1536+i*16,last=1792+i*16;
+        ram[root]=0x20000000+middle*4;ram[middle]=0x20000000+last*4;ram[last]=0x20000100+i*64;
+        address(1,i,0x20000000+root*4);pointer(i,3,0);
+    }
+    action(3,1);assert(next_record(frame)==76 && frame[48]==31 && !(frame[52]&1));
+    for(unsigned i=0;i<5;i++){memcpy(&v,frame+56+i*4,4);assert(v==100+i);}
+    rmlink_capture_closed(2,7);
+    /* Cache capacity must still support 32 independent four-level chains. */
+    prepare(1,1,32);
+    for(unsigned i=0;i<32;i++) {
+        unsigned root=1024+i*8;
+        for(unsigned d=0;d<4;d++)ram[root+d]=0x20000000+(root+d+1)*4;
+        ram[root+4]=1000+i;address(1,i,0x20000000+root*4);pointer(i,4,0);
+    }
+    action(3,1);before=reads;assert(next_record(frame)==184 && reads-before==160);
+    memcpy(&v,frame+48,4);assert(v==UINT32_MAX);
+    for(unsigned i=0;i<32;i++){memcpy(&v,frame+56+i*4,4);assert(v==1000+i);}
+    rmlink_capture_closed(2,7);
+}
 int main(void) {
-    assert(rmlink_capture_init(NULL)==0);memap_cache_test();
+    assert(rmlink_capture_init(NULL)==0);memap_cache_test();bounded_read_recovery_test();independent_pointer_prefetch_test();
     memset(ram,0,sizeof(ram));reads=0;writes=0;commands=0;
     uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};
     unsigned sync_reads=reads;owner.session=8;
@@ -315,8 +391,10 @@ int main(void) {
     operation_us=1200;assert(rmlink_capture_run());action(7,1);
     assert(out[3]==2 && out[46]==1 && out[50]==0); // report an overrun, keep realtime capture alive
     assert(rmlink_capture_take(frame,sizeof(frame),0)==60 && (frame[52]&2));
+    assert(rmlink_capture_run()); /* no artificial wait after an overrun */
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==60);memcpy(&v,frame+32,4);assert(v==1);
     host_clock+=800;assert(rmlink_capture_run());
-    assert(rmlink_capture_take(frame,sizeof(frame),0)==60);memcpy(&v,frame+32,4);assert(v==2); // skipped deadline is visible
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==60);memcpy(&v,frame+32,4);assert(v==3); // skipped deadline is visible
     rmlink_capture_closed(2,7);
     prepare(1,1,1);address(1,0,0x20000000);action(3,1);assert(rmlink_capture_run());action(7,1);
     assert(out[3]==3 && out[50]==6); // old 17-byte PREPARE keeps strict deadline semantics

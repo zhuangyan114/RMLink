@@ -103,7 +103,10 @@ class SoakMeasurementsTests(unittest.TestCase):
             def device_health(self,device_id):return {'supported':True,'last_capture_io_failure':None}
             def request(self,method,path):return {'devices':[{'device_id':'50787d15a924','firmware':'model'}]}
             def target(self,action,**options):
-                if action=='read_memory':return {'data':'4b4c4d52'}
+                if action=='read_memory':
+                    if options.get('address')==0x40021000:return {'data':struct.pack('<3I',0x03038b83,0x001d840a,0).hex()}
+                    if options.get('address')==0x20000400:return {'data':(b'SEGGER RTT'+bytes(6)+struct.pack('<8I',1,0,0,0x20000600,1024,0,0,0)).hex()}
+                    return {'data':'4b4c4d52'}
                 return {'state':'Running'}
             def subscribe(self,*args,**options):
                 self.next_id+=1;return {'subscription_id':self.next_id,'stream_cursor':-1}

@@ -19,6 +19,7 @@
 #include "esp_random.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_rom_crc.h"
 #include "DAP.h"
 #endif
 #include "rmlink_capture.h"
@@ -34,11 +35,13 @@
 typedef struct {
     uint8_t kind, count, state, index; /* 0 empty, 1 prepared, 2 running, 3 paused */
     uint8_t reason; /* 1 pause,2 stop,3 SWD,4 lease,5 stream,6 budget,7 limit */
+    uint8_t read_retry; /* 0 unused, 1 pending next executor turn, 2 consumed */
     uint32_t period, limit, supplied, revision, capture, seq;
     uint32_t address[FIELDS], values[FIELDS], valid;
     uint8_t depth[FIELDS], width[FIELDS];
     int32_t offset[FIELDS][4];
     uint32_t cache_address[CACHE_WORDS],cache_value[CACHE_WORDS];
+    uint8_t cache_map[256]; /* index+1, cleared for every frame */
     unsigned cache_count;
     uint32_t resolve_address[FIELDS],resolved;
     uint8_t resolve_depth[FIELDS];
@@ -76,10 +79,16 @@ static size_t s_usb_length;
 static uint32_t s_usb_frame_id;
 static uint64_t s_last_stream;
 static atomic_bool s_stream_failed;
-/* Only consecutive work within a capture frame reuses SELECT=0 / CSW32.
+/* Consecutive capture work reuses SELECT=0 / CSW32 until an external command.
  * No TAR, target value or resolved pointer survives through this cache. */
 static bool s_memap_configured;
 static uint8_t s_failure[24];
+static uint32_t s_io_commands,s_io_words,s_io_frames,s_io_max_us;
+static uint64_t s_io_us;
+static uint32_t s_read_retry_attempts,s_read_retry_recovered,s_read_retry_exhausted;
+static uint64_t s_last_read_retry;
+static bool s_lower_turn;
+static unsigned s_lower_cursor=1;
 void rmlink_capture_invalidate_ap(void) { s_memap_configured=false; }
 
 static uint32_t u32(const uint8_t *p) { return p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
@@ -87,9 +96,13 @@ static void w16(uint8_t *p, uint16_t v) { p[0]=v; p[1]=v>>8; }
 static void w32(uint8_t *p, uint32_t v) { for(unsigned i=0;i<4;i++) p[i]=v>>(8*i); }
 static void w64(uint8_t *p, uint64_t v) { for(unsigned i=0;i<8;i++) p[i]=v>>(8*i); }
 static uint32_t crc32(const uint8_t *p,size_t n) {
+#ifndef RMLINK_HOST_TEST
+    return esp_rom_crc32_le(0,p,n);
+#else
     uint32_t v=~0u;
     while(n--) { v^=*p++; for(unsigned b=0;b<8;b++) v=(v>>1)^(0xedb88320u & (0u-(v&1))); }
     return ~v;
+#endif
 }
 /* First target family: F103C8. Unknown/peripheral regions must be explicit. */
 static bool memory(uint32_t a, size_t n, bool write) {
@@ -98,11 +111,36 @@ static bool memory(uint32_t a, size_t n, bool write) {
         (!write && a>=0x08000000u && a+n<=0x08010000u);
 }
 void rmlink_capture_failure_stats(uint8_t output[24]) {memcpy(output,s_failure,24);}
+void rmlink_capture_profile_enable(bool enabled) {
+#ifndef RMLINK_HOST_TEST
+    SWD_ProfileEnable(enabled);
+#else
+    (void)enabled;
+#endif
+}
+void rmlink_capture_read_recovery_stats(uint8_t out[21]) {
+    out[0]=1;w32(out+1,s_read_retry_attempts);w32(out+5,s_read_retry_recovered);
+    w32(out+9,s_read_retry_exhausted);w64(out+13,s_last_read_retry);
+}
+void rmlink_capture_performance_stats(uint8_t out[60]) {
+    memset(out,0,60);out[0]=2;
+#ifndef RMLINK_HOST_TEST
+    DAP_SWDMetrics_t m;SWD_GetMetrics(&m);
+    w32(out+1,m.transfers);w32(out+5,m.waits);w32(out+9,m.errors);
+    w64(out+13,m.elapsed_cycles);w64(out+21,m.wire_clocks);
+    w32(out+53,CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ*1000000u);
+    out[57]=SWD_ProfileEnabled();
+#endif
+    w32(out+29,s_io_commands);w64(out+33,s_io_us);w32(out+41,s_io_words);
+    w32(out+45,s_io_frames);w32(out+49,s_io_max_us);
+}
 static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count,bool target_write) {
     /* Bound bad-address WAIT handling, keep asynchronous Abort effective. */
     int64_t started=esp_timer_get_time();
     DAP_TransferDeadline(2000);
     size_t n=DAP_ProcessCommand(request,out)&0xffff;
+    uint32_t duration=(uint32_t)(esp_timer_get_time()-started);
+    s_io_commands++;s_io_us+=duration;if(duration>s_io_max_us)s_io_max_us=duration;
     bool ok=n>=3 && out[0]==5 && out[1]==count && out[2]==1;
     s_memap_configured=ok; /* any partial/failed response makes state unknown */
     if(!ok) {
@@ -137,6 +175,7 @@ static bool word(uint32_t addr,uint32_t *value,bool write) {
     req[2]+=2;
     if(!transfer(req,reply,req[2],write)) return false;
     if(!write) *value=u32(reply+3);
+    if(!write)s_io_words++;
     return true;
 }
 static bool block(uint32_t address,uint32_t *values,unsigned count) {
@@ -148,16 +187,22 @@ static bool block(uint32_t address,uint32_t *values,unsigned count) {
     memset(request+p,15,count);request[2]+=1+count;
     if(!transfer(request,reply,request[2],false))return false;
     for(unsigned i=0;i<count;i++) values[i]=u32(reply+3+i*4);
+    s_io_words+=count;
     return true;
 }
 static bool scattered(const uint32_t *addresses,uint32_t *values,unsigned count) {
     uint8_t request[64],reply[40];
     if(!count || count>8)return false;
     size_t p=memap_prefix(request);
-    for(unsigned i=0;i<count;i++) { request[p++]=5;w32(request+p,addresses[i]);p+=4;request[p++]=15; }
-    request[2]+=count*2;
+    for(unsigned i=0;i<count;i++) {
+        if(!i || addresses[i]!=addresses[i-1]+4 || !(addresses[i]&0x3ff)) {
+            request[p++]=5;w32(request+p,addresses[i]);p+=4;request[2]++;
+        }
+        request[p++]=15;request[2]++;
+    }
     if(!transfer(request,reply,request[2],false))return false;
     for(unsigned i=0;i<count;i++)values[i]=u32(reply+3+i*4);
+    s_io_words+=count;
     return true;
 }
 static bool bytes_read(uint32_t addr,uint8_t *out,size_t n) {
@@ -195,9 +240,13 @@ static void timer_refresh(void) {
         if(running)esp_timer_stop(s_timer);
         return;
     }
+    uint64_t now=esp_timer_get_time();
+    /* swd_task immediately calls run() again while work is ready. An overdue
+     * subscription needs no 20 us timer interrupt in the middle of SWD. */
+    if(due<=now) {if(running)esp_timer_stop(s_timer);return;}
     if(running && due==s_timer_due)return;
     if(running)esp_timer_stop(s_timer);
-    uint64_t now=esp_timer_get_time(),delay=due>now?due-now:1;
+    uint64_t delay=due-now;
     s_timer_due=due;
     esp_timer_start_once(s_timer,delay<20?20:delay);
 }
@@ -278,15 +327,15 @@ static void sample_finish(subscription_t *s,unsigned id) {
     bool overrun=s->index==s->count && ended-s->started>s->period;
     emit(s,id,s->timestamp,duration,values,s->count*4,s->valid,(s->valid==all?0:1)|(overrun?2:0)|(s->reused?4:0));
     s->last_timestamp=s->timestamp;
-    s->frames++; s->index=0; s->started=0; s->seq++;
+    s->frames++;s_io_frames++; s->index=0; s->started=0; s->seq++;
+    if(s->kind==1)s_lower_turn=true;
     if(overrun) {
         s->budget_overrun++;
         if(s->strict_deadlines) {s->state=3;s->reason=6;}
     }
-    if(!s->strict_deadlines && ended>=s->next) {
-        uint64_t skipped=(ended-s->next)/s->period+1;
-        s->next+=skipped*s->period;s->missed+=skipped;s->seq+=(uint32_t)skipped;
-    }
+    /* Keep the next ideal start here. run() accounts for missed slots when
+     * the next frame actually begins. Rounding up now would add a needless
+     * 0..period idle after every already-overdue realtime frame. */
     if(s->limit && s->frames>=s->limit) { s->state=3; s->reason=7; }
 }
 static bool reuse_timeline(const subscription_t *watch,unsigned field,uint32_t *value) {
@@ -303,9 +352,22 @@ static bool reuse_timeline(const subscription_t *watch,unsigned field,uint32_t *
     }
     return false;
 }
+static unsigned cache_hash(uint32_t address) {
+    return (((address>>2)^(address>>10))*0x9e3779b1u)>>24;
+}
 static bool cached_word(subscription_t *s,uint32_t address,uint32_t *value) {
-    for(unsigned i=0;i<s->cache_count;i++)if(s->cache_address[i]==address) { *value=s->cache_value[i];return true; }
+    unsigned at=cache_hash(address);
+    while(s->cache_map[at]) {
+        unsigned i=s->cache_map[at]-1;
+        if(s->cache_address[i]==address) {*value=s->cache_value[i];return true;}
+        at=(at+1)&255;
+    }
     return false;
+}
+static void cache_store(subscription_t *s,uint32_t address,uint32_t value) {
+    unsigned at=cache_hash(address),i=s->cache_count++;
+    while(s->cache_map[at])at=(at+1)&255;
+    s->cache_address[i]=address;s->cache_value[i]=value;s->cache_map[at]=i+1;
 }
 /* Advance every field using this frame's cache. Each unresolved chain contributes
  * only its next dependency. Deduplicate shared roots/suffixes before physical IO.
@@ -347,34 +409,58 @@ pending:;
     s->index=__builtin_popcount(s->resolved);
     return count;
 }
+static bool deep_root_window(subscription_t *s,uint32_t root) {
+    if(root<0x20000000u || root>0x20005000u-12 || (root&0x3ff)>0x400-12)return false;
+    uint32_t ignored;
+    if(cached_word(s,root+4,&ignored) || cached_word(s,root+8,&ignored))return false;
+    for(unsigned i=0;i<s->count;i++)if(!(s->resolved&(1u<<i)) && !s->resolve_depth[i] &&
+        s->depth[i]>=3 && s->address[i]==root)return true;
+    return false;
+}
 static bool dynamic_step(subscription_t *s) {
-    uint32_t addresses[8],values[8];unsigned count=resolve_fields(s,addresses);
+    uint32_t missing[8],addresses[8],values[8];unsigned count=resolve_fields(s,missing),planned=0;
     if(!count)return true;
-    /* At most eight physical reads per executor turn. Never replay a partial
-     * response; a failure pauses capture just as it does for static fields. */
-    if(s->cache_count+count>CACHE_WORDS)return false;
-    bool contiguous=true;
-    for(unsigned i=1;i<count;i++)if(addresses[i]!=addresses[i-1]+4)contiguous=false;
-    bool ok=contiguous && (addresses[0]&0x3ff)+count*4<=0x400?
-        block(addresses[0],values,count):scattered(addresses,values,count);
-    if(!ok)return false;
-    for(unsigned i=0;i<count;i++) {
-        s->cache_address[s->cache_count]=addresses[i];s->cache_value[s->cache_count++]=values[i];
+    unsigned remaining=0,extra=0;
+    for(unsigned i=0;i<s->count;i++)if(!(s->resolved&(1u<<i)))
+        remaining+=s->depth[i]-s->resolve_depth[i]+1;
+    /* Plan the entire bounded turn before IO. Deep-root windows and already
+     * known ordinary addresses share ONE DAP packet. No dependency value is
+     * guessed, and all pointer interpretation waits for the completed reply. */
+    if(count>1)for(unsigned a=0;a<count && planned<=5;a++) {
+        uint32_t root=missing[a];
+        if(s->cache_count+remaining+extra+2>CACHE_WORDS || !deep_root_window(s,root))continue;
+        bool overlap=false;
+        for(unsigned j=0;j<planned;j++)if(addresses[j]>=root && addresses[j]<=root+8)overlap=true;
+        if(overlap)continue;
+        for(unsigned j=0;j<3;j++)addresses[planned++]=root+4*j;
+        extra+=2;
     }
-    resolve_fields(s,addresses);return true;
+    unsigned windows=planned;
+    for(unsigned a=0;a<count && planned<8;a++) {
+        uint32_t address=missing[a];bool included=false;
+        for(unsigned j=0;j<planned;j++)if(addresses[j]==address)included=true;
+        if(included || (windows && deep_root_window(s,address)))continue;
+        addresses[planned++]=address;
+    }
+    if(!planned || s->cache_count+planned>CACHE_WORDS)return false;
+    if(!scattered(addresses,values,planned))return false;
+    for(unsigned i=0;i<planned;i++)cache_store(s,addresses[i],values[i]);
+    resolve_fields(s,missing);return true;
 }
 static bool rtt_run(subscription_t *s,unsigned id) {
     /* F103 32-bit RTT descriptor: name,buffer,size,WrOff,RdOff,flags. */
     uint32_t cb=s->address[0],desc=cb+24+s->rtt_channel*24;
-    uint8_t header[24],d[24];
+    uint8_t header[20],d[16];
     if(s->rtt_phase==0) {
-        if(!bytes_read(cb,header,24) || memcmp(header,"SEGGER RTT",10) ||
+        if(!bytes_read(cb,header,sizeof(header)) || memcmp(header,"SEGGER RTT",10) ||
            u32(header+16)>16 || s->rtt_channel>=u32(header+16))goto fail;
         s->rtt_phase=1;return false;
     }
     if(s->rtt_phase==1) {
-        if(!bytes_read(desc,d,24))goto fail;
-        uint32_t base=u32(d+4),size=u32(d+8),wr=u32(d+12),rd=u32(d+16);
+        /* Name, flags and down-channel count are not consumed by this reader.
+         * Keep signature, up-count, base/size and both offsets freshly read. */
+        if(!bytes_read(desc+4,d,sizeof(d)))goto fail;
+        uint32_t base=u32(d),size=u32(d+4),wr=u32(d+8),rd=u32(d+12);
         if(size<2 || size>65536 || wr>=size || rd>=size || !memory(base,size,true))goto fail;
         if(s->rtt_pending) {
             if(base!=s->rtt_base || size!=s->rtt_size)goto fail;
@@ -422,23 +508,35 @@ bool rmlink_capture_run(void) {
         for(unsigned i=0;i<SLOTS;i++) if(s_sub[i].state==2) { s_sub[i].state=3; s_sub[i].reason=now>s_lease?4:5; }
         timer_refresh(); return false;
     }
-    /* Timeline first, low-rate Watch next, bounded RTT last. */
-    for(unsigned k=0;k<SLOTS;k++) {
+    /* Finish a Timeline frame without interleaving background target reads.
+     * Then grant one bounded lower-rate turn. An overloaded realtime series
+     * must not permanently starve Watch/RTT; control still wins in swd_task. */
+    unsigned order[SLOTS]={0,1,2,3};
+    if(s_lower_turn && !s_sub[0].started) {
+        for(unsigned i=0;i<SLOTS-1;i++)order[i]=1+(s_lower_cursor-1+i)%(SLOTS-1);
+        order[SLOTS-1]=0;
+    }
+    for(unsigned at=0;at<SLOTS;at++) {
+        unsigned k=order[at];
         subscription_t *s=&s_sub[k];
         if(s->state!=2 || (!s->started && now<s->next)) continue;
+        if(s_lower_turn) {s_lower_turn=false;if(k)s_lower_cursor=k%(SLOTS-1)+1;}
         if(!s->started) {
-            rmlink_capture_invalidate_ap(); /* bound reuse to this frame/poll */
             uint64_t missed=(now-s->next)/s->period;
             s->missed+=missed; s->seq+=(uint32_t)missed;
             s->next+=(missed+1)*s->period;
             s->started=now; s->timestamp=now; s->reused=false; s->valid=0; memset(s->values,0,sizeof(s->values));
+            s->read_retry=0;
             s->cache_count=0;s->resolved=0;
+            memset(s->cache_map,0,sizeof(s->cache_map));
             memcpy(s->resolve_address,s->address,sizeof(s->address));
             memset(s->resolve_depth,0,sizeof(s->resolve_depth));
         }
         if(s->kind==3) { if(rtt_run(s,k+1))s->started=0;timer_refresh();return true; }
         unsigned end=s->index+8; if(end>s->count) end=s->count;
         bool failed=false;
+        uint32_t failure_before=u32(s_failure);
+        bool retry_pending=s->read_retry==1;
         bool static_group=s->kind==1;
         for(unsigned i=0;i<s->count;i++)if(s->depth[i] || s->width[i]!=4)static_group=false;
         if(static_group) {
@@ -450,9 +548,23 @@ bool rmlink_capture_run(void) {
                 scattered(s->address+s->index,s->values+s->index,count);
             if(ok) {
                 for(;s->index<end;s->index++)s->valid|=1u<<s->index;
-            }else { s->failures++;failed=true; }
+            }else { failed=true; }
         }
-        if(!static_group && !dynamic_step(s)) {s->failures++;failed=true;}
+        if(!static_group && !dynamic_step(s))failed=true;
+        if(failed && !s->read_retry && u32(s_failure)!=failure_before &&
+           s_failure[21]==2 && !s_failure[22] &&
+           (s_failure[20]==1 || s_failure[20]==2) && s_failure[19]<s_failure[18]) {
+            /* RAM/Flash reads only. Discard the failed reply, yield to queued
+             * control, then rebuild addressed IO with fresh SELECT/CSW/TAR.
+             * Never resume a raw posted DRW stream or replay an RTT write. */
+            s->read_retry=1;s_read_retry_attempts++;s_last_read_retry=esp_timer_get_time();
+            timer_refresh();return true;
+        }
+        if(retry_pending) {
+            if(failed)s_read_retry_exhausted++;else s_read_retry_recovered++;
+            s->read_retry=2;
+        }
+        if(failed)s->failures++;
         if(s->index==s->count || failed) {
             sample_finish(s,k+1);
             if(failed) { s->state=3; s->reason=3; }

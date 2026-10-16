@@ -82,6 +82,9 @@
  static void Set_Clock_Delay(uint32_t clock) {
    uint32_t delay;
    requested_swj_clock=clock;
+#if (DAP_SWD != 0)
+   SWD_SetClock(clock);
+#endif
  
    if (clock >= MAX_SWJ_CLOCK(DELAY_FAST_CYCLES)) {
      DAP_Data.fast_clock  = 1U;

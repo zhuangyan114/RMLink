@@ -129,6 +129,11 @@ void debug_probe_init_swd_pins(void)
         ESP_ERROR_CHECK(dedic_gpio_get_out_mask(dedic_gpio_io_bundle, &rmlink_swdio_out_mask));
         ESP_ERROR_CHECK(dedic_gpio_get_in_mask(dedic_gpio_io_bundle, &rmlink_swdio_in_mask));
         dedic_gpio_conf = REG_READ(GPIO_FUNC0_OUT_SEL_CFG_REG + (GPIO_SWDIO * 4));
+        /* Keep the CPU data route installed, but let GPIO_ENABLE gate the pad.
+         * HAL output_disable() also removes the matrix route; doing that on
+         * every SWD turnaround creates two unnecessary APB writes. */
+        dedic_gpio_conf = (dedic_gpio_conf | GPIO_FUNC0_OEN_SEL) & ~GPIO_FUNC0_OEN_INV_SEL;
+        REG_WRITE(GPIO_FUNC0_OUT_SEL_CFG_REG + (GPIO_SWDIO * 4), dedic_gpio_conf);
 
 #if CONFIG_RMLINK_NRST_GPIO >= 0
         gpio_set_level(CONFIG_RMLINK_NRST_GPIO, 1); /* preload release before enabling output */

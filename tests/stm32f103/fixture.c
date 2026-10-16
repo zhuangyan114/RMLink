@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0
- * Standalone acceptance fixture: HSI after reset, no GPIO/peripheral outputs.
+ * Standalone acceptance fixture: verified 8 MHz HSE -> PLL x9 -> 72 MHz.
+ * No GPIO/peripheral outputs. HSI fallback is detectable in RCC and rejected
+ * by performance acceptance. Keep HSI on for the Flash programming clock.
  */
 #include <stdint.h>
 __attribute__((section(".state")))
@@ -26,6 +28,24 @@ static void publish_rtt(uint32_t seq) {
     fixture_rtt.up.wr=(wr+16)%1024;
 }
 void probe_step(void);
+static int clock_wait(volatile uint32_t *reg,uint32_t mask,uint32_t expected) {
+    for(unsigned n=0;n<1000000;n++)if((*reg&mask)==expected)return 1;
+    return 0;
+}
+static unsigned clock_72mhz(void) {
+    volatile uint32_t *cr=(uint32_t*)0x40021000,*cfgr=(uint32_t*)0x40021004;
+    *(volatile uint32_t*)0x40022000=0x12; /* prefetch, 2 Flash wait states */
+    *cr|=1;if(!clock_wait(cr,2,2))return 8;
+    *cfgr&=~3u;if(!clock_wait(cfgr,12,0))return 8;
+    *cr&=~(1u<<24);if(!clock_wait(cr,1u<<25,0))return 8;
+    *cr|=1u<<16;if(!clock_wait(cr,1u<<17,1u<<17))return 8;
+    /* AHB/APB2 72 MHz; APB1 36 MHz; ADC 12 MHz; USB 48 MHz. */
+    *cfgr=0x001d8400;
+    *cr|=1u<<24;if(!clock_wait(cr,1u<<25,1u<<25))return 8;
+    *cfgr=(*cfgr&~3u)|2;
+    if(!clock_wait(cfgr,12,8))return 8;
+    return 72;
+}
 void Reset_Handler(void);
 void Default_Handler(void) { for (;;) {} }
 __attribute__((section(".vectors"), used))
@@ -38,6 +58,7 @@ __attribute__((naked, noinline)) void probe_step(void) {
                    "adds r1, #1\nstr r1, [r0, #8]\nbx lr\n");
 }
 void Reset_Handler(void) {
+    unsigned mhz=clock_72mhz();
     fixture_state.magic = 0x524d4c4b;
     fixture_state.boots = 1;
     fixture_state.counter = 0;
@@ -55,6 +76,8 @@ void Reset_Handler(void) {
         probe_step();
         for(unsigned i=0;i<10;i++) capture_values[i][0]=(i<<24)|(fixture_state.counter&0xffffff);
         publish_rtt(fixture_state.counter);
-        for (volatile unsigned delay = 0; delay < 8000; ++delay) __asm volatile("nop");
+        /* Preserve roughly the previous producer load instead of emitting RTT
+         * nine times faster solely because the CPU clock changed. */
+        for (volatile unsigned delay = 0; delay < 8000*(mhz/8); ++delay) __asm volatile("nop");
     }
 }

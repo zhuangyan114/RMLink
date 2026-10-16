@@ -2,13 +2,15 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
-当前开发检查点为 **固件0.2.17／连接服务与SDK 0.2.8**。标准CMSIS-DAP经虚拟USB接入；OpenOCD完整烧录/调试、pyOCD及原生USB回归通过。增强目标接口当前针对STM32F103C8，正式签名分发、Keil/IAR及已安装VS Code界面仍待单独验收。
+当前开发候选为 **固件0.2.28／连接服务与SDK 0.2.8**。“五条独立三级指针链＋五个普通变量”，72 MHz F103、4 MHz SWD 下15分钟三订阅共存平均 **1108.68 Hz**，全部应用流约 **110.01 KiB/s**；无数据无效、板端丢帧或实时消费者缺口，仍有期限跳过、时序抖动和网络发送长尾。过程、失败及布局边界见[千赫兹优化记录](docs/mixed-1khz-optimization.md)。
+
+标准CMSIS-DAP经虚拟USB接入。0.2.28的OpenOCD完整烧录/调试和原生／虚拟USB完整回读通过；pyOCD保留此前版本的验收结论。增强目标接口当前针对STM32F103C8，正式签名分发、Keil/IAR及已安装VS Code界面仍待单独验收。
 
 ESP32缓存镜像并通过唯一SWD执行器自主烧录。同一全密度64 KiB镜像，默认包含板端完整回读比较，五次总耗时中位 **3.623 s**；可再加主机SHA256回读。支持进度、取消、断连停止和新作业恢复，未知写入不自动重放。见[缓存烧录协议](docs/buffered-flash-protocol.md)。
 
 Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共存的一小时实测 **328.30 Hz**，无无效数据、SWD失败和板端缓存丢弃。新增“五个三级指针＋五个普通变量”组合，5000 Hz请求下共存实测：独立链 **676.22 Hz**、共享链 **1139.74 Hz**（各三次×5 s中位）。请求频率、实际频率和超期分别记录，见[时钟与混合采样对照](docs/clock-calibration-0216.md)。
 
-默认请求SWD **4000 kHz**；内部RMT测得当前DP脉冲约3.64 MHz，未用外部仪器确认目标端模拟波形。STM32测试后保留新程序。架构见[订阅设计](docs/subscription-design.md)，第三方前端使用[公开API与Python/Node/C SDK](docs/api-v1.md)。历史检查点与失败证据保留在[开发进度](docs/development-status.md)，旧包不覆盖。
+默认请求SWD **4000 kHz**；0.2.21起内部RMT测得典型DP脉冲约4 MHz，未用外部仪器确认目标端模拟波形。后续F103测试默认72 MHz并核对RCC，STM32测试后保留新程序。架构见[订阅设计](docs/subscription-design.md)，第三方前端使用[公开API与Python/Node/C SDK](docs/api-v1.md)。历史检查点与失败证据保留在[开发进度](docs/development-status.md)，旧包不覆盖。
 
 ## 目录
 

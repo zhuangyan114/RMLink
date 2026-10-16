@@ -1,4 +1,8 @@
-"""Seal existing qualified evidence; never runs or modifies a physical target."""
+"""Historical 0.2.17 draft; rejects its failed mixed-600s evidence by design.
+
+For the 72 MHz/0.2.28 acceptance use seal_mixed_checkpoint.py instead.
+Never runs or modifies a physical target.
+"""
 from datetime import datetime
 import hashlib
 import json

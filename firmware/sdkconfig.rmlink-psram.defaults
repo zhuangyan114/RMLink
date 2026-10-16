@@ -6,3 +6,13 @@ CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_USE_CAPS_ALLOC=y
 CONFIG_SPIRAM_MEMTEST=y
 CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+# ESP-IDF capability-aware Wi-Fi/lwIP allocator, with internal fallback.
+# Keep generic malloc and USB DMA internal. Pin prior buffer-count choices.
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER=y
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
+# 5.7 KiB only covers ~50 ms at this workload. Keep the larger TX pipeline in
+# PSRAM so short ACK/radio delays do not immediately block record draining.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768

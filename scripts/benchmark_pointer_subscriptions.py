@@ -36,11 +36,12 @@ def layout(depth,shared):
 def collect(client,sub,seconds,expected=None):
     after=sub['stream_cursor'];first=last=None;count=0;gaps=consumer_gap=invalid=0;previous=None
     durations=deque(maxlen=8192);intervals=deque(maxlen=8192)
-    deadline=time.perf_counter()+seconds
+    begun=time.perf_counter();deadline=begun+seconds;rml_bytes=stream_frames=0
     while time.perf_counter()<deadline:
         batch=client.events(after,256,500);after=batch['cursor'];consumer_gap+=batch['consumer_gap']
         require(not batch['error'],f'Stream failed: {batch["error"]}')
         for row in batch['records']:
+            rml_bytes+=len(row['frame'])//2;stream_frames+=1
             sample=row['sample']
             if sample['capture_id']!=sub['capture_id']:continue
             if previous is not None:gaps+=(sample['sequence']-previous-1)&0xffffffff
@@ -59,6 +60,8 @@ def collect(client,sub,seconds,expected=None):
         return {name:ordered[int((len(ordered)-1)*p)] if ordered else None
                 for name,p in [('p50',.5),('p95',.95),('p99',.99),('max',1)]}
     return {'samples':count,'effectiveHz':(count-1)*1e6/(last-first) if count>1 else None,
+            'rmlStreamBytes':rml_bytes,'rmlStreamFrames':stream_frames,
+            'rmlStreamBytesPerSecond':rml_bytes/(time.perf_counter()-begun),
             'sequenceGaps':gaps,'consumerGap':consumer_gap,'invalidFrames':invalid,'status':status,
             'timingWindowFrames':len(durations),'captureSpanUs':percentiles(durations),
             'sampleIntervalUs':percentiles(intervals)}

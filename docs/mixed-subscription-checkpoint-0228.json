@@ -1,0 +1,627 @@
+{
+  "capturedAt": "2026-10-16T09:32:20.106313+08:00",
+  "firmwareVersion": "0.2.28",
+  "connectorVersion": "0.2.8",
+  "sourceBaseCommit": "456cd7f1788788076c1b1232554fcbb87d3df209",
+  "sourceOverlay": [
+    {
+      "path": "firmware/CMakeLists.txt",
+      "bytes": 738,
+      "sha256": "4537fcb8f5896d9cb4a33c7074211b92cb55f4488cb20ce43a0fad73bbb2173f"
+    },
+    {
+      "path": "firmware/components/debug_probe/DAP/Include/DAP.h",
+      "bytes": 15489,
+      "sha256": "c03c9c30b0cbd1cd8fc31719cbf0dbe0597084c1d12e54e1934413d00c272be5"
+    },
+    {
+      "path": "firmware/components/debug_probe/DAP/Source/DAP.c",
+      "bytes": 56199,
+      "sha256": "4076f70fb1674b04875caac787fe512607ad96ed058dcf7770ea197d661f841c"
+    },
+    {
+      "path": "firmware/components/debug_probe/DAP/Source/SW_DP.c",
+      "bytes": 16063,
+      "sha256": "0cec63a75bc0192147f6f5d858671628e19fd9a4e1997dfd474b02fec33ce50e"
+    },
+    {
+      "path": "firmware/components/debug_probe/debug_gpio.c",
+      "bytes": 5652,
+      "sha256": "3233dac583a3513808b076c4e7b2eccf42b9533965a42d079a6cd39819ccd4d0"
+    },
+    {
+      "path": "firmware/components/debug_probe/debug_gpio.h",
+      "bytes": 6809,
+      "sha256": "7f245f0b31d5c0b3263b05b7f8bdc45898294ea8cee100221f3db4c29345934a"
+    },
+    {
+      "path": "firmware/components/debug_probe/include/rmlink_capture.h",
+      "bytes": 1474,
+      "sha256": "3ec39ccc2d3e532ac541990e4ddd0a8526b79dcbdc9584ef1b3905d1b7f998fd"
+    },
+    {
+      "path": "firmware/components/debug_probe/rmlink_capture.c",
+      "bytes": 35860,
+      "sha256": "cc6898cd6d9e626d9566b52cf10d7179685dcd9ec76772976ce3311175ef69e8"
+    },
+    {
+      "path": "firmware/main/rmlink_network.c",
+      "bytes": 20322,
+      "sha256": "582629a14e4a8fd8d47d70f5c488c0c47567ff5bae7c3953f89919081b5560d0"
+    },
+    {
+      "path": "firmware/main/rmlink_stream.c",
+      "bytes": 6060,
+      "sha256": "daeeabc7f477897e2630cf891ec683259e17d7d3c23adb84bfacd15a9072cf82"
+    },
+    {
+      "path": "firmware/sdkconfig.rmlink-psram.defaults",
+      "bytes": 845,
+      "sha256": "eaf1c130f136aaf13e29c4c8451e125f41d3809eef6a92b0366bd6e0598a96d7"
+    },
+    {
+      "path": "host/distribution/README.md",
+      "bytes": 2399,
+      "sha256": "f3c3f747bedf0c9594a4b28f9eece4e5004fcd2f8dfea7e3e98ac31e40cf4295"
+    },
+    {
+      "path": "host/rmlink_connector/broker.py",
+      "bytes": 6898,
+      "sha256": "ceff9ce54085e44e97db783eb6317258e906e70bbdb1c66a77adf35eff7992f8"
+    },
+    {
+      "path": "host/rmlink_connector/client.py",
+      "bytes": 6981,
+      "sha256": "0126d810b17855dfe32dcb378b8d908e8af486396b14f80b4ab6073760e36db0"
+    },
+    {
+      "path": "host/rmlink_connector/diagnostics.py",
+      "bytes": 4493,
+      "sha256": "49955d3ca3d333770de5bcdc7e792e91cb4f50d825350edb1ffbe3aef6a9bf1b"
+    },
+    {
+      "path": "host/rmlink_connector/discovery.py",
+      "bytes": 6810,
+      "sha256": "1762399a8c000f5c034ef1b8d38b70c395d733d3fc6eeccfcdebda8168791bc3"
+    },
+    {
+      "path": "host/rmlink_connector/runtime_diagnostics.py",
+      "bytes": 738,
+      "sha256": "160053279ebdddf624eff74458074891176620bb46bc62e7e5db60af12b574bf"
+    },
+    {
+      "path": "host/rmlink_connector/service.py",
+      "bytes": 24186,
+      "sha256": "c67b7e49159db484fbd0c84dbfda6d40130a1301d933547ce8e14f26dca166e0"
+    },
+    {
+      "path": "scripts/Build-Firmware.ps1",
+      "bytes": 2168,
+      "sha256": "dcf11bd3a9ed575e0ce6d9b81bf77158748e961cd845a03c8a3d6b0909884834"
+    },
+    {
+      "path": "scripts/accept_stm32.py",
+      "bytes": 14687,
+      "sha256": "d75158eac800e0b25acd1c0c13ec4f7c899a08063ea26cc1225a05ac41d60af6"
+    },
+    {
+      "path": "scripts/benchmark_mixed_focus.py",
+      "bytes": 4827,
+      "sha256": "5e49a20989dfe0c5ee01391b55da4b53d1397831956fd296672bbb409fd95b9d"
+    },
+    {
+      "path": "scripts/benchmark_pointer_subscriptions.py",
+      "bytes": 10562,
+      "sha256": "4af22083966620063018e1339167a433a25056db0a803db0b49e473981e9763c"
+    },
+    {
+      "path": "scripts/build_development_package.py",
+      "bytes": 6414,
+      "sha256": "7c6c70d4b6510992e1bb82c6550c81134587497c9424e314b9d0920a99188b7a"
+    },
+    {
+      "path": "scripts/build_fixture_full_elf.py",
+      "bytes": 1983,
+      "sha256": "f64ad3f116186fc22da1846fca1ff8ef2447bb49b36d34f05621564ae4dea4e3"
+    },
+    {
+      "path": "scripts/configure_fixture_clock.py",
+      "bytes": 4748,
+      "sha256": "24f2731602fdd3a64425d7962cfc34e14ad3cc116e7c852540aa136032a3de04"
+    },
+    {
+      "path": "scripts/fixture_clock.py",
+      "bytes": 1524,
+      "sha256": "9d8c9e4dc58f386978f1da54989efc61f9f2304e510c5f0bc2662076e1da6bbf"
+    },
+    {
+      "path": "scripts/seal_mixed_checkpoint.py",
+      "bytes": 6521,
+      "sha256": "a77b027b5123c07ccc3da6c49fa4b983858e101d889c60fe58412920a379e35f"
+    },
+    {
+      "path": "scripts/verify_standard_usb_read.py",
+      "bytes": 3068,
+      "sha256": "4e52eb8b07a377aefdaa1e52cc6bb058c5d201f3afd00932ff928202fba93f0e"
+    },
+    {
+      "path": "scripts/verify_subscription_soak.py",
+      "bytes": 12901,
+      "sha256": "f7c9d95cd779600c5a4e4f8d202165d505a47687f884d87bc47f5189f456f8ae"
+    },
+    {
+      "path": "scripts/write_flash_checkpoint.py",
+      "bytes": 5408,
+      "sha256": "245e65976a1d5f62d500c3bb739bc3323082c66bf55ec5c3fc817a5e74e5bbd4"
+    },
+    {
+      "path": "tests/capture/capture_platform.h",
+      "bytes": 2977,
+      "sha256": "67a86c365fcdc69aa071a04e292245ba1f39044faf70b4c883475a14fdef0610"
+    },
+    {
+      "path": "tests/capture/capture_test.c",
+      "bytes": 26241,
+      "sha256": "e15b86406f253f544437540f1b712393ad7fd0b991a088fa3755c70b2e54b65e"
+    },
+    {
+      "path": "tests/host/test_client_lifecycle.py",
+      "bytes": 2516,
+      "sha256": "3c34b1818d9e0497f2f72e1acb4ffe86c85dd48902c219731256b96ae6a66f6d"
+    },
+    {
+      "path": "tests/host/test_diagnostics.py",
+      "bytes": 3002,
+      "sha256": "7564b2fcdf7b9d04eb4b09f88b1c4710dad9fa2c9af11e0d89c7d8224beed91d"
+    },
+    {
+      "path": "tests/host/test_discovery_async.py",
+      "bytes": 663,
+      "sha256": "2405a8ac0c0058705382143b756c9dbb02193606a75389ac32f8b52066b151dc"
+    },
+    {
+      "path": "tests/host/test_fixture_clock.py",
+      "bytes": 1468,
+      "sha256": "ce41c5774ea90c631357c1631f75da3f428971f983802f4bdeba555538ceacee"
+    },
+    {
+      "path": "tests/host/test_soak_measurements.py",
+      "bytes": 8323,
+      "sha256": "2563ea61abf724222224da323571534eeefc546389a2b0a3d5168c91650bc897"
+    },
+    {
+      "path": "tests/stm32f103/fixture.c",
+      "bytes": 4251,
+      "sha256": "cb0c33dbfae7c58bb0df4a094420b19639488139809c5cc9f9c341a5169b721d"
+    }
+  ],
+  "targetClock": {
+    "systemClockHz": 72000000,
+    "hclkHz": 72000000,
+    "pclk1Hz": 36000000,
+    "pclk2Hz": 72000000,
+    "adcClockHz": 12000000,
+    "hseHz": 8000000,
+    "rccCr": 50563971,
+    "rccCfgr": 1934346,
+    "rccCir": 0,
+    "evidence": "RCC register decode with independently identified 8 MHz HSE; not an external frequency counter"
+  },
+  "requestedSwjClockHz": 4000000,
+  "fixtureSha256": "ed4a0cd5b5e76d9696ed1f03303cd819f00229e93b047a06efed7caf86f4ffc0",
+  "shortMedianHz": 1099.448346625746,
+  "sustainedSeconds": 900.0151611000038,
+  "sustainedHz": 1108.6790999241796,
+  "recordingTiming": {
+    "recordingSha256": "5dbe4ab28bd82188f434e40135c8d02f80bad513a89f058c3ae46c310a67aef7",
+    "frames": 1063102,
+    "scope": "All recorded frames; RML1 application bytes exclude local wrapper and TCP/IP/Wi-Fi overhead",
+    "applicationBytes": 101391832,
+    "boardTimestampSpanSeconds": 900.042482,
+    "applicationBytesPerSecond": 112652.27367345535,
+    "timelineIntervalUs": {
+      "count": 997856,
+      "max": 2518,
+      "p50": 884,
+      "p95": 1086,
+      "p99": 1231
+    },
+    "timelineCaptureSpanUs": {
+      "count": 997857,
+      "max": 2505,
+      "p50": 812,
+      "p95": 987,
+      "p99": 1122
+    },
+    "captureDapWallDuty": 0.8690335795584323
+  },
+  "recording": {
+    "recording_id": "127b54a78a264512913ff8429f889afd",
+    "path": "C:\\Users\\22690\\.rmlink\\recordings\\127b54a78a264512913ff8429f889afd.rmlrec",
+    "strict": false,
+    "phase": "complete",
+    "frames": 1063102,
+    "bytes": 114149056,
+    "gaps": 997856,
+    "invalid_samples": 997857,
+    "invalid_data_samples": 0,
+    "budget_overrun_samples": 997857,
+    "error": null,
+    "finalized": true,
+    "sha256": "5dbe4ab28bd82188f434e40135c8d02f80bad513a89f058c3ae46c310a67aef7",
+    "queued_frames": 0
+  },
+  "independentRecordingValidation": {
+    "metadata": {
+      "version": 1,
+      "connector_version": "0.2.8",
+      "device_id": "50787d15a924",
+      "created_at": "2026-10-16T09:15:09.950473+08:00",
+      "strict": false,
+      "starts_mid_capture": true,
+      "configs": {
+        "1": {
+          "subscription_id": 1,
+          "kind": "memory_series",
+          "addresses": [
+            536875008,
+            536875072,
+            536875136,
+            536875200,
+            536875264,
+            536871488,
+            536871552,
+            536871616,
+            536871680,
+            536871744
+          ],
+          "fields": [
+            {
+              "address": 536875008,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875072,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875136,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875200,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875264,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536871488,
+              "offsets": []
+            },
+            {
+              "address": 536871552,
+              "offsets": []
+            },
+            {
+              "address": 536871616,
+              "offsets": []
+            },
+            {
+              "address": 536871680,
+              "offsets": []
+            },
+            {
+              "address": 536871744,
+              "offsets": []
+            }
+          ],
+          "period_us": 200,
+          "sample_limit": 0,
+          "channel": 0,
+          "strict_deadlines": false,
+          "stream_cursor": -1,
+          "capture_id": 10
+        },
+        "2": {
+          "subscription_id": 2,
+          "kind": "memory_snapshot",
+          "addresses": [
+            536875008,
+            536875072,
+            536875136,
+            536875200
+          ],
+          "fields": [
+            {
+              "address": 536875008,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875072,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875136,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "address": 536875200,
+              "offsets": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "period_us": 100000,
+          "sample_limit": 0,
+          "channel": 0,
+          "strict_deadlines": false,
+          "stream_cursor": 131,
+          "capture_id": 11
+        },
+        "3": {
+          "subscription_id": 3,
+          "kind": "rtt_stream",
+          "addresses": [
+            536871936
+          ],
+          "fields": [
+            {
+              "address": 536871936,
+              "offsets": [],
+              "byte_length": 4
+            }
+          ],
+          "period_us": 5000,
+          "sample_limit": 0,
+          "channel": 0,
+          "strict_deadlines": false,
+          "stream_cursor": 147,
+          "capture_id": 12
+        }
+      }
+    },
+    "summary": {
+      "recording_id": "127b54a78a264512913ff8429f889afd",
+      "path": "C:\\Users\\22690\\.rmlink\\recordings\\127b54a78a264512913ff8429f889afd.rmlrec",
+      "strict": false,
+      "phase": "complete",
+      "frames": 1063102,
+      "bytes": 114149056,
+      "gaps": 997856,
+      "invalid_samples": 997857,
+      "invalid_data_samples": 0,
+      "budget_overrun_samples": 997857,
+      "error": null,
+      "finalized": true,
+      "queued_frames": 0,
+      "window_end": "last_received_record"
+    },
+    "frames": 1063102,
+    "sha256": "5dbe4ab28bd82188f434e40135c8d02f80bad513a89f058c3ae46c310a67aef7"
+  },
+  "healthAfter": {
+    "supported": true,
+    "memory": {
+      "internal": {
+        "free_bytes": 116536,
+        "largest_block_bytes": 73728,
+        "minimum_free_bytes": 80620
+      },
+      "psram": {
+        "free_bytes": 8238288,
+        "largest_block_bytes": 8126464,
+        "minimum_free_bytes": 8202072
+      }
+    },
+    "requested_swj_clock_hz": 4000000,
+    "snapshot_uptime_us": 1158189255,
+    "last_capture_io_failure": null,
+    "performance": {
+      "supported": true,
+      "swd_metrics_active": false,
+      "swd_transfers": 0,
+      "swd_waits": 0,
+      "swd_errors": 0,
+      "swd_cpu_cycles": 0,
+      "swd_wire_clocks": 0,
+      "capture_dap_commands": 4720824,
+      "capture_dap_us": 827903978,
+      "capture_words": 28331423,
+      "capture_frames": 1064745,
+      "max_capture_dap_us": 1830,
+      "cpu_hz": 240000000
+    },
+    "read_deadline_recovery": {
+      "supported": true,
+      "attempts": 0,
+      "recovered": 0,
+      "exhausted": 0,
+      "last_retry_uptime_us": 0
+    },
+    "device_id": "50787d15a924",
+    "connected": true
+  },
+  "finalStatuses": {
+    "1": {
+      "state": 2,
+      "kind": 1,
+      "field_count": 10,
+      "capture_id": 10,
+      "last_sequence": 4529570,
+      "completed": 1004377,
+      "deadline_missed": 3525193,
+      "ring_dropped": 0,
+      "failures": 0,
+      "stop_reason": null,
+      "budget_overrun": 1004377,
+      "host_history_evicted": 1065936,
+      "host_dropped": 1065936,
+      "stream_error": null
+    },
+    "2": {
+      "state": 2,
+      "kind": 2,
+      "field_count": 4,
+      "capture_id": 11,
+      "last_sequence": 9059,
+      "completed": 9059,
+      "deadline_missed": 0,
+      "ring_dropped": 0,
+      "failures": 0,
+      "stop_reason": null,
+      "budget_overrun": 0,
+      "host_history_evicted": 1065981,
+      "host_dropped": 1065981,
+      "stream_error": null
+    },
+    "3": {
+      "state": 2,
+      "kind": 3,
+      "field_count": 1,
+      "capture_id": 12,
+      "last_sequence": 56610,
+      "completed": 906032,
+      "deadline_missed": 1,
+      "ring_dropped": 0,
+      "failures": 0,
+      "stop_reason": null,
+      "budget_overrun": 0,
+      "host_history_evicted": 1065981,
+      "host_dropped": 1065981,
+      "stream_error": null
+    }
+  },
+  "artifacts": [
+    {
+      "path": "artifacts/build/firmware-target-tcp512-core0-psram/rmlink.bin",
+      "bytes": 875040,
+      "sha256": "0fe987f36c91a1203d15246cfbbcb7b6f8c1d3fd5091914a2aa43d914a6c6df4"
+    },
+    {
+      "path": "artifacts/build/firmware-target-tcp512-core0-psram/sdkconfig",
+      "bytes": 63988,
+      "sha256": "fbf31dd9275554bf70083dd5345b9deee7c969049ad15a0f344852c1671b6942"
+    },
+    {
+      "path": "artifacts/build/firmware-target-tcp512-core0-psram/rmlink.elf",
+      "bytes": 9598432,
+      "sha256": "2afd959fdbdf97196d35653afec7303615250c07b607478b1d01ba0ed304502a"
+    },
+    {
+      "path": "artifacts/hardware/rmlink-last-flash.json",
+      "bytes": 453,
+      "sha256": "70ccb6c54412d53d074dcfd992f5ef857f3c590220f494f449d77597a6cc5517"
+    },
+    {
+      "path": "artifacts/build/connector/dist/RMLinkConnector.exe",
+      "bytes": 8722815,
+      "sha256": "1b677eca23587650e63c2235a71aac6f03683a7751354e8a4e70788d32330741"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "artifacts/logs/mixed-focus-0228-72.json",
+      "bytes": 17272,
+      "sha256": "ecfaf12215b436eff526cd4c713dffd0166844beb84b2c8c4c9f80beb1a08443"
+    },
+    {
+      "path": "artifacts/logs/mixed-72-0228-900.json",
+      "bytes": 90314,
+      "sha256": "11d4e5d19bbc82bc4b2d89b69d39eeff7638803e931e1cfd06af08fac958d577"
+    },
+    {
+      "path": "artifacts/logs/standard-usb-0228.json",
+      "bytes": 1016,
+      "sha256": "77c331447ca1d7c8ccd344d774a24b734099934310d18958e8ff9e7dd6a3f7e7"
+    },
+    {
+      "path": "artifacts/logs/accept-virtual-usb-0228.json",
+      "bytes": 3611,
+      "sha256": "346d002c23846e41e749cde88f7764cebddf50b648c9d2ec607be5c89f63c219"
+    },
+    {
+      "path": "artifacts/logs/mixed-72-0228-900-timing.json",
+      "bytes": 651,
+      "sha256": "11b74a903d9979710a4e8120845e0950b97f8b4773ba0ccb4083865fdf000d00"
+    },
+    {
+      "path": "artifacts/logs/mixed-72-0228-short-uart.log",
+      "bytes": 1541,
+      "sha256": "c3cad56d659123dd4ff4dae81aa8b2df34e358dcd39bfba336683f2e5562f360"
+    },
+    {
+      "path": "artifacts/logs/mixed-72-0228-900-uart.log",
+      "bytes": 5135,
+      "sha256": "fe5f6b0b219c5b209f68bc921e38ef155320e00fa74fda77c4ed4b2a432e716b"
+    },
+    {
+      "path": "artifacts/logs/host-tests-0228-final.log",
+      "bytes": 218,
+      "sha256": "4ad39305d267f67a6053596e93c0d2874f3cc237ce7cd96f95cd1940a33935fb"
+    },
+    {
+      "path": "artifacts/logs/capture-model-0228.log",
+      "bytes": 174,
+      "sha256": "9751a018a9c8bc954341b249a8ecb18ecc0132c7162862e30a66a4fbe7022cc1"
+    },
+    {
+      "path": "artifacts/logs/core512-model-0228.log",
+      "bytes": 85,
+      "sha256": "25e26c6e22bbde7994f02558aeda2b75ae9e5c89a97eadd074498033deba5714"
+    },
+    {
+      "path": "artifacts/logs/flash-model-0228.log",
+      "bytes": 234,
+      "sha256": "0a6c76f955ef81f5b7dbda64a530b20c8ff23e1dc440d9a6489f67a513256451"
+    },
+    {
+      "path": "artifacts/logs/build-0228-tcp64.log",
+      "bytes": 121666,
+      "sha256": "fa6b16609a2055fddbc706f7f37d363a5d3273efde9e5577ba77f606913741b1"
+    }
+  ],
+  "boundaries": [
+    "Five independent depth-three chains plus five direct uint32 fields only",
+    "Three nodes within each chain are adjacent; chains and leaves are 64 B apart",
+    "Pointer locations fixed; all ten leaf values change",
+    "5000 Hz is requested; missed deadlines and timing jitter remain",
+    "Network send stalls remain observable; 15 minutes is not an indefinite guarantee",
+    "Physical NRST, installed VS Code UI, Keil/IAR and formal driver signing not qualified here"
+  ]
+}

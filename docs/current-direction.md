@@ -1,6 +1,6 @@
 # 当前项目方向
 
-更新：2026-10-15。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)，已封存 0.2.6 基线见 [实施记录](subscriptions-implementation.md) 和 [采样性能记录](subscription-performance-20261015.md)，当前固件候选见 [0.2.11 MEM-AP 复用记录](memap-reuse-0211.md)。服务／SDK 仍为 0.2.6，原 0.2.8 镜像保留；首轮持续采样的缓存丢弃原因尚未确定，不能把后续复测当作已修复。
+更新：2026-10-16。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)。当前固件候选0.2.28、连接服务／SDK 0.2.8；缓存烧录已实现，本轮只优化五条独立三级指针链＋五个普通字段，结果与各版失败见 [千赫兹优化记录](mixed-1khz-optimization.md)。更早的 [0.2.11记录](memap-reuse-0211.md) 等保留其原条件，不代表当前版本验收。
 
 RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基座，保留一套 ARM CMSIS-DAP / SWD 内核，为 Orbit 增加无线接入、板端采样和批量操作。
 
@@ -8,7 +8,9 @@ RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基�
 
 RMLink 驱动配套组件面向所有前端：以内核虚拟 USB + 用户态服务/通用目标引擎 + 公开 SDK 统一分发。通用设备管理、目标控制、计划编译、订阅、缓存和数据分发放在组件中；Orbit 通过公开接口适配，核心能力不依赖 Orbit。标准软件继续走虚拟 USB，采用增强 API 的其他前端可获得板端订阅能力。
 
-默认请求 SWD **4000 kHz（4 MHz）**已统一到固件、目标引擎、SDK 和主要验收脚本；用户显式设置优先，第三方标准时钟命令仍按其请求执行。STM32 接线恢复后已完成该请求时钟下的虚拟 USB 全流程与增强 Flash、有效采样验收，实际 SWCLK 另行量测。
+默认请求 SWD **4000 kHz（4 MHz）**已统一到固件、目标引擎、SDK 和主要验收脚本；用户显式设置优先，第三方标准时钟命令仍按其请求执行。内部RMT已观察到典型DP周期约4 MHz，周期并不完全均匀，目标引脚的外部模拟波形尚未量测。
+
+后续 STM32F103 性能测试统一 **72 MHz**。测试固件使用已识别的8 MHz HSE、PLL×9，并正确配置APB1、ADC与Flash等待；性能脚本检查RCC并拒绝HSI回退。此决定只规定测试基线，连接服务不会自动修改用户应用的系统时钟。
 
 STM32 测试默认保留新 fixture，旧备份及历史恢复证据保留。验收脚本将恢复旧程序设为显式 --restore-original；当前目标已烧录新的 64 KiB 采样／RTT fixture，以其字段标识、指针链和二进制 RTT 校验数据为预期。
 
@@ -31,7 +33,7 @@ Orbit 的实际所有权 / 后端链已核对，实验适配位于独立工作�
 
 ## 硬件
 
-实物为 DOIT 标识的双 USB-C ESP32-S3 开发板。CH343 下载 / 日志口为本机 COM13，另一个直通 USB&OTG 口已识别为原生 USB。芯片工具实测为 16 MB Flash、8 MB 内置 PSRAM；当前固件未启用 PSRAM。
+实物为 DOIT 标识的双 USB-C ESP32-S3 开发板。CH343 下载 / 日志口为本机 COM13，另一个直通 USB&OTG 口已识别为原生 USB。芯片工具实测为 16 MB Flash、8 MB Octal PSRAM；当前profile已启用PSRAM，用于镜像、采样环及Wi-Fi/lwIP能力分配。普通malloc和USB DMA仍使用内部RAM。
 
 GPIO19 / GPIO20 留给原生 USB。GPIO4 / GPIO5 接 STM32F103C8 的 SWDIO / SWCLK 并共地，GPIO6 预留 NRST；用户缺少额外杜邦线，实体 NRST 尚未验收。当前 target profile 已通过 USB、TCP 与 Windows 虚拟 Bulk 的三线烧录 / 调试，目标电压与实际时钟未仪表量测。
 

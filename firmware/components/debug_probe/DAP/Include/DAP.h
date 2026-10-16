@@ -326,6 +326,14 @@
  extern void     DAP_TransferDeadline(uint32_t timeout_us);
  extern uint8_t  DAP_GetTransferAbortReason(void);
  extern uint32_t DAP_GetSWJClock(void);
+ typedef struct {
+   uint32_t transfers, waits, errors;
+   uint64_t elapsed_cycles, wire_clocks;
+ } DAP_SWDMetrics_t;
+ extern void SWD_GetMetrics(DAP_SWDMetrics_t *out);
+ extern void SWD_SetClock(uint32_t clock);
+ extern void SWD_ProfileEnable(uint8_t enabled);
+ extern uint8_t SWD_ProfileEnabled(void);
  
  // Configurable delay for clock generation
  #ifndef DELAY_SLOW_CYCLES

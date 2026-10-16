@@ -107,13 +107,15 @@ void debug_probe_notify_activity(bool active);
 
 __STATIC_FORCEINLINE void debug_probe_swdio_out_enable(void)
 {
-    REG_WRITE(GPIO_FUNC0_OUT_SEL_CFG_REG + (GPIO_SWDIO * 4), dedic_gpio_conf);
+    /* init_swd_pins selects GPIO_ENABLE as OE and retains the CPU data route. */
     gpio_ll_output_enable(dedic_gpio_dev, GPIO_SWDIO);
 }
 
 __STATIC_FORCEINLINE void debug_probe_swdio_out_disable(void)
 {
-    gpio_ll_output_disable(dedic_gpio_dev, GPIO_SWDIO);
+    /* Do not call gpio_ll_output_disable: it also disconnects the matrix. */
+    if(GPIO_SWDIO<32)dedic_gpio_dev->enable_w1tc=1u<<GPIO_SWDIO;
+    else dedic_gpio_dev->enable1_w1tc.data=1u<<(GPIO_SWDIO-32);
 }
 
 __STATIC_FORCEINLINE int debug_probe_swdio_read(void)

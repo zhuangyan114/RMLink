@@ -6,6 +6,7 @@ a batch remains ordered. Abort bypasses the job queue, never another owner.
 import asyncio
 from dataclasses import dataclass
 import itertools
+import sys
 
 from .transport import TcpTransport
 from rmlink_protocol import without_usb_padding
@@ -22,7 +23,7 @@ def denied(command):
 
 def informational(p):
     return p[0] in (0, 1) or (len(p) >= 2 and (
-        (p[0] == 0x80 and p[1] in (0, 4, 6, 7, 9, 10)) or (p[0] == 0x81 and p[1] in (0,13)) or
+        (p[0] == 0x80 and p[1] in (0, 4, 6, 7, 9, 10, 11, 12, 14)) or (p[0] == 0x81 and p[1] in (0,13)) or
         (p[0] == 0x82 and p[1] == 0)))
 
 
@@ -131,6 +132,8 @@ class Broker:
             pass
         except Exception as exc:
             self.failed = f'{type(exc).__name__}: {exc}'
+            commands=[p[0] for p in self.active.packets] if self.active else []
+            print(f'RMLink physical connection lost: device={self.device_id} reason={self.failed} commands={commands}; completion may be unknown',file=sys.stderr,flush=True)
             if self.active and not self.active.future.done(): self.active.future.set_exception(ConnectionError(self.failed))
             self.owner = None
             for callback in tuple(self.on_lost): callback()

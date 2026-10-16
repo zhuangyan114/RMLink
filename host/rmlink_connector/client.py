@@ -119,4 +119,7 @@ class ApiClient:
             session=self.session;self.session=None
             self.request('DELETE',f'/v1/sessions/{session}')
     def __enter__(self): return self
-    def __exit__(self, *args): self.close()
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:self.close()
+        except Exception:
+            if exc_type is None:raise

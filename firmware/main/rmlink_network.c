@@ -109,7 +109,13 @@ static bool recv_exact(int fd, uint8_t *buf, size_t n)
     while (n) {
         int got = recv(fd, buf, n, 0);
         if (got < 0 && errno == EINTR) continue;
-        if (got <= 0 || !atomic_load(&s_up)) return false;
+        if (got <= 0 || !atomic_load(&s_up)) {
+            ESP_LOGW("rmlink_wifi","recv ended: result=%d errno=%d remaining=%u free_internal=%u min_internal=%u",
+                got,got<0?errno:0,(unsigned)n,
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+                (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+            return false;
+        }
         buf += got; n -= got;
     }
     return true;
@@ -119,7 +125,13 @@ static bool send_exact(int fd, const uint8_t *buf, size_t n)
     while (n) {
         int sent = send(fd, buf, n, 0);
         if (sent < 0 && errno == EINTR) continue;
-        if (sent <= 0 || !atomic_load(&s_up)) return false;
+        if (sent <= 0 || !atomic_load(&s_up)) {
+            ESP_LOGW("rmlink_wifi","send ended: result=%d errno=%d remaining=%u free_internal=%u min_internal=%u",
+                sent,sent<0?errno:0,(unsigned)n,
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+                (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+            return false;
+        }
         buf += sent; n -= sent;
     }
     return true;
@@ -295,6 +307,28 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         for(unsigned i=0;i<4;i++)out[28+i]=requested>>(i*8);
         uint64_t now=esp_timer_get_time();for(unsigned i=0;i<8;i++)out[32+i]=now>>(i*8);
         return 64;
+    }
+    if (r[1] == 11) {
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        out[2]=0;rmlink_capture_performance_stats(out+3);return 63;
+#else
+        out[2]=2;return 3;
+#endif
+    }
+    if (r[1] == 12) {
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        out[2]=0;rmlink_capture_read_recovery_stats(out+3);return 24;
+#else
+        out[2]=2;return 3;
+#endif
+    }
+    if (r[1] == 14) { /* Probe-only diagnostic switch; default off. */
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        if(len==3 && r[2]<=1) {rmlink_capture_profile_enable(r[2]);out[2]=0;}
+#else
+        out[2]=2;
+#endif
+        return 3;
     }
     if (r[1] == 4) {
         out[2] = 0; out[3] = s_config.ssid[0] != 0; out[4] = atomic_load(&s_up);

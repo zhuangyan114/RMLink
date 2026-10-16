@@ -27,6 +27,14 @@ def require(ok, message):
     if not ok: raise AssertionError(message)
 
 
+def fixture_probe_address():
+    symbols=ROOT/'artifacts/build/stm32-fixture/fixture.symbols.txt'
+    for line in symbols.read_text(encoding='utf-8-sig').splitlines():
+        fields=line.split()
+        if len(fields)==3 and fields[2]=='probe_step':return (int(fields[0],16)&~1)+2
+    raise ValueError('Build the current STM32 fixture and its probe_step symbols first')
+
+
 def poll_read(s, address, predicate, seconds=3):
     deadline = time.perf_counter() + seconds
     while True:
@@ -115,10 +123,11 @@ def debug_checks(client, image, label, result, without_nrst=False, clock=4000000
         s.write_words(SCRATCH, words, pipelined=True)
         require(s.read_words(SCRATCH, len(words), pipelined=True) == words, 'RAM block comparison failed')
         result['ramWriteRead'] = dict(address=hex(SCRATCH), bytes=len(words) * 4, crosses1KiBBoundaries=True)
-        # FPB comparator 0: Flash Thumb function at 0x080000c2 (upper halfword).
-        probe = 0x080000c2
+        # Clock initialization changes text addresses; use the built fixture.
+        probe = fixture_probe_address()
         s.write32(DFSR, 0x1f)
-        s.write32(0xe0002008, (probe & 0x1ffffffc) | 0x80000001)
+        replace=(2 if probe&2 else 1)<<30
+        s.write32(0xe0002008, (probe & 0x1ffffffc) | replace | 1)
         s.write32(0xe0002000, 3)
         resume(s); poll_read(s, DHCSR, lambda x: x & 0x20000)
         pc = core_read(s, 15); reason = s.read32(DFSR)

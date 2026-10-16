@@ -39,12 +39,13 @@ def main():
     add('bin/RMLinkConnector.exe',ROOT/'artifacts/build/connector/dist/RMLinkConnector.exe')
     for name in ('rmlink.dll','rmlink.h','rmlink.def','librmlink.a',f'rmlink-client-{version}.tgz'):
         add('sdk/'+name,ROOT/'artifacts/build/sdk'/name)
-    for name in ('api-v1.md','subscriptions-implementation.md','quickstart.md','recording-format.md',
+    for name in ('api-v1.md','current-direction.md','subscriptions-implementation.md','quickstart.md','recording-format.md',
                  'subscription-performance-20261015.md','subscription-performance-20261015.json','subscription-checkpoint-024.json',
                  'orbit-matrix-acceptance-024.json','subscription-checkpoint-025.json','subscription-checkpoint-026.json'):
         add('docs/'+name,ROOT/'docs'/name)
     for name in ('buffered-flash-plan.md','buffered-flash-protocol.md','buffered-flash-0213.md',
-                 'buffered-flash-0214.md','device-diagnostics.md','clock-calibration-0216.md','overnight-20261016.md','flash-subscription-checkpoint-028.json'):
+                 'buffered-flash-0214.md','device-diagnostics.md','clock-calibration-0216.md','overnight-20261016.md',
+                 'mixed-1khz-optimization.md','mixed-subscription-checkpoint-0228.json'):
         add('docs/'+name,ROOT/'docs'/name)
     for name in ('Start.ps1','Wait-Ready.ps1','Install.ps1','README.md'):
         add(name,ROOT/'host/distribution'/name)

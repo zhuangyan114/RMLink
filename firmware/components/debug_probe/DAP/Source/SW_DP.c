@@ -27,6 +27,16 @@
 
  #include "DAP_config.h"
  #include "DAP.h"
+ #include "esp_cpu.h"
+ static DAP_SWDMetrics_t swd_metrics;
+ static uint8_t swd_profile_enabled,swd_clock_4mhz;
+ void SWD_GetMetrics(DAP_SWDMetrics_t *out) { *out=swd_metrics; }
+ void SWD_SetClock(uint32_t clock) { swd_clock_4mhz=clock==4000000U; }
+ uint8_t SWD_ProfileEnabled(void) { return swd_profile_enabled; }
+ void SWD_ProfileEnable(uint8_t enabled) {
+   if(enabled && !swd_profile_enabled)swd_metrics=(DAP_SWDMetrics_t){0};
+   swd_profile_enabled=enabled!=0;
+ }
  
  
  // SW Macros
@@ -268,6 +278,13 @@
  #undef  PIN_DELAY
  #define PIN_DELAY() PIN_DELAY_SLOW(DAP_Data.clock_delay)
  SWD_TransferFunction(Slow)
+
+ /* Common 4 MHz setting. Constant propagation removes per-bit runtime delay
+  * setup while retaining the conservative seven-iteration timing. Other
+  * clock settings keep the generic path. Validate the pad with RMT. */
+ #undef PIN_DELAY
+ #define PIN_DELAY() PIN_DELAY_SLOW(7U)
+ SWD_TransferFunction(Slow7)
  
  
  // SWD Transfer I/O
@@ -275,13 +292,29 @@
  //   data:    DATA[31:0]
  //   return:  ACK[2:0]
  uint8_t  SWD_Transfer(uint32_t request, uint32_t *data) {
+   uint32_t started=swd_profile_enabled?esp_cpu_get_cycle_count():0;
+   uint8_t ack;
    if (DAP_Data.fast_clock) {
-     return SWD_TransferFast(request, data);
+     ack=SWD_TransferFast(request, data);
+   } else if(swd_clock_4mhz && DAP_Data.clock_delay==7U) {
+     ack=SWD_TransferSlow7(request,data);
    } else {
-     return SWD_TransferSlow(request, data);
+     ack=SWD_TransferSlow(request, data);
    }
+   if(!swd_profile_enabled)return ack;
+   swd_metrics.elapsed_cycles+=(uint32_t)(esp_cpu_get_cycle_count()-started);
+   swd_metrics.transfers++;
+   uint32_t clocks=8+3+2*DAP_Data.swd_conf.turnaround;
+   if(ack==DAP_TRANSFER_OK || ack==DAP_TRANSFER_ERROR)clocks+=33+DAP_Data.transfer.idle_cycles;
+   else if(ack==DAP_TRANSFER_WAIT || ack==DAP_TRANSFER_FAULT) {
+     if(DAP_Data.swd_conf.data_phase)clocks+=33;
+   } else clocks+=33;
+   swd_metrics.wire_clocks+=clocks;
+   if(ack==DAP_TRANSFER_WAIT)swd_metrics.waits++;
+   else if(ack!=DAP_TRANSFER_OK)swd_metrics.errors++;
+   return ack;
  }
- 
+
  
  #endif  /* (DAP_SWD != 0) */
- 
+

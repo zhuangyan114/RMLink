@@ -17,6 +17,14 @@ class Client(ApiClient):
 
 
 class ClientLifecycleTests(unittest.TestCase):
+    def test_close_error_does_not_mask_original_capture_failure(self):
+        client=Client()
+        def broken_close():raise ConnectionError('cleanup failed')
+        client.close=broken_close
+        with self.assertRaisesRegex(ValueError,'original failure'):
+            with client:raise ValueError('original failure')
+        with self.assertRaisesRegex(ConnectionError,'cleanup failed'):
+            with client:pass
     def test_failed_close_clears_the_local_lease_without_replaying_a_request(self):
         client=Client();original=client.request;deleted=[]
         def request(method,path,body=None):

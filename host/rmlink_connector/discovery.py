@@ -98,7 +98,11 @@ async def discover(seconds=2, existing=None):
     query_name = b''.join(bytes([len(label)]) + label.encode() for label in SERVICE.split('.')) + b'\0'
     query = struct.pack('>6H', 0, 0, 1, 0, 0, 0) + query_name + struct.pack('>HH', 12, 0x8001)
     # QU requests direct replies to the ephemeral source port, avoiding taking 5353.
-    addresses = {item[4][0] for item in socket.getaddrinfo(socket.gethostname(), 0, socket.AF_INET, socket.SOCK_DGRAM)}
+    # Windows hostname resolution can block for seconds on a hotspot/multi-NIC
+    # machine. Never stall capture/control TCP readers on the service loop.
+    resolved=await asyncio.get_running_loop().getaddrinfo(socket.gethostname(),0,
+        family=socket.AF_INET,type=socket.SOCK_DGRAM)
+    addresses = {item[4][0] for item in resolved}
     addresses = {ip for ip in addresses if not ip.startswith('127.')}
     transports = []
     for address in addresses:
