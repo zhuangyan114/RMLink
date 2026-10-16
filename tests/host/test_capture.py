@@ -40,6 +40,27 @@ class CaptureWireTests(unittest.TestCase):
 
 
 class ConsumerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_timeline_inherits_halt_and_only_resumes_on_owner_continue(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        calls=[]
+        async def vendor(command,payload):
+            calls.append((command,payload))
+            return bytes(52)
+        target=SimpleNamespace(connected=True,lock=asyncio.Lock(),
+            broker=SimpleNamespace(packet_size=512),vendor=vendor)
+        captures=Subscriptions(target);captures.ensure_stream=AsyncMock()
+        await captures.target_halted()
+        await captures.create({'kind':'memory_series','addresses':[0x20000000]})
+        self.assertIn((5,b'\x01'),calls)
+        self.assertEqual(captures.paused_for_control,{1})
+        calls.clear()
+        await captures.create({'kind':'memory_snapshot','addresses':[0x20000004]})
+        self.assertNotIn((5,b'\x02'),calls) # Watch still updates while halted.
+        await captures.target_running()
+        self.assertEqual(calls[-1],(6,b'\x01'))
+        self.assertFalse(captures.paused_for_control)
+
     async def test_independent_cursors_and_known_pressure_gap(self):
         captures=Subscriptions(None)
         captures.records=deque([(i,record(i)) for i in range(100,110)],maxlen=10)

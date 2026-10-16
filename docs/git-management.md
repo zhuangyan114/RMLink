@@ -6,6 +6,12 @@ reference/ 中的独立参考仓库全部忽略，不记录为 submodule 或 git
 
 原 firmware/.git 元数据完整移到 artifacts/git-history/firmware-upstream.git，保留原工作区历史与暂存信息；这不是删除原历史。根仓库管理实际固件文件，不依赖一个包含未提交修改的嵌套仓库。
 
+## 提交信息
+
+后续提交的标题和正文统一使用中文，代码标识符、协议名和必要的技术缩写保留原文。该约定同时记录在根目录 AGENTS.md，供后续开发遵循；既有提交历史保持原样。
+
+## 提交检查
+
 常用检查：
 
 ```powershell

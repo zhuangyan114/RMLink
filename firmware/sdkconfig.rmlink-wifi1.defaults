@@ -1,0 +1,4 @@
+# Compare Wi-Fi scheduling on the network core against the normal CPU0 profile.
+# The dedicated GPIO/SWD executor stays on its selected core.
+# CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0 is not set
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y

@@ -1,15 +1,30 @@
+[CmdletBinding()]
 param([string]$Port = 'COM13', [switch]$TargetProfile, [switch]$TargetWiringConfirmed,
       [ValidateSet(64,128,256,512)][int]$TcpPacketSize = 64,
-      [ValidateSet(0,1)][int]$ExecutorCore = 0, [switch]$ImageCachePsram)
+      [ValidateSet(0,1)][int]$ExecutorCore = 0,
+      [ValidateSet(-1,0,1)][int]$WifiCore = -1, [switch]$ImageCachePsram, [switch]$StreamDiagnostics,
+      [ValidateSet(0,160)][int]$StreamIpTos = 0)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $buildName = if ($TargetProfile) { 'firmware-target' } else { 'firmware' }
 if ($TcpPacketSize -ne 64) { $buildName += "-tcp$TcpPacketSize" }
 if ($ExecutorCore -eq 0) { $buildName += '-core0' }
 else { $buildName += '-core1' }
+if ($WifiCore -ge 0) { $buildName += "-wifi$WifiCore" }
 if ($ImageCachePsram) { $buildName += '-psram' }
+if ($StreamDiagnostics) { $buildName += '-streamdiag' }
+if ($StreamIpTos -eq 160) { $buildName += '-video' }
 $build = Join-Path $root "artifacts\build\$buildName"
 $config = Get-Content -LiteralPath (Join-Path $build 'sdkconfig') -Raw
+if ($config -match '(?m)^CONFIG_RMLINK_STREAM_IP_TOS=(\d+)\r?$') {
+    if ([int]$Matches[1] -ne $StreamIpTos) { throw 'Stream IP_TOS differs from the selected build profile; rebuild before flashing.' }
+} elseif ($StreamIpTos -ne 0) { throw 'The selected build has no stream IP_TOS setting; rebuild before flashing.' }
+if ($StreamDiagnostics -and $config -notmatch '(?m)^CONFIG_RMLINK_STREAM_DIAGNOSTICS=y\r?$') {
+    throw 'The selected build does not enable stream diagnostics; rebuild before flashing.'
+}
+if ($WifiCore -ge 0 -and $config -notmatch "(?m)^CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_$WifiCore=y\r?$") {
+    throw 'Wi-Fi core differs from the selected build profile; rebuild before flashing.'
+}
 $configuredCore = $null
 if ($config -match '(?m)^CONFIG_RMLINK_EXECUTOR_CORE=(\d+)\r?$') {
     $configuredCore = [int]$Matches[1]
@@ -35,7 +50,10 @@ if ($flashExit -eq 0) {
         tcpPacketSize = $TcpPacketSize
         requestedExecutorCore = $ExecutorCore
         configuredExecutorCore = $configuredCore
+        requestedWifiCore = $WifiCore
         imageCachePsram = [bool]$ImageCachePsram
+        streamDiagnostics = [bool]$StreamDiagnostics
+        streamIpTos = $StreamIpTos
     }
     $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'artifacts\hardware\rmlink-last-flash.json') -Encoding utf8
 }

@@ -1,0 +1,3 @@
+# Explicit comparison profile; leaves the SWD executor core unchanged.
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0=y
+# CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1 is not set

@@ -17,6 +17,11 @@ class TargetModel:
             if p[0]==0x81:
                 if p[1]==0:out.append(bytes([0x81,0,0])+bytes(17)+struct.pack('<I',self.features))
                 elif p[1]==17:out.append(b'\x81\x11\x05' if self.fault else b'\x81\x11\x00'+struct.pack('<I',self.memory[0xe000edf0]))
+                elif p[1]==20:
+                    address,size=struct.unpack_from('<IH',p,2)
+                    assert 0<size<=128 and size+3<=self.packet_size
+                    raw=b''.join(struct.pack('<I',self.read(a)) for a in range(address&~3,(address+size+3)&~3,4))
+                    out.append(bytes([0x81,20,0])+raw[address&3:(address&3)+size])
                 else:out.append(bytes([0x81,p[1],0]))
                 continue
             if p[0]!=5:out.append(bytes([p[0],1 if p[0]==2 else 0]));continue
@@ -46,6 +51,42 @@ class TargetModel:
         return out
 
 class TargetEngineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_busy_connect_does_not_change_or_disconnect_the_existing_owner(self):
+        model=TargetModel(512);broker=Broker(model,'model');await broker.start()
+        owner=TargetEngine(broker,'existing');contender=TargetEngine(broker,'contender')
+        try:
+            await owner.connect();model.requests.clear()
+            with self.assertRaises(TargetAccessError) as result: await contender.connect()
+            self.assertEqual(result.exception.code,'TargetBusy')
+            self.assertEqual(model.requests,[])
+            self.assertEqual(broker.owner,'existing')
+            self.assertTrue(owner.connected);self.assertFalse(contender.connected)
+            await broker.release('contender')
+            self.assertEqual(broker.owner,'existing')
+            self.assertEqual((await owner.execute('state',{}))['state'],'Halted')
+        finally:await broker.close()
+    async def test_snapshot_reads_do_not_pause_capture_and_keep_transport_bounds(self):
+        for capacity in (64,512):
+            model=TargetModel(capacity);model.features=128;broker=Broker(model,'model');await broker.start()
+            engine=TargetEngine(broker,'owner')
+            try:
+                await engine.connect();model.requests.clear()
+                result=await engine.execute('read_memory',{'address':0x200003ff,'byte_length':257})
+                oracle=b''.join(struct.pack('<I',model.read(a)) for a in range(0x200003fc,0x20000500,4))[3:260]
+                self.assertEqual(bytes.fromhex(result['data']),oracle)
+                self.assertTrue(all(p[:2]==b'\x81\x14' for p in model.requests))
+                self.assertTrue(all(len(p)<=capacity for p in model.requests))
+                model.requests.clear()
+                batch=await engine.execute('read_batch',{'reads':[{'address':0x20000003,'byte_length':1}]*2})
+                self.assertEqual(batch['reads'][0],batch['reads'][1]);self.assertEqual(len(model.requests),2)
+                # Peripheral/core reads retain their original protected path.
+                model.requests.clear();await engine.execute('read_memory',{'address':0xe000ed00,'byte_length':4})
+                self.assertEqual(model.requests[0],b'\x81\x08');self.assertEqual(model.requests[-1],b'\x81\x09')
+                model.requests.clear()
+                with self.assertRaises(ValueError):await engine.execute('read_batch',{'reads':[{'address':0x20000000,'byte_length':0}]})
+                self.assertEqual(model.requests,[])
+            finally:await broker.close()
+
     async def test_advertised_core_state_uses_one_owner_packet_without_sampling_barrier(self):
         model=TargetModel(512);model.features=16;broker=Broker(model,'model');await broker.start()
         engine=TargetEngine(broker,'owner')

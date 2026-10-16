@@ -1,6 +1,6 @@
 set(dependencies "tinyusb" "esp_timer" "usb" "util" "serial_handler" "debug_probe" "esp_ringbuf")
 list(APPEND dependencies esp_wifi esp_netif esp_event nvs_flash mdns)
-set(bridge_sources "main.c" "eub_vendord.c" "usb_phy.c" "rmlink_network.c" "rmlink_transport_bench.c" "rmlink_stream.c")
+set(bridge_sources "main.c" "eub_vendord.c" "usb_phy.c" "rmlink_network.c" "rmlink_transport_bench.c" "rmlink_stream.c" "rmlink_stream_codec.c")
 if(CONFIG_RMLINK_TARGET_UART_ENABLED)
     list(APPEND bridge_sources "serial_bridge.c")
 endif()

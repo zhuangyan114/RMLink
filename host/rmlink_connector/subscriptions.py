@@ -1,10 +1,15 @@
 """Shared service subscriptions: one probe stream, bounded independent consumers."""
 import asyncio
 import struct
+import os
+import sys
+import time
+import socket
 from collections import deque
-from .capture_protocol import FrameDecoder, KINDS, decode_record
+from .capture_protocol import FrameDecoder, CompactFrameDecoder, KINDS, decode_record
 from .usb_capture import UsbCaptureReader
 from .recording import Recording
+from .tcp_options import configure_probe_tcp, probe_tcp_info
 
 
 def compile_config(body):
@@ -52,6 +57,9 @@ class Subscriptions:
         self.condition=asyncio.Condition()
         self.next_sequence=0; self.host_dropped=0; self.error=None
         self.paused_for_control=set()
+        self.halted_for_control=False
+        self.compact_stream=False
+        self.delta_stream=False
         self.recording=None
 
     def accept_frames(self,frames):
@@ -78,15 +86,30 @@ class Subscriptions:
         result=await recording.start();self.recording=recording;return result
 
     async def _stream(self):
-        decoder=FrameDecoder()
+        decoder=CompactFrameDecoder(delta=self.delta_stream) if self.compact_stream else FrameDecoder()
+        diagnostics=os.environ.get('RMLINK_STREAM_DIAGNOSTICS')=='1'
+        window=time.perf_counter() if diagnostics else 0; wire=received=max_wait=max_decode=0
+        if diagnostics:
+            sock=self.writer.get_extra_info('socket')
+            print(f'RMLink capture reader rcvbuf={sock.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)} compact={self.compact_stream}',file=sys.stderr,flush=True)
         try:
             while True:
+                before=time.perf_counter() if diagnostics else 0
                 data=await self.reader.read(4096)
                 if not data: raise ConnectionError('Probe capture stream closed')
+                read_at=time.perf_counter() if diagnostics else 0
                 frames=decoder.feed(data)
+                decoded_at=time.perf_counter() if diagnostics else 0
                 async with self.condition:
                     self.accept_frames(frames)
                     self.condition.notify_all()
+                if diagnostics:
+                    wire+=len(data);received+=len(frames)
+                    max_wait=max(max_wait,read_at-before);max_decode=max(max_decode,decoded_at-read_at)
+                    if decoded_at-window>=10:
+                        counters=probe_tcp_info(self.writer.get_extra_info('socket'))
+                        print(f'RMLink capture reader seconds={decoded_at-window:.3f} bytes={wire} frames={received} max_read_wait_ms={max_wait*1000:.3f} max_decode_ms={max_decode*1000:.3f} tcp={counters}',file=sys.stderr,flush=True)
+                        window=decoded_at;wire=received=max_wait=max_decode=0
         except asyncio.CancelledError: pass
         except Exception as exc:
             self.error=f'{type(exc).__name__}: {exc}'
@@ -120,7 +143,10 @@ class Subscriptions:
         if len(ticket)!=16: raise ValueError('Stream ticket size')
         host=self.target.broker.transport.host
         self.reader,self.writer=await asyncio.wait_for(asyncio.open_connection(host,3244),3)
-        self.writer.write(b'RMS1'+ticket); await self.writer.drain()
+        configure_probe_tcp(self.writer.get_extra_info('socket'))
+        self.delta_stream=bool(self.target.capture_features&512)
+        self.compact_stream=self.delta_stream or bool(self.target.capture_features&256)
+        self.writer.write((b'RMS3' if self.delta_stream else b'RMS2' if self.compact_stream else b'RMS1')+ticket); await self.writer.drain()
         if await asyncio.wait_for(self.reader.readexactly(4),3)!=b'OKAY': raise ConnectionError('Stream binding rejected')
         self.error=None; self.task=asyncio.create_task(self._stream())
 
@@ -143,6 +169,11 @@ class Subscriptions:
                     await self.target.vendor(15,bytes([sid,i,len(offsets),f.get('byte_length',4)])+struct.pack('<'+'i'*len(offsets),*offsets))
             config['stream_cursor']=self.next_sequence-1
             await self.target.vendor(3,bytes([sid]))
+            # Orbit restores Timeline while its launch is still halted. Keep
+            # that series paused until the existing owner confirms Continue;
+            # otherwise queued pre-Continue frames become a stale backlog.
+            if sid==1 and self.halted_for_control:
+                await self.target.vendor(5,bytes([sid]));self.paused_for_control.add(sid)
             stats=await self.target.vendor(7,bytes([sid]))
             config['capture_id']=int.from_bytes(stats[3:7],'little')
             self.configs[sid]=config
@@ -171,10 +202,12 @@ class Subscriptions:
         return {'disposed':sid}
 
     async def target_halted(self):
+        self.halted_for_control=True
         if 1 in self.configs and (await self.action(1,'status'))['state']==2:
             await self.action(1,'pause');self.paused_for_control.add(1)
 
     async def target_running(self):
+        self.halted_for_control=False
         for sid in list(self.paused_for_control):
             if sid in self.configs:await self.action(sid,'resume')
             self.paused_for_control.discard(sid)

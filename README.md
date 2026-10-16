@@ -2,7 +2,9 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
-当前开发候选为 **固件0.2.28／连接服务与SDK 0.2.8**。“五条独立三级指针链＋五个普通变量”，72 MHz F103、4 MHz SWD 下15分钟三订阅共存平均 **1108.68 Hz**，全部应用流约 **110.01 KiB/s**；无数据无效、板端丢帧或实时消费者缺口，仍有期限跳过、时序抖动和网络发送长尾。过程、失败及布局边界见[千赫兹优化记录](docs/mixed-1khz-optimization.md)。
+当前开发候选为 **固件0.2.40／连接服务0.2.14／SDK 0.2.8**，新增采样流无损压缩、传输诊断、复位保留订阅及运行到入口能力。真实 Orbit 的烧录、main 入口和十变量采样记录见 [Timeline 与复位验收](docs/timeline-stability-20261016.md)；数据到达长尾及前端卡顿仍有剩余限制。默认请求 SWD 4 MHz；[8 MHz 实板试验](docs/swd-8mhz-trial-20261016.md)未通过烧录和持续采样，已回退4 MHz。
+
+此前0.2.28检查点：“五条独立三级指针链＋五个普通变量”，72 MHz F103、4 MHz SWD 下15分钟三订阅共存平均 **1108.68 Hz**，全部应用流约 **110.01 KiB/s**；无数据无效、板端丢帧或实时消费者缺口，仍有期限跳过、时序抖动和网络发送长尾。过程、失败及布局边界见[千赫兹优化记录](docs/mixed-1khz-optimization.md)。
 
 新增[LibXR SWD参考与实板试验](docs/libxr-swd-review.md)：已拉取固定版本，试验字节展开与奇偶校验优化。实际线时钟校准后未证明优于原版，候选未采用，保留原0.2.28及新增底层协议模型；“1M/s”的原测试条件未知。
 
@@ -40,6 +42,7 @@ Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共�
 - [实现检查点与分层验证](docs/subscriptions-implementation.md)
 - [最新订阅性能与实板证据](docs/subscription-performance-20261015.md)
 - [公开 API 与 SDK](docs/api-v1.md)
+- [Orbit 的 RMLink 专用连接配置](docs/orbit-rmlink-connection.md)
 - [构建、连接与接线](docs/quickstart.md)
 - [已实现的开发协议](docs/protocol-v1.md)
 - [Windows 连接组件评估](docs/windows-connector-evaluation.md)

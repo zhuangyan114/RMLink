@@ -58,6 +58,7 @@ typedef struct {
 static subscription_t s_sub[SLOTS];
 static uint8_t s_transport;
 static uint32_t s_session, s_capture;
+static uint32_t s_record_bytes=64*1024;
 static bool s_barrier;
 static uint64_t s_lease;
 static esp_timer_handle_t s_timer;
@@ -253,20 +254,26 @@ static void timer_refresh(void) {
 esp_err_t rmlink_capture_init(void (*wake)(void)) {
     rmlink_capture_invalidate_ap();
     s_wake=wake;
-    const size_t sizes[SLOTS]={48*1024,4*1024,6*1024,6*1024};
+    /* At 5 kHz / four fields each ring item costs 80 bytes. Measured TCP
+     * stalls reach 3.8 s; 2 MiB retains about 5.2 s, with recovery margin.
+     * Targets, GPIO state, ring controls and USB DMA remain internal. */
+    const size_t sizes[SLOTS]={2*1024*1024,4*1024,6*1024,6*1024};
+    s_record_bytes=0;
     for(unsigned i=0;i<SLOTS;i++) {
+        size_t allocated=i==0?48*1024:sizes[i];
 #if CONFIG_SPIRAM && !defined(RMLINK_HOST_TEST)
         if(i==0) {
             uint8_t *storage=heap_caps_malloc(sizes[i],MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
             if(storage) {
                 s_records[i]=xRingbufferCreateStatic(sizes[i],RINGBUF_TYPE_NOSPLIT,storage,&s_external_record_control);
                 if(!s_records[i])free(storage);
-                else ESP_LOGI("rmlink_capture","Timeline ring: %u bytes PSRAM",(unsigned)sizes[i]);
+                else {allocated=sizes[i];ESP_LOGI("rmlink_capture","Timeline ring: %u bytes PSRAM",(unsigned)sizes[i]);}
             }
         }
 #endif
-        if(!s_records[i])s_records[i]=xRingbufferCreate(sizes[i],RINGBUF_TYPE_NOSPLIT);
+        if(!s_records[i])s_records[i]=xRingbufferCreate(i==0?48*1024:sizes[i],RINGBUF_TYPE_NOSPLIT);
         if(!s_records[i]) return ESP_ERR_NO_MEM;
+        s_record_bytes+=allocated;
     }
     esp_timer_create_args_t args={.callback=timer_cb,.name="rmlink_capture",.skip_unhandled_events=true};
     return esp_timer_create(&args,&s_timer);
@@ -597,8 +604,8 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(!s_timer) { out[2]=4; return 3; }
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
-        w32(out+8,4000000); w32(out+12,200); w32(out+16,64*1024);
-        w32(out+20,63
+        w32(out+8,4000000); w32(out+12,200); w32(out+16,s_record_bytes);
+        w32(out+20,63|128|256|512 /* bounded reads and negotiated RMS2/RMS3 TCP stream */
 #ifndef RMLINK_HOST_TEST
             |64 /* RMT clock trace, owner control only */
 #endif
@@ -611,6 +618,17 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(!rmlink_owner_matches(owner,transport,session)) { out[2]=2; return 3; }
     if(s_session && (s_session!=session || s_transport!=transport)) { out[2]=2; return 3; }
     s_session=session; s_transport=transport; s_lease=esp_timer_get_time()+LEASE_US;
+    if(r[1]==20) { /* READ_MEMORY: address32, length16. Same executor, bounded work. */
+        if(len!=8)return 3;
+        uint32_t addr=u32(r+2);unsigned n=r[6]|(unsigned)r[7]<<8;
+        size_t capacity=transport==RMLINK_USB?RMLINK_USB_PACKET_SIZE:RMLINK_PACKET_SIZE;
+        if(!n || n>128 || n+3>capacity || !memory(addr,n,false))return 3;
+        /* No raw AP state escapes this command. The executor invalidates it
+         * before each queued job, including accesses between capture chunks.
+         * Unlike control begin/end, this never pauses sampling across Wi-Fi. */
+        if(!bytes_read(addr,out+3,n)) {out[2]=5;return 3;}
+        out[2]=0;return n+3;
+    }
 #ifndef RMLINK_HOST_TEST
     if(r[1]==18 || r[1]==19) {
         if(r[1]==18 && !rmlink_capture_raw_allowed()) {out[2]=3;return 3;}

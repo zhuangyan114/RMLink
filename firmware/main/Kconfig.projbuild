@@ -23,6 +23,23 @@ menu "RMLink Configuration"
         int "CMSIS-DAP TCP port"
         range 1024 65534
         default 3241
+config RMLINK_STREAM_IP_TOS
+    int "Capture TCP IP_TOS (0 uses normal Wi-Fi priority)"
+    range 0 255
+    default 0
+    depends on RMLINK_WIFI_ENABLED
+    help
+        Optional per-socket IP precedence for measured WMM experiments.
+        160 selects the video access category and retains AMPDU on ESP-IDF 5.1.
+        This is a scheduling hint, not a bandwidth or latency guarantee.
+
+config RMLINK_STREAM_DIAGNOSTICS
+        bool "Log sender TCP state during capture stalls"
+        depends on RMLINK_WIFI_ENABLED
+        default n
+        help
+            Inspect sender state on the lwIP thread, at most once per second
+            during a blocked capture send. This is an opt-in diagnostic build.
 endmenu
 
 menu "Bridge Configuration"

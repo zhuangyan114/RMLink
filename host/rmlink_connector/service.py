@@ -139,7 +139,7 @@ class Connector:
         if method=='GET' and path=='/v1/capabilities':
             return {'api_version':{'major':1,'minor':3},'default_clock_hz':4000000,
                 'enhanced_profile':'stm32f103-medium-density','subscription_kinds':['memory_series','memory_snapshot','rtt_stream'],
-                'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local','measure_swd_clock'],
+                'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','run_to_address','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local','measure_swd_clock'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
                 'capture_wire_version':1,'flash_api':True,'flash_profile':'stm32f103c8-page-images','source_stepping':False,
                 'flash_backends':['auto','host','probe'],'flash_verification':{'full_image_required':True,'optional_host_readback':True},
@@ -258,9 +258,7 @@ class Connector:
                                 raise
                         return flash.stage(body)
                 if method=='POST' and len(parts)==5 and parts[4]=='target':
-                    if body.get('command') in ('halt','step'):await captures.target_halted()
-                    if body.get('command')=='reset':
-                        for sub in list(captures.configs): await captures.delete(sub)
+                    if body.get('command') in ('halt','step','reset','run_to_address'):await captures.target_halted()
                     result=await target.execute(body.get('command'),body)
                     if body.get('command')=='run':await captures.target_running()
                     return result
@@ -343,9 +341,11 @@ class Connector:
             code, response = 400, {'error': 'invalid_request'}
         except asyncio.QueueFull: code, response = 429, {'error': 'request_queue_full'}
         except TargetAccessError as exc:
-            code,response=503,{'error':str(exc)[:400],'code':exc.code,'completed_operations':exc.completed,
+            busy=exc.code=='TargetBusy'
+            controlled=busy or exc.code in ('NoFreeBreakpoint','StartupEntryNotReached','StartupTimeout')
+            code,response=409 if controlled else 503,{'error':str(exc)[:400],'code':exc.code,'completed_operations':exc.completed,
                 'completed_bytes':getattr(exc,'completed_bytes',None),
-                'write_completion_may_be_unknown':True}
+                'write_completion_may_be_unknown':not controlled}
         except (OSError, ConnectionError, TimeoutError) as exc:
             code, response = 503, {'error': str(exc)[:400], 'write_completion_may_be_unknown': True}
         except asyncio.IncompleteReadError: pass

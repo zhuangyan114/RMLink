@@ -174,8 +174,37 @@ static void independent_pointer_prefetch_test(void) {
     for(unsigned i=0;i<32;i++){memcpy(&v,frame+56+i*4,4);assert(v==1000+i);}
     rmlink_capture_closed(2,7);
 }
+static void snapshot_read_test(void) {
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);
+    uint8_t frame[384];next_record(frame);
+    for(unsigned i=0;i<5120;i++)ram[i]=0xa5000000u+i;
+    uint8_t request[]={0x81,20,0xff,3,0,0x20,12,0};
+    unsigned before=reads,write_before=writes;
+    owner.session=8;assert(command(request,sizeof(request))==3 && out[2]==2 && reads==before);
+    owner.session=7;
+    assert(command(request,sizeof(request))==15 && out[2]==0);
+    assert(memcmp(out+3,(uint8_t*)ram+0x3ff,12)==0 && writes==write_before);
+    assert(!rmlink_capture_raw_allowed()); /* Capture was never paused. */
+    host_clock+=2000;assert(next_record(frame)==60);
+    request[6]=0;assert(command(request,sizeof(request))==3 && out[2]==1);
+    request[6]=129;assert(command(request,sizeof(request))==3 && out[2]==1);
+    request[6]=4;request[5]=0xe0;
+    assert(command(request,sizeof(request))==3 && out[2]==1); /* No peripheral reads. */
+    request[5]=0x20;request[2]=0xff;request[3]=0x4f;request[6]=2;
+    assert(command(request,sizeof(request))==3 && out[2]==1); /* End of RAM. */
+    assert(command(request,7)==3 && out[2]==1);
+    request[2]=0;request[3]=0;request[6]=128;
+    if(RMLINK_PACKET_SIZE>=256)assert(command(request,8)==131 && out[2]==0);
+    else assert(command(request,8)==3 && out[2]==1);
+    rmlink_capture_closed(2,7);owner.transport=1;request[6]=61;
+    assert(usb_command(request,8)==64 && out[2]==0);
+    request[6]=62;assert(usb_command(request,8)==3 && out[2]==1);
+    rmlink_capture_closed(1,7);owner.transport=2;
+}
+
 int main(void) {
     assert(rmlink_capture_init(NULL)==0);memap_cache_test();bounded_read_recovery_test();independent_pointer_prefetch_test();
+    snapshot_read_test();
     memset(ram,0,sizeof(ram));reads=0;writes=0;commands=0;
     uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};
     unsigned sync_reads=reads;owner.session=8;
@@ -362,14 +391,14 @@ int main(void) {
     owner.session=8; command(ticket,2); assert(out[2]==2);
     owner.session=7;rmlink_capture_closed(2,7);
     prepare(1,1,1);address(1,0,0x20000000);action(3,1);
-    for(unsigned i=0;i<2000;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
+    for(unsigned i=0;i<10000;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
     action(5,1);unsigned retained=0;uint32_t last_value=0;
     while(rmlink_capture_take(frame,sizeof(frame),0)) {
         memcpy(&v,frame+56,4);if(!retained)assert(v>0);
         assert(!retained || v>last_value);last_value=v;retained++;
     }
-    assert(retained && retained<2000 && last_value==1999);
-    action(7,1);uint64_t drops;memcpy(&drops,out+30,8);assert(drops==2000-retained);
+    assert(retained && retained<10000 && last_value==9999);
+    action(7,1);uint64_t drops;memcpy(&drops,out+30,8);assert(drops==10000-retained);
     rmlink_capture_closed(2,7);
     owner.transport=1;
     uint8_t usb_prepare[17]={0x81,1,1,1,1};uint32_t usb_period=1000;memcpy(usb_prepare+5,&usb_period,4);

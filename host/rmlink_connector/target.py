@@ -1,6 +1,9 @@
 """Reusable Cortex-M target engine. One lock and owner for control + captures."""
 import asyncio
 import struct
+import os
+import sys
+import time
 from .diagnostics import decode_clock_header,summarize_clock
 from contextlib import asynccontextmanager
 
@@ -28,7 +31,10 @@ class TargetEngine:
 
     async def exact(self, request, expected):
         reply=await self.packet(request)
-        if reply!=expected: raise ConnectionError(f'Target command {request[0]:02x} failed: {reply.hex()}')
+        if reply!=expected:
+            if self.broker.owner not in (None,self.source):
+                raise TargetAccessError('Target is busy in another debug session; end that session and retry. No Flash operation was started.','TargetBusy')
+            raise ConnectionError(f'Target command {request[0]:02x} failed: {reply.hex()}')
 
     async def transfer(self, operations):
         request=bytearray([5,0,len(operations)]); reads=0
@@ -47,6 +53,8 @@ class TargetEngine:
     async def connect(self, clock_hz=DEFAULT_CLOCK_HZ):
         if type(clock_hz) is not int or not 1000<=clock_hz<=10000000: raise ValueError('clock_hz range')
         async with self.lock:
+            if self.broker.owner not in (None,self.source):
+                raise TargetAccessError('Target is busy in another debug session; end that session and retry. No Flash operation was started.','TargetBusy')
             if self.connected:
                 if clock_hz!=self.clock:raise ValueError('Already connected at a different clock; open a new target session')
                 return {'connected':True,'clock_hz':self.clock}
@@ -74,7 +82,8 @@ class TargetEngine:
                 return {'connected':True,'clock_hz':clock_hz,'dp_idcode':dp,'cpuid':cpuid,'device_id':device_id,'profile':'stm32f103-medium-density'}
             except BaseException:
                 # Keep this source reusable. Broker.release would permanently close it.
-                try: await self.packet(b'\x03')
+                try:
+                    if self.broker.owner==self.source: await self.packet(b'\x03')
                 except Exception: pass
                 raise
 
@@ -88,9 +97,13 @@ class TargetEngine:
     async def control(self):
         if not self.connected: raise ValueError('Connect the target first')
         async with self.lock:
+            started=time.perf_counter() if os.environ.get('RMLINK_STREAM_DIAGNOSTICS')=='1' else None
             await self.vendor(8)
             try: yield
-            finally: await self.vendor(9)
+            finally:
+                await self.vendor(9)
+                if started is not None:
+                    print(f'RMLink capture barrier elapsed_ms={(time.perf_counter()-started)*1000:.3f}',file=sys.stderr,flush=True)
 
     async def read_word(self,address):
         return (await self.transfer([(8,0),(1,0x23000052),(5,address),(15,None)]))[0]
@@ -157,13 +170,10 @@ class TargetEngine:
             raise ValueError('Subword reads require known RAM/Flash; peripheral widening is not automatic')
 
     async def read_batch(self,reads):
-        if not isinstance(reads,list) or not 1<=len(reads)<=32 or any(not isinstance(r,dict) for r in reads):
-            raise ValueError('Expected 1..32 memory ranges')
-        if any(type(r.get('byte_length')) is not int or r['byte_length']<1 for r in reads) or sum(r['byte_length'] for r in reads)>4096:
-            raise ValueError('Batch byte budget')
+        self.check_reads(reads)
         words=[];ranges=[]
         for r in reads:
-            address,size=r.get('address'),r['byte_length'];self.check_range(address,size)
+            address,size=r['address'],r['byte_length']
             ranges.append((address,size,len(words)*4+(address&3)))
             # Preserve repeated accesses, including peripheral side effects.
             words.extend(range(address&~3,(address+size+3)&~3,4))
@@ -174,6 +184,29 @@ class TargetEngine:
             values.extend(await self.transfer(operations))
         raw=struct.pack('<'+'I'*len(values),*values)
         return {'reads':[{'address':a,'data':raw[offset:offset+n].hex()} for a,n,offset in ranges]}
+
+    @classmethod
+    def check_reads(cls,reads):
+        if not isinstance(reads,list) or not 1<=len(reads)<=32 or any(not isinstance(r,dict) for r in reads):
+            raise ValueError('Expected 1..32 memory ranges')
+        if any(type(r.get('byte_length')) is not int or r['byte_length']<1 for r in reads) or sum(r['byte_length'] for r in reads)>4096:
+            raise ValueError('Batch byte budget')
+        for r in reads:
+            cls.check_range(r.get('address'),r['byte_length'])
+
+    @staticmethod
+    def snapshot_range(address,size):
+        return (0x20000000<=address and address+size<=0x20005000
+                or 0x08000000<=address and address+size<=0x08010000)
+
+    async def read_snapshot_range(self,address,size):
+        data=bytearray();limit=min(128,self.broker.packet_size-3)
+        while len(data)<size:
+            n=min(limit,size-len(data))
+            reply=await self.vendor(20,struct.pack('<IH',address+len(data),n))
+            if len(reply)!=n:raise TargetAccessError('Snapshot read length mismatch','MalformedResponse')
+            data.extend(reply)
+        return {'address':address,'data':data.hex()}
 
     async def read_range(self,address,size):
         self.check_range(address,size)
@@ -198,8 +231,77 @@ class TargetEngine:
             position+=count*4
         return {'address':address,'data':bytes(data[address&3:(address&3)+size]).hex()}
 
+    async def reset_halted(self):
+        """Catch SYSRESETREQ before any application instruction; no NRST needed."""
+        demcr=await self.read_word(0xe000edfc)
+        try:
+            await self.write_word(0xe000edf0,0xa05f0003)
+            await self.poll_word(0xe000edf0,0x20000,0x20000)
+            await self.write_word(0xe000edfc,demcr|1)
+            await self.write_word(0xe000ed0c,0x05fa0004)
+            value=await self.poll_word(0xe000edf0,0x2020000,0x20000)
+            return value
+        finally:
+            await self.write_word(0xe000edfc,demcr)
+
+    async def run_to_address(self,body):
+        requested=body.get('address');reset=body.get('reset',True)
+        if type(requested) is not int or not 0x08000000<=requested<0x08010000 or type(reset) is not bool:
+            raise ValueError('F103 startup requires a Flash address and boolean reset')
+        address=requested&~1
+        await self.write_word(0xe000edf0,0xa05f0003)
+        await self.poll_word(0xe000edf0,0x20000,0x20000)
+        ctrl=await self.read_word(0xe0002000)
+        count=((ctrl>>4)&15)|((ctrl>>8)&0x70)
+        if ctrl>>28 or not 1<=count<=16:raise ValueError('Unsupported FPB revision/count')
+        saved=[await self.read_word(0xe0002008+4*i) for i in range(count)]
+        comparator=(address&0x1ffffffc)|1|((2 if address&2 else 1)<<30)
+        shared=next((i for i,v in enumerate(saved) if v==comparator),None)
+        slot=shared if shared is not None else next((i for i,v in enumerate(saved) if not v&1 and i not in self.breakpoints),None)
+        if slot is None:raise TargetAccessError('No free FPB comparator for startup','NoFreeBreakpoint')
+        ignored=[i for i,v in enumerate(saved) if v&1 and i!=slot]
+        try:
+            for i in ignored:await self.write_word(0xe0002008+4*i,0)
+            await self.write_word(0xe0002000,3)
+            await self.write_word(0xe0002008+4*slot,comparator)
+            dhcsr=await self.reset_halted() if reset else await self.read_word(0xe000edf0)
+            reset_pc=await self.register(15);reset_lr=await self.register(14)
+            if reset_pc&~1!=address:
+                await self.write_word(0xe000edf0,0xa05f0001)
+                await self.poll_word(0xe000edf0,0x20000,0x20000,timeout=3)
+            final=await self.read_word(0xe000edf0)
+            pc=await self.register(15);lr=await self.register(14)
+            if not final&0x20000 or pc&~1!=address:
+                raise TargetAccessError(f'Startup halted at 0x{pc:08x}, expected 0x{address:08x}','StartupEntryNotReached')
+        except TimeoutError as error:
+            raise TargetAccessError('Startup entry timeout; target will be halted and FPB restored','StartupTimeout') from error
+        finally:
+            # Halt before removing the temporary comparator, also on timeout.
+            # Restore every original slot, including other owners' pre-existing
+            # hardware values, without altering the session breakpoint map.
+            try:
+                await self.write_word(0xe000edf0,0xa05f0003)
+                await self.poll_word(0xe000edf0,0x20000,0x20000)
+                for i,value in enumerate(saved):await self.write_word(0xe0002008+4*i,value)
+                await self.write_word(0xe0002000,ctrl|2)
+            except Exception as error:
+                raise TargetAccessError('Startup FPB restoration failed: '+str(error),'FpbCleanupFailed') from error
+        return dict(state='Halted',requestedAddress=requested,entryAddress=address,resetRequested=reset,
+                    resetPcValid=reset,resetDhcsr=dhcsr,resetPc=reset_pc,resetLr=reset_lr,
+                    pc=pc,lr=lr,dhcsr=final,cleanupOk=True,sharedUserSlot=shared is not None,
+                    temporaryBreakpointCount=0 if shared is not None else 1,temporarySlot=slot,ignoredUserSlots=ignored)
+
     async def execute(self, command, body):
         if command=='connect': return await self.connect(body.get('clock_hz',DEFAULT_CLOCK_HZ))
+        if command in ('read_memory','read_batch') and self.capture_features&128:
+            reads=([{'address':body.get('address'),'byte_length':body.get('byte_length')}]
+                   if command=='read_memory' else body.get('reads'))
+            self.check_reads(reads)
+            if all(self.snapshot_range(r['address'],r['byte_length']) for r in reads):
+                if not self.connected:raise ValueError('Connect the target first')
+                async with self.lock:
+                    results=[await self.read_snapshot_range(r['address'],r['byte_length']) for r in reads]
+                return results[0] if command=='read_memory' else {'reads':results}
         if command=='state' and self.capture_features&16:
             if not self.connected:raise ValueError('Connect the target first')
             async with self.lock:reply=await self.packet(b'\x81\x11','background')
@@ -208,6 +310,7 @@ class TargetEngine:
             value=int.from_bytes(reply[3:7],'little')
             return {'dhcsr':value,'state':'Halted' if value&0x20000 else 'Running'}
         async with self.control():
+            if command=='run_to_address':return await self.run_to_address(body)
             if command=='read_memory':
                 address,size=body.get('address'),body.get('byte_length')
                 return await self.read_range(address,size)
@@ -259,8 +362,7 @@ class TargetEngine:
                 await self.write_word(0xe0002008+index*4,0);self.breakpoints.pop(index)
                 return {'cleared':index}
             if command=='reset':
-                await self.write_word(0xe000ed0c,0x05fa0004)
-                value=await self.poll_word(0xe000edf0,0x02000000,0)
+                value=await self.reset_halted()
                 return {'requested':True,'physical_nrst':False,'dhcsr':value,
                     'state':'Halted' if value&0x20000 else 'Running'}
             if command=='benchmark_local':

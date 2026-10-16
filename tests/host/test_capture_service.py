@@ -52,6 +52,22 @@ class ProbeModel:
 
 
 class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reset_retains_subscription_then_continue_resumes_same_capture(self):
+        from unittest.mock import AsyncMock
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        _,config=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000]})
+        owned=self.connector.sessions[session['session_id']]
+        owned['target'].execute=AsyncMock(return_value={'state':'Halted'})
+        status,_=await self.http('POST',root+'/target',{'command':'reset'})
+        self.assertEqual(status,200)
+        self.assertEqual(owned['captures'].configs[1]['capture_id'],config['capture_id'])
+        self.assertIn(1,owned['captures'].paused_for_control)
+        await self.http('POST',root+'/target',{'command':'run'})
+        self.assertFalse(owned['captures'].paused_for_control)
+        self.assertIn(b'\x81\x06\x01',self.probe.requests)
+        self.assertNotIn(b'\x81\x04\x01',self.probe.requests)
     async def asyncSetUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.connector=Connector(State(self.tmp.name))
         self.probe=ProbeModel();self.broker=Broker(self.probe,'model');await self.broker.start()

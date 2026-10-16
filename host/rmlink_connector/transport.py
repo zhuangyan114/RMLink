@@ -1,8 +1,8 @@
 """Bounded CMSIS-DAP TCP transport. No write replay after uncertain failures."""
 import asyncio
-import socket
 import struct
 from rmlink_protocol import packet_size_from_info
+from .tcp_options import configure_probe_tcp
 
 
 class TcpTransport:
@@ -14,7 +14,7 @@ class TcpTransport:
 
     async def connect(self):
         self.reader, self.writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), 3)
-        self.writer.get_extra_info('socket').setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        configure_probe_tcp(self.writer.get_extra_info('socket'))
         self.packet_size = packet_size_from_info((await self.exchange_many([b'\x00\xff']))[0])
 
     async def send(self, packets):

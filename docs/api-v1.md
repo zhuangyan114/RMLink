@@ -1,8 +1,12 @@
 # RMLink 公开连接组件 API v1.2（开发版）
 
-本文按服务／SDK 0.2.7 和固件候选 0.2.12 描述；较早固件的差异另行标注。新增 [ESP32 缓存烧录协议与验收](buffered-flash-protocol.md)，支持 backend 选择、进度、取消和断连清理。历史采样条件见 [采样性能记录](subscription-performance-20261015.md)。实际 SWCLK 与已安装 VS Code 界面仍需独立验证。
+本文的基础接口来自服务／SDK 0.2.7；新增内容更新至连接服务 0.2.14、固件候选 0.2.40，SDK 仍为 0.2.8。较早固件的差异另行标注。[ESP32 缓存烧录协议与验收](buffered-flash-protocol.md)支持 backend 选择、进度、取消和断连清理。最新真实 Orbit 开发宿主验收见 [Timeline 稳定性记录](timeline-stability-20261016.md)，历史采样条件见 [采样性能记录](subscription-performance-20261015.md)。
 
 ## 接入与能力
+
+Orbit 开发工作树现可用 `"probe":"rmlink"` 直接选择本服务后端，保留单一目标 owner；`rmlinkDeviceId` 可选，省略时仅在恰有一台已配对且在线的设备时自动选择。多台设备返回 AmbiguousDevice，不自动抢占。该入口默认启用 F5 烧录；`flashBeforeDebug:false` 仍明确跳过烧录。标准 CMSIS-DAP/虚拟 USB 继续使用 `probe:cmsis-dap`。
+
+服务 0.2.11 起，增强 target/connect 遇到其他会话占用时返回 HTTP 409、`code:TargetBusy`、`write_completion_may_be_unknown:false`，不发送 SWD 命令、不释放其他 owner。租约建立成功不等于获得目标所有权；调用者须处理该冲突。原始 `/dap` 路径仍返回标准 CMSIS-DAP 的拒绝响应。
 
 安装组件后，低频控制通过 `http://127.0.0.1:3243/v1`；要求 Bearer token，token 保存在当前用户受 ACL 保护的 `.rmlink/connector.json`，SDK 自动读取，不应记录或传给远程网页。USB/IP 环回与普通软件仍使用现有虚拟 CMSIS-DAP。增强能力需要客户端调用本 API。
 
@@ -20,7 +24,8 @@
 | --- | --- |
 | connect | 可选 clock_hz；返回 DP/CPUID/DEV_ID 和 profile，实际 SWCLK 尚未量测 |
 | state | 返回 dhcsr 与 Running/Halted；0.2.4协商能力后通过同一执行器的一次只读操作查询，不跨无线往返持有采样屏障；旧固件保持原路径 |
-| halt / run / step / reset | 有界状态确认；reset 为 SYSRESETREQ，物理 NRST 不在当前验收内 |
+| halt / run / step / reset | 有界状态确认；0.2.14起reset通过VC_CORERESET捕获SYSRESETREQ并保持Halted，保留订阅，随后run恢复Timeline；物理NRST不在当前验收内 |
+| run_to_address | 0.2.14起；address为F103前64 KiB Flash地址（支持Thumb位），reset为布尔值、默认true。临时FPB断点运行到指定地址后确认Halted/PC，恢复原比较器和DEMCR；复用现有owner。返回pc/lr/dhcsr、cleanupOk、临时/共享槽及忽略的用户槽诊断。无空槽、未命中入口或超时以409返回，恢复失败/目标访问失效仍报503，不重放未知写入 |
 | read_memory | address、byte_length，最多 4096 B；返回 data hex |
 | read_batch | reads 数组，1..32 个范围，总量最多 4096 B |
 | write_memory | address、data hex，按对齐 word 写，最多 4096 B；按包和 1 KiB 边界独立设置地址 |
@@ -28,9 +33,11 @@
 | set_breakpoint / clear_breakpoint | F103 Flash FPB 地址 / id；只使用空比较器 |
 | benchmark_local | address、stride、read_count≤10000、field_count≤32；ESP32 本地计时连续块/离散组读，最长约 500 ms |
 
-目标控制通过同一 owner 和控制屏障执行。halt/step 使 Timeline 暂停，run 只恢复由控制操作暂停的订阅；用户显式暂停不会自动恢复。复位和烧录先撤销所有旧订阅，重新配置地址/RTT 后才开始新的采集。
+目标控制通过同一 owner 和控制屏障执行。halt/step 使 Timeline 暂停，run 只恢复由控制操作暂停的订阅；用户显式暂停不会自动恢复。服务 0.2.9 起，在已确认暂停的会话中恢复或新建的 Timeline 也保持暂停，等待同一 owner 的 run；Watch 快照不受此规则影响。复位和烧录先撤销所有旧订阅，重新配置地址/RTT 后才开始新的采集。
 
 0.2.4板端能力0x81/0的feature word bit4表示CORE_STATE（0x81/17）。它只读取DHCSR，要求匹配现有owner，不接受任意地址，也不创建第二执行器；成功返回command/sub/status+dhcsr32。STATE查询失败明确传播，不重放控制。服务连接时读取能力后选择此路径，标准CMSIS-DAP流量不插入该命令。
+
+固件 0.2.32 起，feature bit7 表示有界 RAM/Flash 快照读取。`0x81/20`（十进制 20，即 `0x14`）请求为 command/sub + address32 LE + byte_length16 LE；响应为 command/sub/status + 原始字节。单次 1..128 B，同时不超过该传输的 packet_size−3，只允许当前 F103 profile 的 RAM/Flash。要求匹配现有 owner，由统一 SWD 执行器完成，不跨网络往返持有采样屏障。服务 0.2.9 起在能力允许、全部范围为已知 RAM/Flash 时自动用于 read_memory/read_batch；周边寄存器和旧固件仍走原屏障路径。重复范围不会合并；不保证跨包、跨变量的原子快照，写操作不使用此路径。
 
 ## Watch / Timeline / RTT 订阅
 
@@ -70,11 +77,23 @@ RTT Up 根据控制块和环形描述符读取、提交 RdOff；完成状态未�
 
 板端独立数据连接为 TCP3244，RMS1 + 一次性随机票据绑定控制会话；公开 SDK 由服务代为处理，前端无需直接连接。错误票据、重复绑定和 owner 释放后的连接被拒绝/关闭。
 
+固件 0.2.37 的 feature bit8 声明紧凑 TCP 数据格式。服务 0.2.10 仅在协商该位后发送 `RMS2` + 同样票据；响应仍为 `OKAY`。旧服务发送 RMS1 时，固件保持原 RML1；旧固件没有 bit8，新服务也仍发送 RMS1。USB_PULL 和公开本地 stream、Python/Node/C SDK 格式均不改变。
+
+RMS2 连接输出连续 RMC2 组：组头 20 B，布局为 `magic[4]="RMC2", kind8, subscription_id8, record_count16, capture_id32, revision32, body_length32`，整数均为 LE。连续同 kind/slot/capture/revision 的样本共用组头；组体每条为原 RML1 的 `payload_crc32 + 完整 sample payload`，payload 中 data_len16 指示本条长度。单组体最多 4096 B、条数 1..73；服务逐条还原原 RML1 帧并执行同样 CRC/schema 验证，再交给现有消费者。保留每个样本的绝对序号、探针时间戳、duration、valid bitmap、flags 和原始数值，序号跳变仍是缺样，不插值、不补点、不重放目标操作。三个 32 位字段的格式预算从每帧 68 B 降至每条 40 B 加共享组头，5000 Hz 约 202.5 KB/s（按每 8 ms 一组），不等同于实测无线速率。
+
+固件0.2.40增加feature bit9（512）声明RMS3，服务0.2.13优先发送`RMS3 + ticket`，没有该位仍协商RMS2/RMS1。USB_PULL、公开本地RML1 stream及各SDK格式保持原样。RMS3支持独立RMC3组，组头布局与RMC2相同、magic改为`RMC3`。组体每条为`payload_crc32, payload_length16, encoded_length16, stored_bytes`；payload长度24..352 B，组体最多4096 B、1..73条。encoded_length=0时stored_bytes是完整原payload；否则encoded_length必须小于payload_length，stored_bytes为当前payload逐字节异或上一条payload后的零游程编码。每组第一条以全零作前值，前条较短时其范围之外补零，前值在每条解码后更新，包括raw条目。控制字节低7位加1为长度，高位1表示该长度零字节，高位0表示随后该长度的字面量。每个游程1..128 B，解码结果必须恰好等于payload_length。
+
+服务还原原RML1帧后逐条检查原始CRC和schema，再交给现有消费者。时间戳、序号、duration、有效位、flags及数值的原始字节全部保留，不合并相同值的样本，也不改变SWD操作；每组重置前值，独立解码，不跨连接续用压缩状态。RMS3解码器同时接受RMC2；旧RMS2解码器拒绝未协商RMC3。真实十变量记录中RMS3的bytes/raw_bytes约20.9%，取决于变量变化情况，不能作为任意布局的固定压缩率。
+
 有线数据走0x81/16 USB_PULL：请求frame_id(uint32 LE，初始1)、offset(uint16 LE)。回应为command/sub/status、frame_id32、total16、offset16、chunk_len8和最多52 B数据。total=0为空轮询，不推进frame_id；每帧最多384 B，重复读取相同id/offset稳定，下一帧id递增并跳过0，旧id／跳号拒绝。USB_PULL与TCP数据绑定互斥。服务组帧后使用同样CRC／schema和本地stream接口；分片格式不是标准CMSIS-DAP命令，标准软件仍使用虚拟USB。
 
 帧头为 32 B：RML1、version、kind、subscription_id、flags、capture_id、revision、sequence、payload_len、record_count、header_len、payload CRC32。内存样本头为 24 B：seq32、timestamp_us64、duration_us32、valid_bitmap32、sample_flags16、data_len16，之后是每字段 uint32 原始值。sample_flags：bit0 partial、bit1 执行预算超限、bit2 Watch 复用。RTT 数据部分为 channel32 + byte_sequence64 + length32 + bytes。
 
-每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算。探针缓存：Timeline48 KiB、Watch4 KiB、两个 RTT 各6 KiB，总64 KiB。内存缓存满时有界丢旧并计数，最多回收8条；若并发发送仍占用空间则丢新，绝不阻塞SWD。RTT无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。服务端原始录制见下文；应用确认重传尚未实现。
+RML1 每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算。探针缓存：0.2.33–0.2.38 有 PSRAM 时 Timeline 为 256 KiB，0.2.39 增至 2 MiB；无 PSRAM 或分配失败时保持 48 KiB 内部内存回退。Watch4 KiB、两个 RTT 各6 KiB，因此 0.2.39 总量为2064/64 KiB；0.2.37 起能力查询的缓存字节数报告实际分配总量。四个32位字段每条环形记录约80 B，2 MiB在5 kHz请求下约能容纳5.2秒；字段数、采样频率及实际分配影响可承受时间，不能把它当作固定断网保证。内存缓存满时有界丢旧并计数，最多回收8条；若并发发送仍占用空间则丢新，绝不阻塞SWD。RTT无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。服务端原始录制见下文；应用确认重传尚未实现。
+
+0.2.39 的独立数据 socket 发送等待上限为5秒，握手接收仍为2秒，控制 socket 的超时与所有权规则不随之延长。较大缓存用于保留网络短暂停顿期间的样本，实时画面仍可能停顿后追上；不插值、隐藏溢出或保证长期断线可恢复。
+
+连接服务0.2.12支持启动前设置 `RMLINK_STREAM_DIAGNOSTICS=1`：每10秒记录物理数据连接的接收字节/帧数、最长read等待、解码耗时、Windows socket TCP计数及服务事件循环最长延迟，并记录目标控制屏障耗时。计数只含元数据，不打印token/热点密码/样本值；关闭该变量不启用上述周期诊断。read等待包含无数据和网络等待，不能单独解释为CPU解码慢；Windows retransmitted为本机发送方向，不能以0推导ESP没有重传。TCP即时ACK是每连接的可选设置，不支持时记录警告并保留正常连接，不修改系统TCP注册表。
 
 timestamp表示探针单调时基，duration是采集跨度，变量不是原子快照。Orbit实验分支用首帧对齐主机时间并保留探针间隔；SDK提供TIME_SYNC映射供其他客户端使用，Orbit尚未使用其绝对时间映射。断电/断线末尾丢失可能无法精确计数。
 
