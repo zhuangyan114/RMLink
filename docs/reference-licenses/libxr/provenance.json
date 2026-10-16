@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/xrobot-org/libxr",
+  "commit": "5161373dbe6d9d9fb1904d90e0ebd4344a44047a",
+  "license": "Apache-2.0",
+  "source": "src/driver/debug/swd_general_gpio.hpp",
+  "use": "Reference for rejected experimental byte-unrolled reads and word-level parity folding; no LibXR-derived runtime code remains in the qualified firmware",
+  "destination": "docs/experiments/libxr-candidates/*.patch (experimental local C rewrites; not built into firmware)",
+  "unchanged": "Qualified firmware 0.2.28 SWD engine restored byte-for-byte; single executor and CMSIS-DAP semantics retained",
+  "licenseFile": "LICENSE"
+}

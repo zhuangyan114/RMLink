@@ -1,0 +1,378 @@
+{
+  "reference": {
+    "repository": "https://github.com/xrobot-org/libxr",
+    "commit": "5161373dbe6d9d9fb1904d90e0ebd4344a44047a",
+    "license": "Apache-2.0",
+    "claimOneMegabytePerSecondVerified": false
+  },
+  "decision": "All three runtime candidates rejected; qualified 0.2.28 restored byte-for-byte",
+  "conditions": {
+    "targetClockHz": 72000000,
+    "requestedSwdHz": 4000000,
+    "periodUs": 200,
+    "pointerFields": 5,
+    "pointerDepth": 3,
+    "directFields": 5,
+    "independentChains": true,
+    "adjacentNodesWithinEachChain": true,
+    "watchPeriodUs": 100000,
+    "rttPeriodUs": 5000,
+    "secondsPerRound": 15,
+    "repetitions": 3
+  },
+  "rows": [
+    {
+      "label": "baseline",
+      "medianHz": 1097.123143352932,
+      "roundHz": [
+        1098.914339162342,
+        1097.123143352932,
+        1096.6425749106986
+      ],
+      "dpPeriodTicks": [
+        {
+          "minimum": 16,
+          "median": 21.0,
+          "p95": 21,
+          "maximum": 26
+        },
+        {
+          "minimum": 16,
+          "median": 21.0,
+          "p95": 21,
+          "maximum": 26
+        },
+        {
+          "minimum": 16,
+          "median": 21.0,
+          "p95": 21,
+          "maximum": 26
+        }
+      ],
+      "dpMedianHz": [
+        3809523.8095238097,
+        3809523.8095238097,
+        3809523.8095238097
+      ],
+      "evidence": [
+        {
+          "path": "artifacts/logs/libxr-baseline-0228.json",
+          "bytes": 17348,
+          "sha256": "65ad4c08fc0ea24e90e0c0728ba3a12c32d82ba9a9901f5e6d5adb71403bf38a"
+        },
+        {
+          "path": "artifacts/logs/libxr-baseline-0228-clock.json",
+          "bytes": 60299,
+          "sha256": "0dc79285e6839494d8f19694e8eaee8db6d2d3b4c2d4bebb0283d8a85e918ef9"
+        }
+      ]
+    },
+    {
+      "label": "uncompensated",
+      "medianHz": 1145.4895866422987,
+      "roundHz": [
+        1144.0880572497579,
+        1145.4895866422987,
+        1150.0476650504115
+      ],
+      "dpPeriodTicks": [
+        {
+          "minimum": 16,
+          "median": 18.0,
+          "p95": 22,
+          "maximum": 25
+        },
+        {
+          "minimum": 16,
+          "median": 18.0,
+          "p95": 22,
+          "maximum": 25
+        },
+        {
+          "minimum": 16,
+          "median": 18.0,
+          "p95": 22,
+          "maximum": 25
+        }
+      ],
+      "dpMedianHz": [
+        4444444.444444444,
+        4444444.444444444,
+        4444444.444444444
+      ],
+      "evidence": [
+        {
+          "path": "artifacts/logs/libxr-candidate-0229.json",
+          "bytes": 17265,
+          "sha256": "ccd16c43531d5f545b814db9c303710c55660713847de4a2d152c292a79fb8a4"
+        },
+        {
+          "path": "artifacts/logs/libxr-candidate-0229-clock-ready.json",
+          "bytes": 60206,
+          "sha256": "43bc5445a261b138e3dfd9724f7aa98c3453f08c83f9f3c89dfe1dc8e530c8e5"
+        }
+      ]
+    },
+    {
+      "label": "allphase_compensation",
+      "medianHz": 1038.9666908668391,
+      "roundHz": [
+        1041.3631419435978,
+        1038.9666908668391,
+        1038.0809617363793
+      ],
+      "dpPeriodTicks": [
+        {
+          "minimum": 19,
+          "median": 21.0,
+          "p95": 25,
+          "maximum": 29
+        },
+        {
+          "minimum": 19,
+          "median": 21.0,
+          "p95": 25,
+          "maximum": 29
+        },
+        {
+          "minimum": 19,
+          "median": 21.0,
+          "p95": 25,
+          "maximum": 29
+        }
+      ],
+      "dpMedianHz": [
+        3809523.8095238097,
+        3809523.8095238097,
+        3809523.8095238097
+      ],
+      "evidence": [
+        {
+          "path": "artifacts/logs/libxr-candidate-0230.json",
+          "bytes": 17270,
+          "sha256": "99b69db272d77b8c15cfe42be5244af1319efd098116034f96309b65f49fcc1f"
+        },
+        {
+          "path": "artifacts/logs/libxr-candidate-0230-clock.json",
+          "bytes": 60311,
+          "sha256": "0ae03d14e34f1d691dbd4bc6e2cca909930a9da6e1dcfe0a53816a628ff65ec0"
+        }
+      ]
+    },
+    {
+      "label": "read_compensation",
+      "medianHz": 1090.8825646731234,
+      "roundHz": [
+        1090.8825646731234,
+        1088.9823255656086,
+        1094.7309382835733
+      ],
+      "dpPeriodTicks": [
+        {
+          "minimum": 16,
+          "median": 20.0,
+          "p95": 24,
+          "maximum": 26
+        },
+        {
+          "minimum": 16,
+          "median": 20.0,
+          "p95": 24,
+          "maximum": 26
+        },
+        {
+          "minimum": 16,
+          "median": 20.0,
+          "p95": 24,
+          "maximum": 26
+        }
+      ],
+      "dpMedianHz": [
+        4000000.0,
+        4000000.0,
+        4000000.0
+      ],
+      "evidence": [
+        {
+          "path": "artifacts/logs/libxr-candidate-0231.json",
+          "bytes": 17271,
+          "sha256": "a9302bf18141bef9549ac8c69fb00dd5794795c058e4b9f68cbc4257281d2ea0"
+        },
+        {
+          "path": "artifacts/logs/libxr-candidate-0231-clock.json",
+          "bytes": 60251,
+          "sha256": "c8c91121630230a8070d94ebcd7cc0b68e89f2326dd817a23690cf78d86ef5a6"
+        }
+      ]
+    },
+    {
+      "label": "restored",
+      "medianHz": 1101.0225345222802,
+      "roundHz": [
+        1100.813385383552,
+        1104.1717643066331,
+        1101.0225345222802
+      ],
+      "dpPeriodTicks": [
+        {
+          "minimum": 16,
+          "median": 21.0,
+          "p95": 21,
+          "maximum": 26
+        },
+        {
+          "minimum": 16,
+          "median": 21.0,
+          "p95": 21,
+          "maximum": 26
+        },
+        {
+          "minimum": 16,
+          "median": 21.0,
+          "p95": 21,
+          "maximum": 26
+        }
+      ],
+      "dpMedianHz": [
+        3809523.8095238097,
+        3809523.8095238097,
+        3809523.8095238097
+      ],
+      "evidence": [
+        {
+          "path": "artifacts/logs/libxr-restored-0228.json",
+          "bytes": 17268,
+          "sha256": "0c8f83d617754179a1270e2143535f4ef45db88b2c86b850d98cfc0b9b01a60e"
+        },
+        {
+          "path": "artifacts/logs/libxr-restored-0228-clock.json",
+          "bytes": 60299,
+          "sha256": "48ec3f998f9189a874f1c0ba0668a3bc7ce5a9a6615ab0a79c8f580f6e30e42b"
+        }
+      ]
+    }
+  ],
+  "restoredFirmware": {
+    "flashedAt": "2026-10-16T10:15:46.4454244+08:00",
+    "profile": "firmware-target-tcp512-core0-psram",
+    "port": "COM13",
+    "binarySha256": "0FE987F36C91A1203D15246CFBBCB7B6F8C1D3FD5091914A2AA43D914A6C6DF4",
+    "sdkconfigSha256": "FBF31DD9275554BF70083DD5345B9DEEE7C969049AD15A0F344852C1671B6942",
+    "targetGpioEnabled": true,
+    "tcpPacketSize": 512,
+    "requestedExecutorCore": 0,
+    "configuredExecutorCore": 0,
+    "imageCachePsram": true,
+    "restoredFrom": "verified 0.2.8 distribution / firmware 0.2.28"
+  },
+  "usbReadRegression": {
+    "at": "2026-10-16T10:17:08.570415+08:00",
+    "complete": true,
+    "requestedClockHz": 4000000,
+    "fixtureSha256": "ed4a0cd5b5e76d9696ed1f03303cd819f00229e93b047a06efed7caf86f4ffc0",
+    "rows": [
+      {
+        "serial": "50787D15A924",
+        "packetSize": 64,
+        "cpuid": 1092600369,
+        "dpId": 463475831,
+        "rccCfgr": 1934346,
+        "dhcsrBefore": 16842753,
+        "dhcsrAfter": 16842753,
+        "readSeconds": 0.4133134000003338,
+        "sha256": "ed4a0cd5b5e76d9696ed1f03303cd819f00229e93b047a06efed7caf86f4ffc0",
+        "flashMatches": true,
+        "targetRunning": true
+      },
+      {
+        "serial": "RM50787D15A924",
+        "packetSize": 512,
+        "cpuid": 1092600369,
+        "dpId": 463475831,
+        "rccCfgr": 1934346,
+        "dhcsrBefore": 16842753,
+        "dhcsrAfter": 16842753,
+        "readSeconds": 1.6447976999988896,
+        "sha256": "ed4a0cd5b5e76d9696ed1f03303cd819f00229e93b047a06efed7caf86f4ffc0",
+        "flashMatches": true,
+        "targetRunning": true
+      }
+    ]
+  },
+  "validation": {
+    "pinTraceComparisons": 24576,
+    "hostPythonTests": 112,
+    "candidateTcp512BuildsPassed": true,
+    "candidateLongSoaks": false,
+    "externalClockInstrument": false
+  },
+  "evidence": [
+    {
+      "path": "artifacts/logs/libxr-restored-usb.json",
+      "bytes": 1016,
+      "sha256": "768b719564da04845e01516c3e44fb215e5575db0263cd8183aa6676b7c088f6"
+    },
+    {
+      "path": "artifacts/logs/libxr-final-host-tests.log",
+      "bytes": 218,
+      "sha256": "b4418e725237c8c03898c33bf557236af6163ad3d2d3d20605b3f8722f4d84e1"
+    },
+    {
+      "path": "artifacts/logs/libxr-restored-swd-bits-model-final.log",
+      "bytes": 115,
+      "sha256": "5a6f73fc650728fe36ac62159eb3eda72a7324b1a3cbacd97ee55551be98eb08"
+    },
+    {
+      "path": "artifacts/logs/libxr-restore-0228.log",
+      "bytes": 2233,
+      "sha256": "1542b0b625c962e3be6d78099643ccb0d80c33b0b148a1e830deb0fd0845c0f3"
+    }
+  ],
+  "candidates": [
+    {
+      "version": "0.2.29",
+      "binary": {
+        "path": "artifacts/checkpoints/0.2.29-libxr-uncompensated/rmlink.bin",
+        "bytes": 875392,
+        "sha256": "4a848c8c38164208181d37656d4fe41ec48ed142cafd865725c6248c3afac9fe"
+      },
+      "configuration": {
+        "path": "artifacts/checkpoints/0.2.29-libxr-uncompensated/sdkconfig",
+        "bytes": 63988,
+        "sha256": "fbf31dd9275554bf70083dd5345b9deee7c969049ad15a0f344852c1671b6942"
+      }
+    },
+    {
+      "version": "0.2.30",
+      "binary": {
+        "path": "artifacts/checkpoints/0.2.30-libxr-allphase-compensation/rmlink.bin",
+        "bytes": 875392,
+        "sha256": "68ec3bb15d64ef7d65a49223e3aeef08b91746582a229bedb2fee86d1ebaab8d"
+      },
+      "configuration": {
+        "path": "artifacts/checkpoints/0.2.30-libxr-allphase-compensation/sdkconfig",
+        "bytes": 63988,
+        "sha256": "fbf31dd9275554bf70083dd5345b9deee7c969049ad15a0f344852c1671b6942"
+      }
+    },
+    {
+      "version": "0.2.31",
+      "binary": {
+        "path": "artifacts/checkpoints/0.2.31-libxr-read-compensation/rmlink.bin",
+        "bytes": 875392,
+        "sha256": "d430e52d2441879a4e8f6e116fc1b0cd579adefc755e093610b0284c7a4480f8"
+      },
+      "configuration": {
+        "path": "artifacts/checkpoints/0.2.31-libxr-read-compensation/sdkconfig",
+        "bytes": 63988,
+        "sha256": "fbf31dd9275554bf70083dd5345b9deee7c969049ad15a0f344852c1671b6942"
+      }
+    }
+  ],
+  "boundaries": [
+    "No benchmark conditions for the group report of 1M/s",
+    "RMT reports digital timing; periods vary within a transaction",
+    "Same requested clock does not prove the same actual bit rate",
+    "No new runtime SWD code adopted; original 900-second 0.2.28 qualification retained"
+  ]
+}

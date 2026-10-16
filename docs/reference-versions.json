@@ -1,6 +1,14 @@
 {
-  "recordedOn": "2026-10-13",
+  "recordedOn": "2026-10-16",
   "repositories": [
+    {
+      "directory": "libxr",
+      "url": "https://github.com/xrobot-org/libxr",
+      "commit": "5161373dbe6d9d9fb1904d90e0ebd4344a44047a",
+      "license": "Apache-2.0",
+      "role": "SWD GPIO byte-unrolling and parity-folding reference; tested candidates rejected, qualified 0.2.28 runtime unchanged",
+      "recordedOn": "2026-10-16"
+    },
     {
       "directory": "esp-usb-bridge",
       "url": "https://github.com/espressif/esp-usb-bridge",

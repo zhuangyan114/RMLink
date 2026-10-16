@@ -1,0 +1,110 @@
+diff --git a/firmware/components/debug_probe/DAP/Source/SW_DP.c b/firmware/components/debug_probe/DAP/Source/SW_DP.c
+index 16ddb25..20dda7c 100644
+--- a/firmware/components/debug_probe/DAP/Source/SW_DP.c
++++ b/firmware/components/debug_probe/DAP/Source/SW_DP.c
+@@ -138,6 +138,17 @@
+  
+  #if (DAP_SWD != 0)
+  
++ /* Default data loops retain the inherited CMSIS-DAP timing paths. */
++ #define SW_READ_DATA32() do {                                                 \
++   val=0U;parity=0U;                                                          \
++   for(n=32U;n;n--) {                                                        \
++     SW_READ_BIT(bit);parity+=bit;val=(val>>1)|(bit<<31);                       \
++   }                                                                         \
++ } while(0)
++ #define SW_WRITE_DATA32() do {                                                \
++   val=*data;parity=0U;                                                       \
++   for(n=32U;n;n--) {SW_WRITE_BIT(val);parity+=val;val>>=1;}                   \
++ } while(0)
+  
+  // SWD Transfer I/O
+  //   request: A[3:2] RnW APnDP
+@@ -189,14 +200,7 @@
+      /* Data transfer */                                                         \
+      if (request & DAP_TRANSFER_RnW) {                                           \
+        /* Read data */                                                           \
+-       val = 0U;                                                                 \
+-       parity = 0U;                                                              \
+-       for (n = 32U; n; n--) {                                                   \
+-         SW_READ_BIT(bit);               /* Read RDATA[0:31] */                  \
+-         parity += bit;                                                          \
+-         val >>= 1;                                                              \
+-         val  |= bit << 31;                                                      \
+-       }                                                                         \
++       SW_READ_DATA32();                /* Read RDATA[0:31] */                  \
+        SW_READ_BIT(bit);                 /* Read Parity */                       \
+        if ((parity ^ bit) & 1U) {                                                \
+          ack = DAP_TRANSFER_ERROR;                                               \
+@@ -214,13 +218,7 @@
+        }                                                                         \
+        PIN_SWDIO_OUT_ENABLE();                                                   \
+        /* Write data */                                                          \
+-       val = *data;                                                              \
+-       parity = 0U;                                                              \
+-       for (n = 32U; n; n--) {                                                   \
+-         SW_WRITE_BIT(val);              /* Write WDATA[0:31] */                 \
+-         parity += val;                                                          \
+-         val >>= 1;                                                              \
+-       }                                                                         \
++       SW_WRITE_DATA32();               /* Write WDATA[0:31] */                 \
+        SW_WRITE_BIT(parity);             /* Write Parity Bit */                  \
+      }                                                                           \
+      /* Capture Timestamp */                                                     \
+@@ -279,12 +277,42 @@
+  #define PIN_DELAY() PIN_DELAY_SLOW(DAP_Data.clock_delay)
+  SWD_TransferFunction(Slow)
+ 
+- /* Common 4 MHz setting. Constant propagation removes per-bit runtime delay
+-  * setup while retaining the conservative seven-iteration timing. Other
+-  * clock settings keep the generic path. Validate the pad with RMT. */
++ /* Common 4 MHz setting. Compensate the shorter unrolled data path below:
++  * eight delay iterations retain the measured ~4 MHz pad period instead of
++  * silently overclocking it. Other settings keep the generic path. */
+  #undef PIN_DELAY
+- #define PIN_DELAY() PIN_DELAY_SLOW(7U)
+- SWD_TransferFunction(Slow7)
++ #define PIN_DELAY() PIN_DELAY_SLOW(8U)
++ /* LibXR-inspired byte unrolling and word-level parity folding. Only this
++  * existing 4 MHz path changes; WAIT/FAULT, turnaround, data-phase handling,
++  * timestamps and idle cycles still come from the shared transfer function.
++  * See docs/libxr-swd-review.md for the pinned upstream source and license. */
++ static inline uint32_t SWD_Parity32(uint32_t value) {
++   value^=value>>16;value^=value>>8;value^=value>>4;
++   return (0x6996U>>(value&15U))&1U;
++ }
++ #undef SW_READ_DATA32
++ #define SW_READ_DATA32() do {                                                 \
++   val=0U;                                                                   \
++   for(n=0;n<4;n++) {                                                        \
++     uint32_t octet;                                                         \
++     SW_READ_BIT(bit);octet=bit;                                             \
++     SW_READ_BIT(bit);octet|=bit<<1;                                         \
++     SW_READ_BIT(bit);octet|=bit<<2;                                         \
++     SW_READ_BIT(bit);octet|=bit<<3;                                         \
++     SW_READ_BIT(bit);octet|=bit<<4;                                         \
++     SW_READ_BIT(bit);octet|=bit<<5;                                         \
++     SW_READ_BIT(bit);octet|=bit<<6;                                         \
++     SW_READ_BIT(bit);octet|=bit<<7;                                         \
++     val=(val>>8)|(octet<<24);                                                \
++   }                                                                         \
++   parity=SWD_Parity32(val);                                                  \
++ } while(0)
++ #undef SW_WRITE_DATA32
++ #define SW_WRITE_DATA32() do {                                                \
++   val=*data;parity=SWD_Parity32(val);                                         \
++   for(n=32U;n;n--) {SW_WRITE_BIT(val);val>>=1;}                               \
++ } while(0)
++ SWD_TransferFunction(Clock4M)
+  
+  
+  // SWD Transfer I/O
+@@ -297,7 +325,7 @@
+    if (DAP_Data.fast_clock) {
+      ack=SWD_TransferFast(request, data);
+    } else if(swd_clock_4mhz && DAP_Data.clock_delay==7U) {
+-     ack=SWD_TransferSlow7(request,data);
++     ack=SWD_TransferClock4M(request,data);
+    } else {
+      ack=SWD_TransferSlow(request, data);
+    }
