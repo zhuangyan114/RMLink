@@ -76,6 +76,8 @@ python scripts/package_ota.py --build artifacts/build/firmware-core0 --build art
 
 `.github/workflows/firmware-release.yml` 使用官方 ESP-IDF v5.1.2 容器，构建 safe、target、target-psram 三种配置，并校验标签与镜像版本一致。标签推送和普通手动运行只保存 CI 构建资产；只有在版本标签上手动勾选 `publish` 才创建测试 Release，不设为 latest。实板验收后的本地资产可单独发布，自动标签构建不会覆盖其已记录的二进制摘要。当前硬件验收仅覆盖 target／PSRAM 这一配置，其他配置编译成功不代表实板通过。
 
+本仓库使用 v2 组件锁，构建环境的 IDF Component Manager 固定为本机使用的 2.4.11。官方旧版 IDF 容器需在导出环境后执行 `python -m pip install idf-component-manager==2.4.11`，不能通过删除 `dependencies.lock` 来绕过格式不兼容。
+
 ## 管理协议
 
 复用已有 USB／TCP CMSIS-DAP 会话，新增供应商命令 `0x83`。每个应答以 `83 sub status` 开始。

@@ -1,6 +1,6 @@
 # RMLink 0.3.2 测试版验收
 
-本版本为开发测试版，发布时使用 GitHub Pre-release 和 OTA `channel: testing`。正式通道默认不选择此版本。此记录区分主机检查、实板结果和未覆盖条件；后续结果在完成后补充。
+本版本为开发测试版，使用 GitHub Pre-release 和 OTA `channel: testing`。正式通道默认不选择此版本。此记录区分主机检查、实板结果和未覆盖条件。
 
 ## 条件与镜像
 
@@ -57,7 +57,19 @@ Wi-Fi 实际持续 900.008 秒：72 MHz F103、请求 4 MHz SWD，五条独立�
 
 完成采集后通过缓存烧录接口恢复测试开始时备份的 STM32 64 KiB 原程序，板端和主机校验通过；再关闭 API 目标会话，经独立原生 USB／标准 DAP 完整回读，逐字节相同，SHA256 为 `eeb3aebb22d7b5967282934a4b0ae732c083da67753c197add68d54d718b9360`。选项字节未变，核心 Running。测试 fixture 不作为目标最终应用保留。
 
-RMLink 最终测试镜像为本页指定的 0.3.2／VALID，原 Wi-Fi 参数保留；测试期间没有下发新热点凭据或替换内核驱动。发布后还须通过公开 Release 重新下载并实际升级，下载结果另行追加记录。
+RMLink 最终测试镜像为本页指定的 0.3.2／VALID，原 Wi-Fi 参数保留；测试期间没有下发新热点凭据或替换内核驱动。
+
+## GitHub 公开发布与真实升级
+
+[v0.3.2 测试版](https://github.com/zhuangyan114/RMLink/releases/tag/v0.3.2)已发布，API 确认为 `draft=false`、`prerelease=true`，未设为正式 latest。正式查询拒绝选择此测试版；显式测试通道取得正确的 0.3.2 清单。无需 GitHub 凭据即可下载清单和应用，下载的应用摘要与本页最终镜像一致。
+
+从用户流程先通过 USB 降到 0.3.1，再执行安装后的 `rmlink firmware update --latest --prerelease --yes`，实际从公开 Release 获取固件并通过 Wi-Fi 安装，耗时 **76.094 秒**。最终版本、运行 ELF 和 VALID 均匹配；升级前后独立回读 STM32 完整 Flash 摘要均为本页原程序摘要，核心 Running。最终连接服务与客户端为 0.3.2，Wi-Fi 已连接、无目标 owner，恢复未挂载偏好。
+
+Windows 开发包匿名下载和 ZIP／逐文件清单核验通过：17422039 字节，SHA256 `f86e7e331d6e45f5ed7c33340993c3c6c8aa59634dd6635361116fdc9a82a63e`，源提交 `da11e2b079024c61dd005ddc0bdbf567434626e6`，干净检出。GitHub 服务端提供的应用和 ZIP 摘要也与本地一致。包内报告是发布前本地验收快照，本文件及 Release 独立报告资产追加公开下载与安装结果；不改写已发布固件或 ZIP。
+
+首次标签 CI 使用的官方 IDF 5.1.2 容器自带旧组件管理器，不能解析已有 v2 `dependencies.lock`，配置阶段失败。后续分支修复 `855ed25` 固定本机已使用的 `idf-component-manager==2.4.11`，保留原组件锁和固件内容。自行从 v0.3.2 标签构建时也应在导出 IDF 环境后安装该工具版本；不删除锁文件重新选版。锁格式对应关系见 [Espressif 说明](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/dependencies_lock.html)。
+
+修复分支的 [Linux CI 39139872802](https://github.com/zhuangyan114/RMLink/actions/runs/39139872802) 已成功完成 safe、target、target-psram 三种配置的干净编译、OTA 镜像与清单校验及构建资产上传。该结果属于编译检查，额外两种板型未实板验证；CI 产物没有覆盖已发布且经过实板验收的应用。保留 v0.3.2 发布标签与原二进制不变，环境修复和发布后报告作为后续分支提交记录。
 
 ## 主机与终端
 
