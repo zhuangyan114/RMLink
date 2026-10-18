@@ -26,7 +26,7 @@ class PipeInfo(C.Structure):
 class UsbClient:
     GUID_TEXT = '{CDB3B5AD-293B-4663-AA36-1AAE46463776}'
 
-    def __init__(self, *, bcd_device=None, serial=None):
+    def __init__(self, *, bcd_device=None, serial=None, exclude_serials=()):
         self.packet_size = 64
         self.file = self.handle = None
         self.kernel = C.WinDLL('kernel32', use_last_error=True)
@@ -73,6 +73,9 @@ class UsbClient:
                     self.close()
                     continue
                 self.serial = self._descriptor(3, descriptor[16], 0x409)[2:].decode('utf-16le', errors='strict')
+                if self.serial in exclude_serials:
+                    self.close()
+                    continue
                 if serial is not None and self.serial != serial:
                     self.close()
                     continue

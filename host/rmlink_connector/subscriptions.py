@@ -61,9 +61,18 @@ class Subscriptions:
         self.compact_stream=False
         self.delta_stream=False
         self.recording=None
+        self.observed={}
+        self.last_status={}
 
     def accept_frames(self,frames):
         for frame in frames:
+            sid=frame[6]
+            capture=int.from_bytes(frame[8:12],'little')
+            timestamp=int.from_bytes(frame[36:44],'little')
+            observed=self.observed.get(sid)
+            if observed is None or observed['capture_id']!=capture:
+                observed=self.observed[sid]=dict(capture_id=capture,frames=0,first_us=timestamp,last_us=timestamp)
+            observed['frames']+=1;observed['last_us']=timestamp
             cursor=self.next_sequence
             if self.recording:self.recording.offer(cursor,frame)
             if len(self.records)==self.records.maxlen:self.host_dropped+=1
@@ -97,6 +106,8 @@ class Subscriptions:
                 before=time.perf_counter() if diagnostics else 0
                 data=await self.reader.read(4096)
                 if not data: raise ConnectionError('Probe capture stream closed')
+                traffic=getattr(self.target.broker.transport,'traffic',None)
+                if traffic:traffic.rx_bytes+=len(data)
                 read_at=time.perf_counter() if diagnostics else 0
                 frames=decoder.feed(data)
                 decoded_at=time.perf_counter() if diagnostics else 0
@@ -147,7 +158,10 @@ class Subscriptions:
         self.delta_stream=bool(self.target.capture_features&512)
         self.compact_stream=self.delta_stream or bool(self.target.capture_features&256)
         self.writer.write((b'RMS3' if self.delta_stream else b'RMS2' if self.compact_stream else b'RMS1')+ticket); await self.writer.drain()
+        traffic=getattr(self.target.broker.transport,'traffic',None)
+        if traffic:traffic.tx_bytes+=4+len(ticket)
         if await asyncio.wait_for(self.reader.readexactly(4),3)!=b'OKAY': raise ConnectionError('Stream binding rejected')
+        if traffic:traffic.rx_bytes+=4
         self.error=None; self.task=asyncio.create_task(self._stream())
 
     async def create(self,body):
@@ -187,11 +201,13 @@ class Subscriptions:
         async with self.target.lock: data=await self.target.vendor(commands[action],bytes([sid]))
         if action=='status':
             state,kind,count,capture,seq,frames,missed,dropped,failures,overrun,reason=struct.unpack('<BBBIIQQQQIB',data)
-            return dict(state=state,kind=kind,field_count=count,capture_id=capture,last_sequence=seq,
+            result=dict(state=state,kind=kind,field_count=count,capture_id=capture,last_sequence=seq,
                 completed=frames,deadline_missed=missed,ring_dropped=dropped,failures=failures,
                 stop_reason={0:None,1:'paused',2:'stopped',3:'swd_failure',4:'lease_expired',5:'stream_lost',6:'budget_overrun',7:'sample_limit'}.get(reason,'unknown'),
                 budget_overrun=overrun,host_history_evicted=self.host_dropped,
                 host_dropped=self.host_dropped,stream_error=self.error)
+            self.last_status[sid]=dict(result,observed_at=time.monotonic())
+            return result
         return {'subscription_id':sid,'action':action}
 
     async def delete(self,sid):

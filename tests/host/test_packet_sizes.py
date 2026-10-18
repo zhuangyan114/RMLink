@@ -82,9 +82,11 @@ class NegotiationTests(unittest.IsolatedAsyncioTestCase):
                 client = TcpTransport('127.0.0.1', port)
                 try:
                     await client.connect(); self.assertEqual(client.packet_size, capacity)
+                    self.assertEqual((client.traffic.tx_bytes,client.traffic.rx_bytes),(10,12))
                     with self.assertRaises(ValueError): await client.exchange_many([b'\x00\xff', bytes(capacity + 1)])
                     response = (await client.exchange_many([b'\x80\x07' + bytes(capacity - 2)]))[0]
                     self.assertEqual(response, bytes(i % 256 for i in range(capacity)))
+                    self.assertEqual((client.traffic.tx_bytes,client.traffic.rx_bytes),(18+capacity,20+capacity))
                 finally: await client.close()
             self.assertEqual(len(requests), 4); self.assertEqual(failures, [])
 

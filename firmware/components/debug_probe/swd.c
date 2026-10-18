@@ -21,6 +21,7 @@
 #include "DAP.h"
 #include "rmlink_capture.h"
 #include "rmlink_flash.h"
+#include "rmlink_ota.h"
 
 typedef struct {
     uint32_t session;
@@ -70,6 +71,12 @@ static size_t process(const request_t *job, uint8_t *out)
 {
     const uint8_t *r = job->request;
     size_t capacity = job->transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
+    if (r[0] == 0x83)
+        return rmlink_ota_command(job->transport,job->session,r,job->len,out,&s_owner,
+            !rmlink_flash_busy() && rmlink_capture_raw_allowed());
+    if (rmlink_ota_busy() && r[0] != 0 && r[0] != 1 &&
+        !(r[0] == 0x80 && job->len >= 2 && (r[1] == 0 || r[1] == 4 || r[1] == 6 || r[1] == 9)))
+        return rmlink_dap_error(r[0],out);
     if (r[0] == 0x82) {
         size_t n = rmlink_flash_command(job->transport, job->session, r, job->len, out,
             capacity, &s_owner, rmlink_capture_raw_allowed());
@@ -166,6 +173,7 @@ static void swd_task(void *arg)
          * commands, reset, barriers and owner changes cannot inherit it. */
         rmlink_capture_invalidate_ap();
         if (job.close) {
+            rmlink_ota_closed(job.transport,job.session);
             rmlink_vendor_transport_closed(job.transport);
             DAP_TransferBeginBounded(2000);
             rmlink_flash_closed(job.transport, job.session);

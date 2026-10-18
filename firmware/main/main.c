@@ -24,6 +24,7 @@
 #include "led_io.h"
 #include "rmlink_executor.h"
 #include "rmlink_network.h"
+#include "rmlink_ota.h"
 
 static const char *TAG = "bridge_main";
 
@@ -273,11 +274,17 @@ void app_main(void)
     ESP_ERROR_CHECK(serial_bridge_init());
 #endif
 
-    tusb_init();
+    ESP_ERROR_CHECK(tusb_init() ? ESP_OK : ESP_FAIL);
 #if CONFIG_RMLINK_MSC_ENABLED
     msc_init();
 #endif
 
     // USB queues SWD requests; the selected executor owns CPU-local GPIO bundles.
-    xTaskCreatePinnedToCore(tusb_device_task, "tusb_device_task", 4 * 1024, NULL, 5, NULL, esp_cpu_get_core_id());
+    bool usb_ready = xTaskCreatePinnedToCore(tusb_device_task, "tusb_device_task", 4 * 1024, NULL, 5, NULL, esp_cpu_get_core_id()) == pdPASS;
+    bool healthy = usb_ready;
+#if CONFIG_RMLINK_WIFI_ENABLED
+    healthy = healthy && network_result == ESP_OK;
+#endif
+    rmlink_ota_confirm_boot(healthy);
+    ESP_ERROR_CHECK(usb_ready ? ESP_OK : ESP_ERR_NO_MEM);
 }

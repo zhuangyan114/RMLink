@@ -5,14 +5,17 @@ from pathlib import Path
 import subprocess
 import zipfile
 import re
+import sys
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'host'))
+from rmlink_connector import __version__
 
 
 def select_firmware(root):
     receipt=json.loads((root/'artifacts/hardware/rmlink-last-flash.json').read_text(encoding='utf-8-sig'))
     profile=receipt.get('profile','')
-    if not re.fullmatch(r'firmware-target-tcp512-core0(?:-psram)?',profile):
+    if not re.fullmatch(r'firmware-target-tcp512-core0(?:-psram)?(?:-streamdiag)?(?:-video)?(?:-ota(?:-\d+-test(?:ed)?)?)?',profile):
         raise RuntimeError('Only the last flashed target/TCP512/CPU0 profile may be packaged')
     directory=root/'artifacts/build'/profile
     config=(directory/'sdkconfig').read_bytes()
@@ -22,14 +25,23 @@ def select_firmware(root):
     settings=config.decode()
     for setting in ('CONFIG_RMLINK_EXECUTOR_CORE=0','CONFIG_RMLINK_TARGET_PINS_CONFIRMED=y','CONFIG_DEBUG_PROBE_IFACE_SWD=y'):
         if setting not in settings.splitlines():raise RuntimeError('Firmware profile configuration mismatch: '+setting)
-    if bool(receipt.get('imageCachePsram'))!=profile.endswith('-psram'):
+    if bool(receipt.get('imageCachePsram'))!=('-psram' in profile):
         raise RuntimeError('PSRAM profile/receipt mismatch')
     description=json.loads((directory/'project_description.json').read_text())
     return directory,receipt,description['project_version']
 
 
+def firmware_assets(directory):
+    flash=json.loads((directory/'flasher_args.json').read_text())['flash_files']
+    expected={'0x0':'bootloader/bootloader.bin','0x8000':'partition_table/partition-table.bin','0x10000':'rmlink.bin'}
+    if '0x310000' in flash:expected['0x310000']='ota_data_initial.bin'
+    if flash!=expected:raise RuntimeError('Unexpected firmware flash regions; no package generated')
+    return {name:(directory/name).read_bytes() for name in ('flasher_args.json',*expected.values())}
+
+
 def main():
-    version=json.loads((ROOT/'host/sdk/package.json').read_text())['version']
+    version=__version__
+    sdk_version=json.loads((ROOT/'host/sdk/package.json').read_text())['version']
     commit=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD']).decode().strip()
     clean=not subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain']).strip()
     if not clean:raise RuntimeError('Commit the reviewed source and validation documents before packaging')
@@ -37,7 +49,14 @@ def main():
     files={}
     def add(destination,source):files[destination]=source.read_bytes()
     add('bin/RMLinkConnector.exe',ROOT/'artifacts/build/connector/dist/RMLinkConnector.exe')
-    for name in ('rmlink.dll','rmlink.h','rmlink.def','librmlink.a',f'rmlink-client-{version}.tgz'):
+    add('bin/rmlink.exe',ROOT/'artifacts/build/connector/dist/rmlink.exe')
+    add('bin/Driver.ps1',ROOT/'host/distribution/Driver.ps1')
+    add('bin/Hotspot.ps1',ROOT/'host/distribution/Hotspot.ps1')
+    add('docs/terminal-client.md',ROOT/'docs/terminal-client.md')
+    add('docs/ota-upgrade.md',ROOT/'docs/ota-upgrade.md')
+    add('docs/ota-acceptance-20261017.md',ROOT/'docs/ota-acceptance-20261017.md')
+    add('docs/test-release-0.3.2.md',ROOT/'docs/test-release-0.3.2.md')
+    for name in ('rmlink.dll','rmlink.h','rmlink.def','librmlink.a',f'rmlink-client-{sdk_version}.tgz'):
         add('sdk/'+name,ROOT/'artifacts/build/sdk'/name)
     for name in ('api-v1.md','current-direction.md','subscriptions-implementation.md','quickstart.md','recording-format.md',
                  'subscription-performance-20261015.md','subscription-performance-20261015.json','subscription-checkpoint-024.json',
@@ -47,7 +66,7 @@ def main():
                  'buffered-flash-0214.md','device-diagnostics.md','clock-calibration-0216.md','overnight-20261016.md',
                  'mixed-1khz-optimization.md','mixed-subscription-checkpoint-0228.json'):
         add('docs/'+name,ROOT/'docs'/name)
-    for name in ('Start.ps1','Wait-Ready.ps1','Install.ps1','README.md'):
+    for name in ('Start.ps1','Start-Service.ps1','Register-Command.ps1','Wait-Ready.ps1','Install.ps1','README.md'):
         add(name,ROOT/'host/distribution'/name)
     for source in sorted((ROOT/'artifacts/build/connector/dist').glob('*.txt')):
         add('licenses/'+source.name,source)
@@ -65,11 +84,8 @@ def main():
         for name in ('LICENSE','LICENSE.txt','NOTICE','NOTICE.txt'):
             source=component/name
             if source.is_file():add('licenses/components/'+component.name+'/'+name,source)
-    add('firmware/rmlink.bin',firmware/'rmlink.bin')
-    add('firmware/bootloader/bootloader.bin',firmware/'bootloader/bootloader.bin')
-    add('firmware/partition_table/partition-table.bin',firmware/'partition_table/partition-table.bin')
-    add('firmware/flasher_args.json',firmware/'flasher_args.json')
-    manifest={'version':version,'source_commit':commit,'source_clean':clean,
+    for name,data in firmware_assets(firmware).items():files['firmware/'+name]=data
+    manifest={'version':version,'sdk_version':sdk_version,'source_commit':commit,'source_clean':clean,
         'firmware_version':firmware_version,'firmware_profile':receipt['profile'],
         'firmware_sdkconfig_sha256':receipt['sdkconfigSha256'].lower(),
         'firmware_last_physical_flash_at':receipt['flashedAt'],

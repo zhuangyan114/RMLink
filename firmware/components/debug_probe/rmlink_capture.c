@@ -619,7 +619,9 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(s_session && (s_session!=session || s_transport!=transport)) { out[2]=2; return 3; }
     s_session=session; s_transport=transport; s_lease=esp_timer_get_time()+LEASE_US;
     if(r[1]==20) { /* READ_MEMORY: address32, length16. Same executor, bounded work. */
-        if(len!=8)return 3;
+        /* Native CMSIS-DAP USB OUT reports include packet padding. Only the
+         * command header is required; the declared read length bounds output. */
+        if(len<8)return 3;
         uint32_t addr=u32(r+2);unsigned n=r[6]|(unsigned)r[7]<<8;
         size_t capacity=transport==RMLINK_USB?RMLINK_USB_PACKET_SIZE:RMLINK_PACKET_SIZE;
         if(!n || n>128 || n+3>capacity || !memory(addr,n,false))return 3;

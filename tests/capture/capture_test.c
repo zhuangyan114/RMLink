@@ -198,6 +198,12 @@ static void snapshot_read_test(void) {
     else assert(command(request,8)==3 && out[2]==1);
     rmlink_capture_closed(2,7);owner.transport=1;request[6]=61;
     assert(usb_command(request,8)==64 && out[2]==0);
+    uint8_t padded[64]={0};memcpy(padded,request,sizeof(request));
+    assert(usb_command(padded,sizeof(padded))==64 && out[2]==0);
+    assert(memcmp(out+3,ram,61)==0); /* Actual USB report padding. */
+    padded[6]=4;assert(usb_command(padded,sizeof(padded))==7 && out[2]==0);
+    assert(usb_command(padded,7)==3 && out[2]==1);
+    padded[6]=62;assert(usb_command(padded,sizeof(padded))==3 && out[2]==1);
     request[6]=62;assert(usb_command(request,8)==3 && out[2]==1);
     rmlink_capture_closed(1,7);owner.transport=2;
 }

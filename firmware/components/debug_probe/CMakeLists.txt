@@ -13,6 +13,7 @@ set(debug_probe_sources
     "rmlink_capture.c"
     "rmlink_flash.c"
     "rmlink_flash_port.c"
+    "rmlink_ota.c"
     "rmlink_clock_trace.c"
 )
 
@@ -33,6 +34,7 @@ set(dependencies
     "util"
     "esp_ringbuf"
     "mbedtls"
+    "app_update"
 )
 
 # Starting from esp-idf v5.3, the GPIO driver is moved to a separate component
@@ -59,6 +61,7 @@ idf_component_register(
 # The appliance's SWD loops need predictable optimized code, independent of the
 # main application's debug build. Keep the original CMSIS-DAP executor/kernel.
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2)
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-u rmlink_ota_metadata")
 
 # Keep vendor discovery identity tied to the application version, not a second
 # manually maintained byte tuple.

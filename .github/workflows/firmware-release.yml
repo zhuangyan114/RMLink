@@ -1,0 +1,53 @@
+name: RMLink OTA firmware
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a test Release only after hardware qualification'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.1.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build hardware profiles with the official rollback bootloader
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          for profile in safe target target-psram; do
+            defaults='sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.rmlink.defaults;sdkconfig.rmlink-core0.defaults'
+            if [ "$profile" != safe ]; then defaults="$defaults;sdkconfig.rmlink-target.defaults"; fi
+            if [ "$profile" = target-psram ]; then defaults="$defaults;sdkconfig.rmlink-psram.defaults"; fi
+            build="$GITHUB_WORKSPACE/artifacts/build/ota-$profile"
+            idf.py -C firmware -B "$build" -D IDF_TARGET=esp32s3 -D RMLINK_DAP_PACKET_SIZE=512 -D "SDKCONFIG=$build/sdkconfig" -D "SDKCONFIG_DEFAULTS=$defaults" build
+          done
+      - name: Validate images and build one OTA manifest
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          python scripts/package_ota.py --build artifacts/build/ota-safe --build artifacts/build/ota-target --build artifacts/build/ota-target-psram --output artifacts/ota-release --channel testing
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest=json.loads(Path('artifacts/ota-release/rmlink-ota-manifest.json').read_text())
+          if os.environ['GITHUB_REF_TYPE']=='tag' and os.environ['GITHUB_REF_NAME']!='v'+manifest['version']:
+              raise SystemExit('Git tag and firmware version differ')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rmlink-ota-firmware
+          path: artifacts/ota-release/*
+      - name: Publish OTA assets to the versioned Release
+        if: github.ref_type == 'tag' && github.event_name == 'workflow_dispatch' && inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/ota-release/*
+          prerelease: true
+          make_latest: false
+          name: RMLink ${{ github.ref_name }} 测试版

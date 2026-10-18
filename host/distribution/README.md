@@ -2,7 +2,9 @@
 
 本包为开发验证用途。服务、SDK及ESP32应用镜像均有SHA256清单；不携带用户热点凭据或配对状态。标准CMSIS-DAP使用本机已安装的虚拟USB驱动；服务也能选择原生USB作为内部承载。
 
-先运行 `Install.ps1` 检查文件身份，追加 `-Install` 安装到当前用户LOCALAPPDATA。需要登录启动时追加 `-StartAtLogon`。也可在解压目录运行 `Start.ps1`；后台窗口隐藏，`-Foreground`可查看前台日志。检查状态：`bin\RMLinkConnector.exe status`。关闭：`bin\RMLinkConnector.exe stop`。
+安装后在新终端输入 `rmlink` 进入设备控制台。`rmlink --help` 查看子命令，`rmlink doctor` 检查连接与驱动。交互界面退出后后台服务继续运行，完整说明见 docs/terminal-client.md。驱动维护入口需要明确选择审核过的本地驱动包。0.3.2 支持本地固件导入与 GitHub 正式／测试通道；测试固件需显式选择菜单或 `--prerelease`。旧设备需先通过 USB 迁移官方 OTA 引导程序和分区表，见 docs/ota-upgrade.md；本轮条件及限制见 docs/test-release-0.3.2.md。
+
+先运行 `Install.ps1` 检查文件身份，追加 `-Install` 安装到当前用户 `%USERPROFILE%\.rmlink\app`，避免 AppData 被打包应用重定向到私有缓存。需要登录启动时追加 `-StartAtLogon`。也可在解压目录运行 `Start.ps1`；后台窗口隐藏，`-Foreground`可查看前台日志。检查状态：`bin\RMLinkConnector.exe status`。关闭：`bin\RMLinkConnector.exe stop`。
 
 已有开发服务在线时不应启动第二份服务；安装脚本不会替换正在运行的已安装EXE。配对／目标会话沿用当前用户`.rmlink`状态，公共API和SDK用法见docs/api-v1.md。SDK包含Node／TypeScript包及独立WinHTTP C DLL，前端不需要Orbit或Python。
 

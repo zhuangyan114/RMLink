@@ -12,7 +12,7 @@ $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
 & icacls.exe $state /inheritance:r /grant:r ("*$($sid.Value):(OI)(CI)F") '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Cannot protect connector state permissions' }
 if ($Foreground) { & $exe serve; exit $LASTEXITCODE }
-$logs = Join-Path $env:LOCALAPPDATA 'RMLink\logs'
+$logs = Join-Path $env:USERPROFILE '.rmlink\logs'
 New-Item -ItemType Directory -Force $logs | Out-Null
 $process=Start-Process -FilePath $exe -ArgumentList @('serve') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $logs 'service.log') -RedirectStandardError (Join-Path $logs 'service-error.log')
 & (Join-Path $PSScriptRoot 'Wait-Ready.ps1') -ServiceProcessId $process.Id

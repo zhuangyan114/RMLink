@@ -2,7 +2,9 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
-当前开发候选为 **固件0.2.40／连接服务0.2.14／SDK 0.2.8**，新增采样流无损压缩、传输诊断、复位保留订阅及运行到入口能力。真实 Orbit 的烧录、main 入口和十变量采样记录见 [Timeline 与复位验收](docs/timeline-stability-20261016.md)；数据到达长尾及前端卡顿仍有剩余限制。默认请求 SWD 4 MHz；[8 MHz 实板试验](docs/swd-8mhz-trial-20261016.md)未通过烧录和持续采样，已回退4 MHz。
+当前测试候选为 **固件／客户端／连接服务 0.3.2**，SDK 为 0.2.8。[RMLink 终端控制台](docs/terminal-client.md)安装后输入 `rmlink`，统一管理设备、USB 配网、连接／虚拟 USB 挂载、实时速率、驱动检测和诊断；支持本地应用导入、GitHub 正式／测试通道与 RMLink 自身 OTA，保留明确的 Enter 安装确认及上传、校验和重连进度。[OTA](docs/ota-upgrade.md)采用 Espressif 官方双升级分区和回滚 bootloader；最新测试条件、实板故障注入和未覆盖项见 [0.3.2 测试版验收](docs/test-release-0.3.2.md)。下面的实板性能检查点保留各历史版本条件。
+
+此前实板性能检查点为 **固件0.2.40／连接服务0.2.14／SDK 0.2.8**，包含采样流无损压缩、传输诊断、复位保留订阅及运行到入口能力。真实 Orbit 的烧录、main 入口和十变量采样记录见 [Timeline 与复位验收](docs/timeline-stability-20261016.md)；数据到达长尾及前端卡顿仍有剩余限制。默认请求 SWD 4 MHz；[8 MHz 实板试验](docs/swd-8mhz-trial-20261016.md)未通过烧录和持续采样，已回退4 MHz。
 
 此前0.2.28检查点：“五条独立三级指针链＋五个普通变量”，72 MHz F103、4 MHz SWD 下15分钟三订阅共存平均 **1108.68 Hz**，全部应用流约 **110.01 KiB/s**；无数据无效、板端丢帧或实时消费者缺口，仍有期限跳过、时序抖动和网络发送长尾。过程、失败及布局边界见[千赫兹优化记录](docs/mixed-1khz-optimization.md)。
 

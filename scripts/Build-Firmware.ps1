@@ -7,7 +7,8 @@ param(
     [ValidateSet(-1,0,1)][int]$WifiCore = -1,
     [switch]$ImageCachePsram,
     [switch]$StreamDiagnostics,
-    [ValidateSet(0,160)][int]$StreamIpTos = 0
+    [ValidateSet(0,160)][int]$StreamIpTos = 0,
+    [ValidatePattern('^$|^[a-z0-9-]+$')][string]$BuildTag = ''
 )
 $root = Split-Path $ProjectPath -Parent
 $buildName = if ($TargetProfile) { 'firmware-target' } else { 'firmware' }
@@ -18,6 +19,7 @@ if ($WifiCore -ge 0) { $buildName += "-wifi$WifiCore" }
 if ($ImageCachePsram) { $buildName += '-psram' }
 if ($StreamDiagnostics) { $buildName += '-streamdiag' }
 if ($StreamIpTos -eq 160) { $buildName += '-video' }
+if ($BuildTag) { $buildName += '-' + $BuildTag }
 $build = Join-Path $root "artifacts\build\$buildName"
 $defaults = 'sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.rmlink.defaults'
 if ($TargetProfile) { $defaults += ';sdkconfig.rmlink-target.defaults' }
@@ -35,6 +37,8 @@ $defaults += ';' + $tosDefaults.Replace('\', '/')
 $cachedConfig = Join-Path $build 'sdkconfig'
 if (Test-Path -LiteralPath $cachedConfig) {
     $streamConfig = [IO.File]::ReadAllText($cachedConfig)
+    $streamConfig = $streamConfig.Replace('# CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE is not set', 'CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y')
+    if ($streamConfig -notmatch '(?m)^CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y\r?$') { $streamConfig += "`nCONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`n" }
     $streamConfig = [regex]::Replace($streamConfig, '(?m)^CONFIG_RMLINK_STREAM_IP_TOS=.*\r?\n', '')
     $streamConfig += "`nCONFIG_RMLINK_STREAM_IP_TOS=$StreamIpTos`n"
     if ($StreamDiagnostics) {

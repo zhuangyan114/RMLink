@@ -88,6 +88,7 @@ def main():
     p.add_argument('--pointer-depth',type=int,choices=range(5),default=3)
     p.add_argument('--independent',action='store_true');p.add_argument('--period-us',type=int,default=1000)
     p.add_argument('--direct-fields',type=int,choices=range(11),default=0,help='Replace the final N fields with direct dynamic fixture leaves')
+    p.add_argument('--transport',choices=('usb','wifi'),help='Require this actual transport before target access')
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 10<=args.seconds<=86400:p.error('seconds must be 10..86400')
     if not 200<=args.period_us<=10000000:p.error('Invalid period')
@@ -101,6 +102,10 @@ def main():
     try:
         with ApiClient().open(args.device_id) as client:
             report['device']=next(d for d in client.request('GET','/v1/status')['devices'] if d['device_id']==args.device_id)
+            report['transport']=report['device']['transport']
+            report['requestedTransport']=args.transport
+            if args.transport:
+                require(report['transport']==args.transport,'Actual transport differs from the requested soak transport')
             # Raw DAP is allowed only before the high-level target session owns
             # target state. Read the probe-only status before that transition.
             network=client.exchange(b'\x80\x04')

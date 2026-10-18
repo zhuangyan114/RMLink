@@ -22,6 +22,8 @@ from .flash import FlashProgrammer, FlashJobError
 from .clock_sync import ClockSync
 from .diagnostics import decode_health,decode_performance,decode_read_recovery
 from .runtime_diagnostics import monitor_event_loop
+from .management import Management, ManagementError
+from .firmware import FirmwareError
 from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
 
@@ -42,24 +44,31 @@ class Connector:
         self.refresh_lock = asyncio.Lock()
         self.clock_sync=ClockSync()
         self.switching=set()
+        self.usb_serials={}
+        self.management=Management(self)
+        self.link_losses={}
 
     async def refresh(self):
         async with self.refresh_lock: await self._refresh()
 
     async def _refresh(self):
+        await self.management.firmware.expire()
         # Do not open a second physical TCP session for a connected probe.
         existing = {(d.address, d.port): d for key, d in self.devices.items()
                     if key in self.brokers and not self.brokers[key].failed}
         found = await discover(existing=existing)
         self.devices.update(found)
         for key, saved in list(self.state.data['paired'].items()):
+            if key in self.management.firmware.uploads: continue
             if key not in self.devices:
                 self.devices[key] = Device(**{k: saved[k] for k in Device.__dataclass_fields__})
+            if not saved.get('auto_connect',True):continue
             broker = self.brokers.get(key)
             if broker and not broker.failed:
                 try: await broker.submit('connection-health', [b'\x80\x09'], 'background')
                 except (OSError, TimeoutError, ConnectionError): pass
             if broker and broker.failed:
+                self.link_losses[key]=self.link_losses.get(key,0)+1
                 for sid, session in list(self.sessions.items()):
                     if session['device_id'] == key:await self.close_session(sid)
                 await broker.close(); self.brokers.pop(key, None)
@@ -69,7 +78,7 @@ class Connector:
                 broker = None
             if broker is None:
                 device = self.devices[key]
-                transport=UsbTransport(key.upper()) if saved.get('transport')=='usb' else TcpTransport(device.address,device.port)
+                transport=UsbTransport(saved.get('usb_serial',key.upper())) if saved.get('transport')=='usb' else TcpTransport(device.address,device.port)
                 fresh = Broker(transport, key)
                 try:
                     await fresh.start()
@@ -129,15 +138,20 @@ class Connector:
                 'discovery_error': self.scan_error, 'mount_errors': self.mount_errors,
                 'connection_errors': self.connection_errors,
                 'devices': [dict(d.as_dict(), paired=key in self.state.data['paired'],
+                            alias=self.state.data['paired'].get(key,{}).get('alias',''),
+                            auto_connect=self.state.data['paired'].get(key,{}).get('auto_connect',True),
+                            mounted=key in self.driver.ports,
                             connected=key in self.brokers and not self.brokers[key].failed,
                             packet_size=self.brokers[key].packet_size if key in self.brokers else None,
-                            transport='usb' if key in self.brokers and getattr(self.brokers[key].transport,'native_usb',False) else 'wifi',
+                            transport=('usb' if getattr(self.brokers[key].transport,'native_usb',False) else 'wifi') if key in self.brokers else self.state.data['paired'].get(key,{}).get('transport','wifi'),
                             owner=self.brokers[key].owner if key in self.brokers else None)
                             for key, d in self.devices.items()]}
 
     async def route(self, method, path, body):
+        if self.management.handles(path):return await self.management.route(method,path,body)
         if method=='GET' and path=='/v1/capabilities':
-            return {'api_version':{'major':1,'minor':3},'default_clock_hz':4000000,
+            return {'api_version':{'major':1,'minor':4},'default_clock_hz':4000000,
+                'device_management':True,'passive_metrics':True,'probe_firmware_update':True,
                 'enhanced_profile':'stm32f103-medium-density','subscription_kinds':['memory_series','memory_snapshot','rtt_stream'],
                 'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','run_to_address','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local','measure_swd_clock'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
@@ -163,6 +177,7 @@ class Connector:
             key,mode=body.get('device_id'),body.get('transport')
             if mode not in ('usb','wifi') or key not in self.state.data['paired']:raise ValueError('Paired device and usb/wifi transport required')
             async with self.refresh_lock:
+                if key in self.management.firmware.uploads: raise FirmwareError('设备正在升级固件，请先完成或取消升级')
                 broker=self.brokers.get(key)
                 if broker and broker.owner or any(s['device_id']==key for s in self.sessions.values()):
                     raise ValueError('Close all target sessions before changing transport')
@@ -184,11 +199,16 @@ class Connector:
         if method == 'POST' and path == '/v1/pair':
             key = body.get('device_id')
             if key not in self.devices: raise ValueError('Choose a discovered device_id')
-            self.state.data['paired'][key] = self.devices[key].as_dict()
+            saved=self.state.data['paired'].setdefault(key,{})
+            saved.update(self.devices[key].as_dict())
+            if key in self.usb_serials:
+                saved['usb_serial']=self.usb_serials[key]
+                saved.setdefault('transport','usb')
             self.state.save(); await self.refresh()
             return {'paired': key}
         if method == 'POST' and path == '/v1/mount':
             key = body.get('device_id')
+            if key in self.switching: raise ConnectionError('Device maintenance in progress')
             if key not in self.brokers: raise ValueError('Pair and connect the discovered device first')
             port = await self.driver.attach(key, self.usbip_port)
             self.state.data['paired'][key]['auto_mount'] = True; self.state.save()
@@ -278,7 +298,9 @@ class Connector:
                     raise ValueError('packets must be 1..8 hex strings within negotiated capacity')
                 responses = await broker.submit(sid, [bytes.fromhex(v) for v in values], body.get('priority', 'control'))
                 return {'responses': [r.hex() for r in responses]}
-        if method == 'POST' and path == '/v1/shutdown': self.stopping.set(); return {'stopping': True}
+        if method == 'POST' and path == '/v1/shutdown':
+            if self.management.firmware.uploads: raise FirmwareError('固件升级尚未完成，请先完成或取消升级')
+            self.stopping.set(); return {'stopping': True}
         raise ValueError('Unsupported local API route')
 
     async def handle_http(self, reader, writer):
@@ -337,6 +359,8 @@ class Connector:
             code,response=exc.status,{'error':str(exc)[:400],
                 'code':'FlashCancelled' if exc.progress['phase']=='cancelled' else 'FlashFailed',
                 'progress':exc.progress,'write_completion_may_be_unknown':exc.progress.get('write_completion_may_be_unknown',False)}
+        except (ManagementError, FirmwareError) as exc:
+            code,response=400,{'error':str(exc),'code':'InvalidManagementRequest'}
         except (ValueError, UnicodeError, json.JSONDecodeError, asyncio.LimitOverrunError):
             code, response = 400, {'error': 'invalid_request'}
         except asyncio.QueueFull: code, response = 429, {'error': 'request_queue_full'}

@@ -1,7 +1,7 @@
 param([switch]$Install,[switch]$StartAtLogon,[switch]$RemoveStartAtLogon)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$target = Join-Path $env:LOCALAPPDATA 'RMLink'
+$target = Join-Path $env:USERPROFILE '.rmlink\app'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 if ($RemoveStartAtLogon) {
     Remove-ItemProperty -LiteralPath $runKey -Name 'RMLinkConnector' -ErrorAction SilentlyContinue
@@ -10,38 +10,47 @@ if ($RemoveStartAtLogon) {
 }
 if (-not $Install) {
     Write-Output "Prepared per-user component install: $target"
-    Write-Output 'Use -Install to copy the built service/SDK. Add -StartAtLogon to enable hidden startup.'
-    Write-Output 'This script does not install or replace the virtual USB kernel driver.'
+    Write-Output 'Use -Install to install rmlink, its service and driver-management entry. Add -StartAtLogon for hidden startup.'
     exit 0
 }
 $source = Join-Path $root 'artifacts\build\connector\dist'
-if (-not (Test-Path -LiteralPath (Join-Path $source 'RMLinkConnector.exe'))) { throw 'Build-Connector.ps1 required' }
-New-Item -ItemType Directory -Force $target | Out-Null
-Copy-Item -LiteralPath (Join-Path $source 'RMLinkConnector.exe') -Destination $target
-Get-ChildItem -LiteralPath $source -Filter '*.txt' | Copy-Item -Destination $target
+foreach ($name in @('rmlink.exe','RMLinkConnector.exe','Driver.ps1','Hotspot.ps1')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $source $name))) { throw 'Run Build-Connector.ps1 first.' }
+}
+$running = Get-Process -Name RMLinkConnector,rmlink -ErrorAction SilentlyContinue | Where-Object {
+    $_.Path -and $_.Path.StartsWith($target + '\',[StringComparison]::OrdinalIgnoreCase)
+}
+if ($running) { throw 'Close the installed client and stop its service before upgrading.' }
+$bin = Join-Path $target 'bin'
+New-Item -ItemType Directory -Force $bin | Out-Null
+foreach ($name in @('rmlink.exe','RMLinkConnector.exe','Driver.ps1','Hotspot.ps1')) {
+    Copy-Item -LiteralPath (Join-Path $source $name) -Destination $bin -Force
+}
+Get-ChildItem -LiteralPath $source -Filter '*.txt' | Copy-Item -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $root 'host\distribution\Start-Service.ps1') -Destination $target -Force
+Copy-Item -LiteralPath (Join-Path $root 'host\distribution\Register-Command.ps1') -Destination $target -Force
+$docs = Join-Path $target 'docs'
+New-Item -ItemType Directory -Force $docs | Out-Null
+Copy-Item -LiteralPath (Join-Path $root 'docs\terminal-client.md') -Destination $docs -Force
+Copy-Item -LiteralPath (Join-Path $root 'docs\ota-upgrade.md') -Destination $docs -Force
+Copy-Item -LiteralPath (Join-Path $root 'docs\ota-acceptance-20261017.md') -Destination $docs -Force
+Copy-Item -LiteralPath (Join-Path $root 'docs\test-release-0.3.2.md') -Destination $docs -Force
 $sdkSource = Join-Path $root 'artifacts\build\sdk'
 $sdkTarget = Join-Path $target 'sdk'
 New-Item -ItemType Directory -Force $sdkTarget | Out-Null
-foreach ($name in @('rmlink.dll','rmlink.h','librmlink.a','rmlink.def','rmlink-client-0.2.6.tgz')) {
-    $path = Join-Path $sdkSource $name
-    if (Test-Path -LiteralPath $path) { Copy-Item -LiteralPath $path -Destination $sdkTarget }
+if (Test-Path -LiteralPath $sdkSource) {
+    Get-ChildItem -LiteralPath $sdkSource -File | Where-Object { $_.Extension -in @('.dll','.h','.a','.def','.tgz') } | Copy-Item -Destination $sdkTarget -Force
 }
-$startScript = @'
-$ErrorActionPreference = 'Stop'
-$directory = Split-Path $PSScriptRoot -Leaf
-$exe = Join-Path $PSScriptRoot 'RMLinkConnector.exe'
-if (Get-NetTCPConnection -LocalPort 3243 -State Listen -ErrorAction SilentlyContinue) { exit 0 }
-$logs = Join-Path $PSScriptRoot 'logs'
-New-Item -ItemType Directory -Force $logs | Out-Null
-Start-Process -FilePath $exe -ArgumentList @('serve') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'service.log') -RedirectStandardError (Join-Path $logs 'service-error.log') | Out-Null
-'@
 $entry = Join-Path $target 'Start-Service.ps1'
-[IO.File]::WriteAllText($entry,$startScript,[Text.UTF8Encoding]::new($false))
-if ($StartAtLogon) {
+& (Join-Path $target 'Register-Command.ps1') -BinDirectory $bin
+$existingStartup = (Get-ItemProperty -LiteralPath $runKey -Name 'RMLinkConnector' -ErrorAction SilentlyContinue).RMLinkConnector
+if ($StartAtLogon -or $existingStartup) {
     New-Item -Path $runKey -Force | Out-Null
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $command = '"' + $powershell + '" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $entry + '"'
     New-ItemProperty -Path $runKey -Name 'RMLinkConnector' -Value $command -PropertyType String -Force | Out-Null
 }
-Write-Output "Per-user service and SDK installed: $target"
+Write-Output "Installed: $bin\rmlink.exe"
+Write-Output 'Run rmlink in a new terminal. The current PowerShell session can also run it immediately.'
+Write-Output 'Kernel drivers and Windows boot settings were not changed; use rmlink driver status to inspect them.'
 Write-Output ('Logon startup: ' + [bool]$StartAtLogon)

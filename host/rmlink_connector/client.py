@@ -23,7 +23,7 @@ class ApiClient:
         return self.request('POST','/v1/transport',{'device_id':device_id,'transport':transport})
     def device_health(self,device_id):return self.request('GET',f'/v1/devices/{device_id}/health')
 
-    def __init__(self, directory=None, port=3243):
+    def __init__(self, directory=None, port=3243, timeout=30):
         for attempt in range(25):
             try:
                 self.token = State(directory, create=False).data['token']
@@ -32,6 +32,7 @@ class ApiClient:
                 if attempt == 24: raise
                 time.sleep(.2)
         self.port, self.session = port, None
+        self.timeout = timeout
         self._stop=threading.Event(); self._heartbeat=None
 
     def request(self, method, path, body=None):
@@ -40,7 +41,7 @@ class ApiClient:
                  headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
         # Bypass HTTP proxy environment variables for this local-only endpoint.
         try:
-            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=180 if path.endswith('/flash') else 30) as reply:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=180 if path.endswith('/flash') else self.timeout) as reply:
                 return json.load(reply)
         except urllib.error.HTTPError as error:
             result=json.load(error)
