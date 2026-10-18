@@ -2,6 +2,7 @@ name: RMLink OTA firmware
 on:
   push:
     tags: ['v*']
+    branches: ['main', 'codex/**']
   workflow_dispatch:
     inputs:
       publish:
@@ -20,6 +21,9 @@ jobs:
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
+          # Match the manager that generated the checked-in v2 lock file.
+          # The original IDF 5.1.2 image bundles a v1-only manager.
+          python -m pip install 'idf-component-manager==2.4.11'
           for profile in safe target target-psram; do
             defaults='sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.rmlink.defaults;sdkconfig.rmlink-core0.defaults'
             if [ "$profile" != safe ]; then defaults="$defaults;sdkconfig.rmlink-target.defaults"; fi
@@ -30,9 +34,8 @@ jobs:
       - name: Validate images and build one OTA manifest
         shell: bash
         run: |
-          . "$IDF_PATH/export.sh"
-          python scripts/package_ota.py --build artifacts/build/ota-safe --build artifacts/build/ota-target --build artifacts/build/ota-target-psram --output artifacts/ota-release --channel testing
-          python - <<'PY'
+          python3 scripts/package_ota.py --build artifacts/build/ota-safe --build artifacts/build/ota-target --build artifacts/build/ota-target-psram --output artifacts/ota-release --channel testing
+          python3 - <<'PY'
           import json, os
           from pathlib import Path
           manifest=json.loads(Path('artifacts/ota-release/rmlink-ota-manifest.json').read_text())
