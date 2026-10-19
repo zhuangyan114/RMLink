@@ -116,6 +116,8 @@ auto仅在明确不支持板端功能或BEGIN报告缓存内存不足时使用ho
 
 `GET /v1/devices/{id}/health` 无需目标会话，返回内部RAM/PSRAM的free/largest/minimum、请求时钟和最后采集IO失败详情；旧固件明确supported=false。Python device_health、Node deviceHealth、C rm_device_health共享此入口。
 
+0.3.3 增加可选的 `read_fault_recovery`：`supported`、`attempts`、`recovered`、`exhausted`、`write_faults_not_replayed`、`last_dp_ctrl_stat`、`last_fault_uptime_us`。计数在探针重启后清零；只对只读访问中的单独 WDATAERR 做一次有界恢复，目标写入失败不自动重放，原始 IO 失败诊断保留。旧固件对此子快照返回 `supported=false`，不会使其他健康字段失效。协议与限制见 [USB 连续回传](usb-throughput.md)。
+
 目标命令 `measure_swd_clock`（mode=sequence/dp_read）需已连接会话、停止采样，通过原控制屏障执行。返回原始RMT符号和数字周期统计，不改变Flash。80 MHz内部参考不是外部仪器，不能判定目标端模拟波形质量。字段、能力协商和二进制布局见[诊断协议](device-diagnostics.md)。
 
 ## 服务端录制

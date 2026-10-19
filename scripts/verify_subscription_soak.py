@@ -17,9 +17,10 @@ from fixture_clock import require_fixture_72mhz,discard_pretest_rtt
 
 
 class Measurements:
-    def __init__(self):
+    def __init__(self,timeline_fields=10,watch_fields=4):
+        self.timeline_fields=timeline_fields;self.watch_fields=watch_fields
         self.kinds={k:{'frames':0,'gaps':0,'budgetFlags':0,'firstUs':None,'lastUs':None,
-                       'lastSequence':None} for k in (1,2,3)}
+                       'lastSequence':None,'encodedBytes':0} for k in (1,2,3)}
         self.recent_intervals=deque(maxlen=8192)
         self.rtt_pending=bytearray();self.rtt_next=None;self.rtt_records=0;self.rtt_bytes=0
         self.rtt_last_sequence=None;self.rtt_producer_skipped=0
@@ -27,7 +28,7 @@ class Measurements:
         self.dynamic_last={};self.dynamic_changes={}
 
     def require_dynamic_timeline(self):
-        require(len(self.dynamic_changes.get('1',[]))==10 and all(self.dynamic_changes['1']),
+        require(len(self.dynamic_changes.get('1',[]))==self.timeline_fields and all(self.dynamic_changes['1']),
                 'A dynamic Timeline fixture field never changed')
 
     def accept(self,cursor,sample):
@@ -45,7 +46,8 @@ class Measurements:
         if kind!=3:
             values=sample['values']
             require(sample['valid_bitmap']==(1<<len(values))-1,'Invalid field bitmap')
-            require(len(values)==(10 if kind==1 else 4),'Fixture field count')
+            require(len(values)==(self.timeline_fields if kind==1 else self.watch_fields),'Fixture field count')
+            m['encodedBytes']+=56+4*len(values)
             for i,value in enumerate(values):require(value>>24==i,f'Wrong field identity {i}')
             key=str(kind)
             if key not in self.dynamic_last:self.dynamic_changes[key]=[0]*len(values)
@@ -55,6 +57,7 @@ class Measurements:
             return
         require(self.rtt_next is None or sample['byte_sequence']==self.rtt_next,'RTT byte stream gap')
         data=sample['data'];self.rtt_next=sample['byte_sequence']+len(data);self.rtt_bytes+=len(data)
+        m['encodedBytes']+=72+len(data)
         self.rtt_pending.extend(data)
         while len(self.rtt_pending)>=16:
             magic,seq,counter,check=struct.unpack_from('<IIII',self.rtt_pending)
@@ -75,7 +78,14 @@ class Measurements:
             result[str(kind)]={**m,'effectiveHz':(m['frames']-1)*1e6/span if span>0 else None}
         intervals=sorted(self.recent_intervals)
         def q(p):return intervals[int((len(intervals)-1)*p)] if intervals else None
-        return {'kinds':result,'rttBytes':self.rtt_bytes,'rttRecordsChecked':self.rtt_records,
+        starts=[m['firstUs'] for m in self.kinds.values() if m['firstUs'] is not None]
+        ends=[m['lastUs'] for m in self.kinds.values() if m['lastUs'] is not None]
+        span=max(ends)-min(starts) if starts else 0
+        encoded=sum(m['encodedBytes'] for m in self.kinds.values())
+        return {'kinds':result,'encodedPayloadBytes':encoded,
+                'encodedPayloadMbps':encoded*8/span if span>0 else None,
+                'payloadRateScope':'RML1 samples over probe timestamp window; excludes USB transaction and control overhead',
+                'rttBytes':self.rtt_bytes,'rttRecordsChecked':self.rtt_records,
                 'rttProducerSkipped':self.rtt_producer_skipped,
                 'rttPartialBytes':len(self.rtt_pending),'intervalWindow':len(intervals),
                 'recentTimelineIntervalP50Us':q(.5),'recentTimelineIntervalP99Us':q(.99),
@@ -88,15 +98,18 @@ def main():
     p.add_argument('--pointer-depth',type=int,choices=range(5),default=3)
     p.add_argument('--independent',action='store_true');p.add_argument('--period-us',type=int,default=1000)
     p.add_argument('--direct-fields',type=int,choices=range(11),default=0,help='Replace the final N fields with direct dynamic fixture leaves')
+    p.add_argument('--field-count',type=int,choices=range(1,11),default=10,help='Number of distinct dynamic fixture leaves; no duplicated variables')
     p.add_argument('--transport',choices=('usb','wifi'),help='Require this actual transport before target access')
     p.add_argument('--output',type=Path,required=True);args=p.parse_args()
     if not 10<=args.seconds<=86400:p.error('seconds must be 10..86400')
     if not 200<=args.period_us<=10000000:p.error('Invalid period')
+    if args.direct_fields>args.field_count:p.error('direct-fields exceeds field-count')
     if args.output.exists():p.error('Output already exists; preserve the previous evidence')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
             'requestedSeconds':args.seconds,'pointerDepth':args.pointer_depth,'shared':not args.independent,
             'requestedPeriodUs':args.period_us,'requestedClockHz':4000000,'actualClockMeasured':False,
-            'directFields':args.direct_fields,'pointerFields':10-args.direct_fields if args.pointer_depth else 0,
+            'fieldCount':args.field_count,'directFields':args.direct_fields,
+            'pointerFields':args.field_count-args.direct_fields if args.pointer_depth else 0,
             'scope':'public service + real F103 fixture + independent recording; installed VS Code UI excluded',
             'fixtureFlashRetained':True,'progress':[]}
     try:
@@ -118,12 +131,14 @@ def main():
             report['healthBefore']=client.device_health(args.device_id)
             require(client.target('read_memory',address=0x20000000,byte_length=4)['data']=='4b4c4d52','Fixture missing')
             image,fields=layout(args.pointer_depth,not args.independent)
+            fields=fields[:args.field_count]
             if args.direct_fields:
-                for i in range(10-args.direct_fields,10):fields[i]={'address':0x20000100+i*64,'offsets':[]}
+                for i in range(args.field_count-args.direct_fields,args.field_count):fields[i]={'address':0x20000100+i*64,'offsets':[]}
             report['fields']=fields
             client.target('write_memory',address=0x20001000,data=image.hex())
             report['rttSetup']=discard_pretest_rtt(client)
-            ids=[];recording=None;begin=None;live=Measurements();after=-1;consumer_gap=0
+            watch_count=min(4,args.field_count)
+            ids=[];recording=None;begin=None;live=Measurements(args.field_count,watch_count);after=-1;consumer_gap=0
             try:
                 sub=client.subscribe('memory_series',fields=fields,period_us=args.period_us)
                 ids.append(sub['subscription_id']);after=sub['stream_cursor']
@@ -152,7 +167,7 @@ def main():
                 report['statuses']={str(i):client.subscription(i) for i in ids}
                 report['recording']=client.recording(recording['recording_id'],stop=True);recording=None
                 require(report['recording']['phase']=='complete' and report['recording']['finalized'],'Recording failed')
-                disk=Measurements();parsed=inspect_recording(report['recording']['path'],disk.accept)
+                disk=Measurements(args.field_count,watch_count);parsed=inspect_recording(report['recording']['path'],disk.accept)
                 # Keep validated measurements even if the acceptance assertions
                 # below reject this run; a failed run is still useful evidence.
                 report.update(live=live.summary(),disk=disk.summary(),consumerGap=consumer_gap,
@@ -183,7 +198,7 @@ def main():
                         try:
                             failed=report['failedRecording']
                             require(failed['phase']=='complete' and failed['finalized'],'Failed recording not finalized')
-                            disk=Measurements();parsed=inspect_recording(failed['path'],disk.accept)
+                            disk=Measurements(args.field_count,watch_count);parsed=inspect_recording(failed['path'],disk.accept)
                             report['disk']=disk.summary();report['independentFileValidation']=parsed
                             require(parsed['sha256']==failed['sha256'],'Independent failed recording hash mismatch')
                         except Exception as error:report['failedRecordingValidationError']=str(error)

@@ -4,18 +4,50 @@ Report application bytes rather than the 12 Mbit/s USB signalling rate.
 Alternate zero is restored on success, failure and interruption.
 """
 import argparse
+from contextlib import contextmanager
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import statistics
 import struct
 import sys
 import time
+import urllib.error
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'host'))
 from rmlink_native_usb import UsbClient
+from rmlink_connector.client import ApiClient
 
 PATTERN=bytes((i*31+(i>>8)*17+77)&255 for i in range(65536))
+
+
+@contextmanager
+def idle_connector(serial):
+    """Keep the installed service's health polling off the raw DAP endpoints.
+
+    The benchmark owns its own WinUSB handle; two control readers cannot safely
+    share IN83. Refuse a live owner and temporarily move an idle connector to
+    Wi-Fi. Restore its preference only after the benchmark USB handle closes.
+    """
+    state=Path(os.environ.get('USERPROFILE',str(Path.home())))/'.rmlink/connector.json'
+    previous=None;api=None
+    if state.is_file():
+        api=ApiClient(timeout=3)
+        try:devices=api.request('GET','/v1/status')['devices']
+        except (urllib.error.URLError,ConnectionError,TimeoutError):devices=[]
+        device=next((d for d in devices if d['device_id'].lower()==serial.lower() and d.get('paired')),None)
+        if device:
+            if device.get('owner') or device.get('mounted'):
+                raise RuntimeError('Close target sessions and unmount virtual USB before the raw USB benchmark')
+            if device.get('transport')=='usb':
+                api.timeout=30
+                previous=device['device_id']
+    try:
+        if previous:api.set_transport(previous,'wifi')
+        yield bool(previous)
+    finally:
+        if previous:api.set_transport(previous,'usb')
 
 
 def expected_pattern(offset,length):
@@ -72,7 +104,8 @@ def main():
                 evidence='Physical ESP32 PSRAM to PC; no SWD or target access',
                 usbSignallingMbps=12,theoreticalFullSpeedBulkPayloadBytesPerSecond=1216000)
     try:
-        with UsbClient(bcd_device=2,serial=args.serial) as client:
+        with idle_connector(args.serial) as changed,UsbClient(bcd_device=2,serial=args.serial) as client:
+            report['idleConnectorTemporarilyMovedToWifi']=changed
             for _ in range(args.rounds):
                 row=run(client,args.mib,stall_seconds=args.stall_seconds)
                 report['rounds'].append(row);print(json.dumps(row),flush=True)

@@ -12,6 +12,29 @@ from inspect_fixture_recording import Audit
 
 
 class SoakMeasurementsTests(unittest.TestCase):
+    def test_single_variable_and_small_watch_check_content_and_changes(self):
+        m=Measurements(timeline_fields=1,watch_fields=1)
+        for sequence in (1,2):
+            m.accept(sequence,dict(kind=1,sequence=sequence,timestamp_us=sequence*200,
+                flags=0,valid_bitmap=1,values=[sequence]))
+        m.accept(3,dict(kind=2,sequence=1,timestamp_us=400,flags=0,valid_bitmap=1,values=[2]))
+        m.require_dynamic_timeline()
+        result=m.summary()
+        self.assertEqual(result['kinds']['1']['encodedBytes'],120)
+        self.assertEqual(result['encodedPayloadBytes'],180)
+        self.assertAlmostEqual(result['kinds']['1']['effectiveHz'],5000)
+        with self.assertRaisesRegex(AssertionError,'Fixture field count'):
+            m.accept(4,dict(kind=1,sequence=3,timestamp_us=600,flags=0,valid_bitmap=3,values=[3,1<<24]))
+
+    def test_encoded_payload_includes_rtt_framing_and_excludes_usb_headers(self):
+        m=Measurements();m.accept(1,self.sample(1));m.accept(2,self.sample(2))
+        magic=0x524d5254
+        m.accept(3,dict(kind=3,sequence=1,timestamp_us=2000,flags=0,byte_sequence=0,
+            data=struct.pack('<IIII',magic,1,7,magic^1^7)))
+        result=m.summary()
+        self.assertEqual(result['encodedPayloadBytes'],96*2+72+16)
+        self.assertAlmostEqual(result['encodedPayloadMbps'],280*8/1000)
+
     def sample(self,sequence=1,**changes):
         return dict(kind=1,sequence=sequence,timestamp_us=sequence*1000,flags=0,
                     valid_bitmap=1023,values=[i<<24 for i in range(10)],**changes)

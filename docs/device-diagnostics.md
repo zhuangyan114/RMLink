@@ -1,5 +1,7 @@
 # 设备健康与 SWD 时钟诊断（固件 0.2.15／服务 0.2.8）
 
+0.3.3 追加 `read_fault_recovery` 子快照（`80/13`），单独记录只读 WDATAERR 的尝试、恢复、耗尽和不重放写入次数；原始失败快照保持不变。该机制与下文既有的 deadline 恢复独立，具体条件、32 字节结构和实板边界见 [USB 连续回传](usb-throughput.md)。
+
 ## 0.2.25 新增诊断
 
 公开 health 接口新增 `performance` 和 `read_deadline_recovery`。旧固件各子快照可独立返回 `supported=false`；原 `80/0A` 的64字节v1结构保持不变。

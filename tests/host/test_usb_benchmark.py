@@ -1,9 +1,27 @@
 import struct
 import unittest
-from benchmark_usb_stream import expected_pattern
+from unittest.mock import Mock,call,patch
+from benchmark_usb_stream import expected_pattern,idle_connector
 
 
 class UsbBenchmarkTests(unittest.TestCase):
+    def test_raw_benchmark_restores_connector_after_read_failure(self):
+        api=Mock();api.request.return_value={'devices':[dict(device_id='abc',paired=True,transport='usb',owner=None,mounted=False)]}
+        with patch('benchmark_usb_stream.Path.is_file',return_value=True),patch('benchmark_usb_stream.ApiClient',return_value=api):
+            with self.assertRaisesRegex(ValueError,'read failed'):
+                with idle_connector('ABC') as changed:
+                    self.assertTrue(changed)
+                    self.assertEqual(api.set_transport.call_args_list,[call('abc','wifi')])
+                    raise ValueError('read failed')
+        self.assertEqual(api.set_transport.call_args_list,[call('abc','wifi'),call('abc','usb')])
+
+    def test_raw_benchmark_does_not_interrupt_an_active_owner(self):
+        api=Mock();api.request.return_value={'devices':[dict(device_id='abc',paired=True,transport='usb',owner='active',mounted=False)]}
+        with patch('benchmark_usb_stream.Path.is_file',return_value=True),patch('benchmark_usb_stream.ApiClient',return_value=api):
+            with self.assertRaisesRegex(RuntimeError,'Close target sessions'):
+                with idle_connector('abc'):self.fail('Busy target was accepted')
+        api.set_transport.assert_not_called()
+
     def test_absolute_sequence_survives_arbitrary_read_boundaries(self):
         full=expected_pattern(0,8192)
         self.assertEqual(full[:4],struct.pack('<I',0))
