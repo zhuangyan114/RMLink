@@ -1,6 +1,6 @@
 # RMLink 0.3.3 USB 连续回传测试
 
-本页记录 Windows 原生 USB 连续回传与请求 5000 Hz 的实板测试。最终镜像、持续采集、兼容回退、升降级和原程序恢复均已完成；纯回传测速和实际 SWD 采集分别验收。公开包核验在发布后追加。
+本页记录 Windows 原生 USB 连续回传与请求 5000 Hz 的实板测试。最终镜像、持续采集、兼容回退、升降级、公开下载安装和原程序恢复均已完成；纯回传测速和实际 SWD 采集分别验收。
 
 ## 镜像与实现
 
@@ -19,7 +19,7 @@
 - 安装后的 0.3.3 客户端 USB 15 秒短测：Timeline 约 1000 Hz，Watch、RTT、三层独立指针链、5 个直接字段和录制同时工作，consumer gap 为零。
 - 原 STM32 64 KiB 程序已重新备份，SHA256 为 `eeb3aebb22d7b5967282934a4b0ae732c083da67753c197add68d54d718b9360`；选项字节已留存。测试期间使用无外设输出的 F103 fixture，最终已恢复原程序。
 
-公开包核验结果在发布后追加。
+公开发布与安装结果见文末。
 
 ## 最终 USB 持续采集
 
@@ -77,6 +77,16 @@ pyOCD 分别按物理 `50787D15A924` 和虚拟 `RM50787D15A924` 精确序列号�
 随后经 Wi-Fi OTA 升回本页指定的最终 0.3.3，设备返回匹配 ELF 和 `boot_confirmed`／VALID。整轮没有重刷 bootloader、分区表或 NVS，原 Wi-Fi 参数保留。
 
 完成全部 fixture 测试后，使用缓存烧录接口恢复开始时备份的 STM32 原 64 KiB 程序；板端与主机校验通过。关闭 API 会话后，再经独立原生 USB／标准 CMSIS-DAP 完整回读，逐字节一致，SHA256 为本页原程序摘要；选项字节与最初备份相同，核心 **Running**。最终恢复 Wi-Fi 承载、无目标 owner、未挂载虚拟 USB。
+
+## 公开发布与安装
+
+[v0.3.3](https://github.com/zhuangyan114/RMLink/releases/tag/v0.3.3) 已发布为 `draft=false`、`prerelease=true`，未设为正式 latest；0.3.2 资产未覆盖。OTA 清单标记 `channel: testing`，应用是本页指定的实板二进制。
+
+匿名下载清单、应用、摘要文件及 Windows 包核验通过，GitHub 服务端摘要与本地一致。Windows ZIP 为 **17539849 B**，SHA256 为 `12b7e9045fafaf15dd21b2de0a7fba83f62c0695f8c5a6c209b40954311f53fe`，源提交 `6173d8f561a6629c9bad29de9be2161feab03e88`、干净隔离检出。ZIP 完整性及清单中 **67 个文件**逐项校验通过；带空格路径下的 Windows PowerShell 5.1 安装预检、包内冻结客户端隔离状态 10 步验收通过。
+
+首次公开通道尝试时已运行相同 ELF，客户端正确返回 `up_to_date` 并避免重复擦写。验收脚本原先强制期待 `boot_confirmed`，因此该次脚本断言失败，原始结果保留；这没有作为实际安装通过。随后真实经 USB 降为 0.3.2（69.961 s），再执行安装后 CLI 的 `firmware update --latest --prerelease --yes`，从公开 GitHub 测试通道升级到 0.3.3（**84.267 s**）。运行分区确实切换、ELF 与 VALID 匹配；升级后独立原生 USB 再次确认 STM32 完整原程序、选项字节和 Running 状态均未改变。
+
+完整 Windows 开发包已安装到用户共享目录，安装后清单 67 个文件和两个 EXE 与发布构建一致。普通 Windows PowerShell 经 `C:\Users\22690\bin\rmlink.cmd` 确认版本 0.3.3、设备在线；最终 Wi-Fi 承载、无 owner、未挂载。串口监视与测试保活进程已停止。包内报告保持发布前验收快照，公开 `test-report-0.3.3.md` 资产和本文件追加本节，不重写固件／ZIP。
 
 ## 条件和限制
 
