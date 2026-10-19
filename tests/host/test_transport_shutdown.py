@@ -6,6 +6,20 @@ from rmlink_connector.usb_transport import UsbTransport
 
 
 class ShutdownTests(unittest.IsolatedAsyncioTestCase):
+    async def test_read_fault_diagnostics_can_observe_another_owner_without_acquiring_it(self):
+        requests=[]
+        class Probe:
+            packet_size=64
+            async def connect(self):pass
+            async def close(self):pass
+            async def exchange_many(self,packets):
+                requests.extend(packets);return [p+b'\x02' for p in packets]
+        broker=Broker(Probe(),'test');await broker.start();broker.owner='active-target'
+        try:
+            reply=await broker.submit('device-health',[b'\x80\x0d'],'background')
+            self.assertEqual(reply,[b'\x80\x0d\x02'])
+            self.assertEqual(requests,[b'\x80\x0d']);self.assertEqual(broker.owner,'active-target')
+        finally:broker.owner=None;await broker.close()
     async def test_closing_an_active_unowned_query_completes_the_waiter(self):
         entered=asyncio.Event()
         class Probe:

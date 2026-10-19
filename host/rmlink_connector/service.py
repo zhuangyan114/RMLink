@@ -20,7 +20,7 @@ from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
 from .flash import FlashProgrammer, FlashJobError
 from .clock_sync import ClockSync
-from .diagnostics import decode_health,decode_performance,decode_read_recovery
+from .diagnostics import decode_health,decode_performance,decode_read_recovery,decode_fault_recovery
 from .runtime_diagnostics import monitor_event_loop
 from .management import Management, ManagementError
 from .firmware import FirmwareError
@@ -170,9 +170,10 @@ class Connector:
             if key not in self.devices and key not in self.state.data['paired']:raise ValueError('Unknown device')
             broker=self.brokers.get(key)
             if not broker or broker.failed:return {'device_id':key,'connected':False,'supported':None,'error':self.connection_errors.get(key)}
-            replies=await broker.submit('device-health',[b'\x80\x0a',b'\x80\x0b',b'\x80\x0c'],'background')
+            replies=await broker.submit('device-health',[b'\x80\x0a',b'\x80\x0b',b'\x80\x0c',b'\x80\x0d'],'background')
             return dict(decode_health(replies[0]),performance=decode_performance(replies[1]),
-                read_deadline_recovery=decode_read_recovery(replies[2]),device_id=key,connected=True)
+                read_deadline_recovery=decode_read_recovery(replies[2]),
+                read_fault_recovery=decode_fault_recovery(replies[3]),device_id=key,connected=True)
         if method=='POST' and path=='/v1/transport':
             key,mode=body.get('device_id'),body.get('transport')
             if mode not in ('usb','wifi') or key not in self.state.data['paired']:raise ValueError('Paired device and usb/wifi transport required')

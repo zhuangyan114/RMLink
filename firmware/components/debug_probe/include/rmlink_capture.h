@@ -24,6 +24,8 @@ void rmlink_capture_failure_stats(uint8_t output[24]);
 /* 60-byte cumulative probe-only performance snapshot, version at byte zero. */
 void rmlink_capture_performance_stats(uint8_t output[60]);
 void rmlink_capture_read_recovery_stats(uint8_t output[21]);
+/* Separate from deadline retries: bounded, read-only SWD WDATAERR recovery. */
+void rmlink_capture_fault_recovery_stats(uint8_t output[29]);
 void rmlink_capture_profile_enable(bool enabled);
 /* These only move completed records. They never touch the target. */
 bool rmlink_capture_bind(const uint8_t ticket[16], uint32_t *generation);

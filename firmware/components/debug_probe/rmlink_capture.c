@@ -37,6 +37,8 @@ typedef struct {
     uint8_t kind, count, state, index; /* 0 empty, 1 prepared, 2 running, 3 paused */
     uint8_t reason; /* 1 pause,2 stop,3 SWD,4 lease,5 stream,6 budget,7 limit */
     uint8_t read_retry; /* 0 unused, 1 pending next executor turn, 2 consumed */
+    bool read_fault_retry;
+    uint8_t rtt_fault_retry;
     uint32_t period, limit, supplied, revision, capture, seq;
     uint32_t address[FIELDS], values[FIELDS], valid;
     uint8_t depth[FIELDS], width[FIELDS];
@@ -89,6 +91,8 @@ static uint32_t s_io_commands,s_io_words,s_io_frames,s_io_max_us;
 static uint64_t s_io_us;
 static uint32_t s_read_retry_attempts,s_read_retry_recovered,s_read_retry_exhausted;
 static uint64_t s_last_read_retry;
+static uint32_t s_fault_attempts,s_fault_recovered,s_fault_exhausted,s_write_faults_not_replayed,s_fault_ctrl;
+static uint64_t s_last_fault;
 static bool s_lower_turn;
 static unsigned s_lower_cursor=1;
 void rmlink_capture_invalidate_ap(void) { s_memap_configured=false; }
@@ -123,6 +127,11 @@ void rmlink_capture_profile_enable(bool enabled) {
 void rmlink_capture_read_recovery_stats(uint8_t out[21]) {
     out[0]=1;w32(out+1,s_read_retry_attempts);w32(out+5,s_read_retry_recovered);
     w32(out+9,s_read_retry_exhausted);w64(out+13,s_last_read_retry);
+}
+void rmlink_capture_fault_recovery_stats(uint8_t out[29]) {
+    out[0]=1;w32(out+1,s_fault_attempts);w32(out+5,s_fault_recovered);
+    w32(out+9,s_fault_exhausted);w32(out+13,s_write_faults_not_replayed);
+    w32(out+17,s_fault_ctrl);w64(out+21,s_last_fault);
 }
 void rmlink_capture_performance_stats(uint8_t out[60]) {
     memset(out,0,60);out[0]=2;
@@ -162,6 +171,37 @@ static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count,bool ta
     (void)started;
 #endif
     return ok;
+}
+static size_t recovery_dap(const uint8_t *request,uint8_t *reply,int64_t deadline) {
+    int64_t started=esp_timer_get_time(),left=deadline-started;
+    if(left<=0 || DAP_GetTransferAbortReason())return 0;
+    DAP_TransferDeadline((uint32_t)left);
+    size_t n=DAP_ProcessCommand(request,reply)&0xffff;
+    uint32_t elapsed=(uint32_t)(esp_timer_get_time()-started);
+    s_io_commands++;s_io_us+=elapsed;if(elapsed>s_io_max_us)s_io_max_us=elapsed;
+    return n;
+}
+static bool clear_read_fault(uint32_t failure_before) {
+    if(u32(s_failure)==failure_before || s_failure[20]!=4 || s_failure[21] || DAP_GetTransferAbortReason())return false;
+    s_last_fault=esp_timer_get_time();s_fault_ctrl=0;
+    /* An actual RTT/application write may already have completed. Keep its
+     * unknown result and stop; never clear-and-replay that write. */
+    if(s_failure[22]){s_write_faults_not_replayed++;return false;}
+    const uint8_t query[]={5,0,1,6},clear[]={5,0,1,0,8,0,0,0};
+    uint8_t reply[8];int64_t deadline=esp_timer_get_time()+500;
+    if(recovery_dap(query,reply,deadline)!=7 || reply[0]!=5 || reply[1]!=1 || reply[2]!=1)return false;
+    s_fault_ctrl=u32(reply+3);
+    /* Only the SW-DP write-data flag: no invalid-address STICKYERR,
+     * compare/overrun error, explicit Abort or read-side peripheral effect. */
+    if((s_fault_ctrl&0xb2)!=0x80)return false;
+    s_fault_attempts++;rmlink_capture_invalidate_ap();
+    if(recovery_dap(clear,reply,deadline)!=3 || reply[0]!=5 || reply[1]!=1 || reply[2]!=1) {
+        s_fault_exhausted++;return false;
+    }
+#ifndef RMLINK_HOST_TEST
+    ESP_LOGW("rmlink_capture","Read-only WDATAERR cleared; re-read with fresh SELECT/CSW/TAR");
+#endif
+    return true;
 }
 static size_t memap_prefix(uint8_t *request) {
     request[0]=5;request[1]=0;request[2]=0;
@@ -226,6 +266,23 @@ static bool bytes_read(uint32_t addr,uint8_t *out,size_t n) {
         addr+=part; out+=part; n-=part;
     }
     return true;
+}
+static bool bytes_read_recover(uint32_t addr,uint8_t *out,size_t n) {
+    uint32_t before=u32(s_failure);
+    if(bytes_read(addr,out,n))return true;
+    if(!clear_read_fault(before))return false;
+    bool ok=bytes_read(addr,out,n);
+    if(ok)s_fault_recovered++;else s_fault_exhausted++;
+    return ok;
+}
+static bool rtt_read(subscription_t *s,uint32_t addr,uint8_t *out,size_t n) {
+    bool ok=bytes_read(addr,out,n);
+    if(s->rtt_fault_retry==1) {
+        if(ok)s_fault_recovered++;else s_fault_exhausted++;
+        s->rtt_fault_retry=2;
+    }
+    if(ok)s->rtt_fault_retry=0;
+    return ok;
 }
 static void timer_cb(void *unused) { (void)unused; if(s_wake) s_wake(); }
 static void timer_refresh(void) {
@@ -459,15 +516,16 @@ static bool rtt_run(subscription_t *s,unsigned id) {
     /* F103 32-bit RTT descriptor: name,buffer,size,WrOff,RdOff,flags. */
     uint32_t cb=s->address[0],desc=cb+24+s->rtt_channel*24;
     uint8_t header[20],d[16];
+    uint32_t failure_before=u32(s_failure);
     if(s->rtt_phase==0) {
-        if(!bytes_read(cb,header,sizeof(header)) || memcmp(header,"SEGGER RTT",10) ||
+        if(!rtt_read(s,cb,header,sizeof(header)) || memcmp(header,"SEGGER RTT",10) ||
            u32(header+16)>16 || s->rtt_channel>=u32(header+16))goto fail;
         s->rtt_phase=1;return false;
     }
     if(s->rtt_phase==1) {
         /* Name, flags and down-channel count are not consumed by this reader.
          * Keep signature, up-count, base/size and both offsets freshly read. */
-        if(!bytes_read(desc+4,d,sizeof(d)))goto fail;
+        if(!rtt_read(s,desc+4,d,sizeof(d)))goto fail;
         uint32_t base=u32(d),size=u32(d+4),wr=u32(d+8),rd=u32(d+12);
         if(size<2 || size>65536 || wr>=size || rd>=size || !memory(base,size,true))goto fail;
         if(s->rtt_pending) {
@@ -490,7 +548,7 @@ static bool rtt_run(subscription_t *s,unsigned id) {
         unsigned n=s->rtt_bytes-s->rtt_cursor;
         if(n>16)n=16;
         if(n>s->rtt_size-at)n=s->rtt_size-at;
-        if(!bytes_read(s->rtt_base+at,s->pending+s->rtt_cursor,n))goto fail;
+        if(!rtt_read(s,s->rtt_base+at,s->pending+s->rtt_cursor,n))goto fail;
         s->rtt_cursor+=n;
         if(s->rtt_cursor==s->rtt_bytes) {s->rtt_pending=true;s->rtt_phase=3;}
         return false;
@@ -506,6 +564,9 @@ publish:;
     emit(s,id,esp_timer_get_time(),0,payload,16+s->rtt_bytes,0,0);
     s->frames+=s->rtt_bytes; s->seq++; s->rtt_pending=false;s->rtt_commit_unknown=false;s->rtt_phase=0;return true;
 fail:
+    if(!s->rtt_fault_retry && clear_read_fault(failure_before)) {
+        s->rtt_fault_retry=1;return false; /* yield, retain this read phase */
+    }
     s->failures++; s->state=3; s->reason=3;s->rtt_phase=0;return true;
 }
 bool rmlink_capture_run(void) {
@@ -535,6 +596,7 @@ bool rmlink_capture_run(void) {
             s->next+=(missed+1)*s->period;
             s->started=now; s->timestamp=now; s->reused=false; s->valid=0; memset(s->values,0,sizeof(s->values));
             s->read_retry=0;
+            s->read_fault_retry=false;s->rtt_fault_retry=0;
             s->cache_count=0;s->resolved=0;
             memset(s->cache_map,0,sizeof(s->cache_map));
             memcpy(s->resolve_address,s->address,sizeof(s->address));
@@ -559,6 +621,11 @@ bool rmlink_capture_run(void) {
             }else { failed=true; }
         }
         if(!static_group && !dynamic_step(s))failed=true;
+        if(failed && !s->read_retry && clear_read_fault(failure_before)) {
+            /* Do not double a turn's eight-word bound. Drop the failed reply,
+             * let queued control run, then repeat this addressed read chunk. */
+            s->read_retry=1;s->read_fault_retry=true;timer_refresh();return true;
+        }
         if(failed && !s->read_retry && u32(s_failure)!=failure_before &&
            s_failure[21]==2 && !s_failure[22] &&
            (s_failure[20]==1 || s_failure[20]==2) && s_failure[19]<s_failure[18]) {
@@ -569,7 +636,11 @@ bool rmlink_capture_run(void) {
             timer_refresh();return true;
         }
         if(retry_pending) {
-            if(failed)s_read_retry_exhausted++;else s_read_retry_recovered++;
+            if(s->read_fault_retry) {
+                if(failed)s_fault_exhausted++;else s_fault_recovered++;
+            } else {
+                if(failed)s_read_retry_exhausted++;else s_read_retry_recovered++;
+            }
             s->read_retry=2;
         }
         if(failed)s->failures++;
@@ -632,7 +703,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
         /* No raw AP state escapes this command. The executor invalidates it
          * before each queued job, including accesses between capture chunks.
          * Unlike control begin/end, this never pauses sampling across Wi-Fi. */
-        if(!bytes_read(addr,out+3,n)) {out[2]=5;return 3;}
+        if(!bytes_read_recover(addr,out+3,n)) {out[2]=5;return 3;}
         out[2]=0;return n+3;
     }
 #ifndef RMLINK_HOST_TEST
@@ -644,8 +715,12 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==17) {
         /* A single independently addressed read on this same executor. State
          * monitoring must not hold the sampling barrier across Wi-Fi RTTs. */
-        uint32_t dhcsr;
-        if(!word(0xe000edf0u,&dhcsr,false)) {out[2]=5;return 3;}
+        uint32_t dhcsr,before=u32(s_failure);
+        if(!word(0xe000edf0u,&dhcsr,false)) {
+            if(!clear_read_fault(before)) {out[2]=5;return 3;}
+            if(!word(0xe000edf0u,&dhcsr,false)) {s_fault_exhausted++;out[2]=5;return 3;}
+            s_fault_recovered++;
+        }
         out[2]=0;w32(out+3,dhcsr);return 7;
     }
     if(r[1]==16) { /* USB_PULL: frame_id32, offset16; duplicate reads are stable. */

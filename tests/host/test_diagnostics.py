@@ -1,9 +1,15 @@
 import struct
 import unittest
-from rmlink_connector.diagnostics import decode_health,decode_performance,decode_read_recovery,decode_clock_header,summarize_clock
+from rmlink_connector.diagnostics import decode_health,decode_performance,decode_read_recovery,decode_fault_recovery,decode_clock_header,summarize_clock
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_read_fault_recovery_preserves_unknown_writes_and_legacy_firmware(self):
+        packet=b'\x80\x0d\0\x01'+struct.pack('<5IQ',3,1,1,4,0xf0000080,2**40)
+        self.assertEqual(decode_fault_recovery(packet),dict(supported=True,attempts=3,recovered=1,
+            exhausted=1,write_faults_not_replayed=4,last_dp_ctrl_stat=0xf0000080,last_fault_uptime_us=2**40))
+        self.assertEqual(decode_fault_recovery(b'\x80\x0d\x01'),{'supported':False})
+        with self.assertRaises(ValueError):decode_fault_recovery(packet[:-1])
     def test_read_deadline_recovery_is_separate_from_io_failure(self):
         packet=b'\x80\x0c\0\x01'+struct.pack('<3IQ',3,1,1,2**40)
         self.assertEqual(decode_read_recovery(packet),dict(supported=True,attempts=3,recovered=1,

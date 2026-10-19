@@ -322,6 +322,13 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         out[2]=2;return 3;
 #endif
     }
+    if (r[1] == 13) {
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        out[2]=0;rmlink_capture_fault_recovery_stats(out+3);return 32;
+#else
+        out[2]=2;return 3;
+#endif
+    }
     if (r[1] == 14) { /* Probe-only diagnostic switch; default off. */
 #if CONFIG_DEBUG_PROBE_IFACE_SWD
         if(len==3 && r[2]<=1) {rmlink_capture_profile_enable(r[2]);out[2]=0;}

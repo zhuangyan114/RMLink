@@ -47,6 +47,16 @@ EP0 vendor request `bRequest=0x22`：
 
 主机取消时先结束设备推流、AbortPipe，等待同步读取线程退出，再恢复 alternate 0 和关闭句柄。打开流期间取消也必须等 EP0 操作结束后清理。空闲读取超时检查设备状态；设备已经停止时将错误传给录制，不能无限显示等待。
 
+## 只读 SWD 错误恢复
+
+长测另外暴露了 SWD 读访问 FAULT。读取 DP CTRL/STAT 后确认 WDATAERR，说明写数据阶段校验／帧错误或已接收写入被丢弃；这个标志本身不能证明具体接线或软件时序原因。
+
+只读采集现在只对单独的 WDATAERR 做一次有界恢复：在原 SWD 执行器和 owner 内，以总计 500 µs 为上限读取状态并向 DP ABORT 写 WDERRCLR；随后让出执行器，下一轮重新设置 SELECT、CSW、TAR，重读失败的片段。部分失败回复不会合并进有效样本，仍保持每轮最多 8 个目标数据读取。每帧／RTT 只读阶段最多重试一次，重复故障、非法地址 STICKYERR、显式 Abort 等仍停止并保留错误。
+
+RTT 的 RdOff 实际写入失败可能已经生效，因此不自动清除并重放该写入。保留未知提交状态，明确恢复时先重读描述符核对，避免重复消费。恢复行为不等价于验证了布线和更高 SWD 时钟。
+
+`0x80/13` 返回 32 字节：三字节成功前缀、版本 1，以及 LE `attempts32, recovered32, exhausted32, write_faults_not_replayed32, last_dp_ctrl_stat32, last_fault_uptime_us64`。公共健康接口以可选字段 `read_fault_recovery` 暴露；旧固件返回 `supported=false`。原始 I/O 失败记录仍保留，成功恢复也不会抹掉传输异常。
+
 ## 复现
 
 普通用户更新匹配的 0.3.3 客户端和固件后，选择 USB 传输，原有 Timeline／Watch／RTT API 自动采用新通道。
@@ -62,7 +72,10 @@ python scripts/benchmark_usb_stream.py --mib 8 --rounds 3 --output artifacts/tes
 
 ```powershell
 python scripts/verify_usb_backpressure.py --fixture-confirmed --output artifacts/tests/usb-pause.json
+python scripts/verify_read_fault_recovery.py --fixture-confirmed --output artifacts/tests/usb-read-recovery.json
 python scripts/verify_subscription_soak.py --transport usb --seconds 900 --pointer-depth 3 --independent --direct-fields 5 --period-us 1000 --output artifacts/tests/usb-soak.json
 ```
 
-这些脚本不更改物理 SWD 接线；测试条件仍是请求 4 MHz、未仪表测量 SWCLK、未连接 NRST。更高 SWD 频率等用户自制 PCB 完成后另行验收。
+错误恢复脚本只在 DP SELECT 寄存器写入中故意使用错误校验位，确认标志后验证自动恢复，不对应用数据或 Flash 注入错误。实板 10 次采集、1 次内存读、1 次核心状态读共 12 次恢复通过，Flash 和选项字节未变。
+
+这些脚本不更改物理 SWD 接线；测试条件仍是请求 4 MHz、未仪表测量 SWCLK，未使用或验收物理 NRST。更高 SWD 频率等用户自制 PCB 完成后另行验收。

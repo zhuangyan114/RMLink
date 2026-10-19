@@ -5,20 +5,33 @@
 uint64_t host_clock=1000000;
 uint8_t host_abort_reason;
 static unsigned deadline_failures;
+static unsigned fault_failures,fault_clear_writes;
+static uint32_t fault_ctrl,fault_mask=0x80;
 static uint8_t injected_status=2,injected_abort=2;
 static uint32_t ram[5120], reads, writes, commands;
 static uint32_t dp_select,ap_csw,select_writes,csw_writes;
 static uint32_t operation_us=20;
 static bool fail;
 static bool fail_after_write;
+static bool fail_after_write_fault;
 uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
     assert(r[0]==5 && r[1]==0);
     commands++;
     host_clock+=operation_us;
     out[0]=5; out[1]=fail?0:r[2]; out[2]=fail?4:1;
     if(fail) {dp_select=0x10;ap_csw=0;return 3;}
+    if(r[2]==1 && r[3]==6) {memcpy(out+3,&fault_ctrl,4);return 7;}
+    if(r[2]==1 && r[3]==0) {
+        uint32_t value;memcpy(&value,r+4,4);assert(value==8);
+        fault_ctrl&=~0x80u;fault_clear_writes++;return 3;
+    }
+    if(fault_ctrl&0xb2){out[1]=0;out[2]=4;return 3;}
     unsigned pos=3,n=3;uint32_t address=0;
     for(unsigned i=0;i<r[2];i++) {
+        if(fault_failures && i+1==r[2]) {
+            fault_failures--;fault_ctrl=fault_mask;host_abort_reason=0;
+            out[1]=i;out[2]=4;dp_select=0x10;ap_csw=0;return n;
+        }
         if(deadline_failures && i+1==r[2]) {
             deadline_failures--;host_abort_reason=injected_abort;host_clock+=2100;
             out[1]=i;out[2]=injected_status;dp_select=0x10;ap_csw=0;return n;
@@ -35,7 +48,7 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
             else if(flags==1){assert(dp_select==0);ap_csw=value;csw_writes++;}
             else if(flags==5){assert(dp_select==0 && ap_csw==0x23000052);address=value;}
             else if(flags==13){assert(dp_select==0 && ap_csw==0x23000052 && address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;
-                if(fail_after_write){dp_select=0x10;ap_csw=0;host_abort_reason=2;out[1]=0;out[2]=2;return 3;}}
+                if(fail_after_write || fail_after_write_fault){dp_select=0x10;ap_csw=0;host_abort_reason=fail_after_write?2:0;out[1]=0;out[2]=fail_after_write?2:4;if(fail_after_write_fault)fault_ctrl=0x80;return 3;}}
             else assert(false);
         }
     }
@@ -208,8 +221,62 @@ static void snapshot_read_test(void) {
     rmlink_capture_closed(1,7);owner.transport=2;
 }
 
+static uint32_t fault_stat(unsigned offset) {
+    uint8_t stats[29];uint32_t value;rmlink_capture_fault_recovery_stats(stats);memcpy(&value,stats+offset,4);return value;
+}
+static void read_fault_recovery_test(void) {
+    uint8_t frame[384];uint32_t value;
+    host_abort_reason=0;
+    for(unsigned mode=0;mode<3;mode++) {
+        prepare(1,1,8);for(unsigned i=0;i<8;i++){address(1,i,0x20000100+i*8);ram[64+i*2]=100+i;}
+        action(3,1);fault_mask=mode==2?0x20:0x80;fault_failures=mode==1?2:1;
+        unsigned cleared=fault_clear_writes,before=reads;uint32_t attempted=fault_stat(1),recovered=fault_stat(5),exhausted=fault_stat(9);
+        assert(rmlink_capture_run() && reads-before==7);
+        if(mode==2) {
+            assert(rmlink_capture_take(frame,sizeof(frame),0)==88 && (frame[52]&1));
+            assert(fault_stat(1)==attempted && fault_clear_writes==cleared); /* invalid-address fault is retained */
+        } else {
+            assert(!rmlink_capture_take(frame,sizeof(frame),0) && fault_clear_writes==cleared+1);
+            ram[64]=999;before=reads;unsigned sel=select_writes;
+            assert(rmlink_capture_run() && reads-before==(mode?7:8) && select_writes==sel+1);
+            assert(rmlink_capture_take(frame,sizeof(frame),0)==88);
+            assert(fault_stat(1)==attempted+1 && fault_clear_writes==cleared+1);
+            if(mode)assert((frame[52]&1) && fault_stat(9)==exhausted+1);
+            else {assert(!(frame[52]&1) && fault_stat(5)==recovered+1);memcpy(&value,frame+56,4);assert(value==999);}
+        }
+        rmlink_capture_closed(2,7);fault_ctrl=0;fault_failures=0;host_abort_reason=0;
+    }
+    fault_mask=0x80;
+    /* Status reads also recover without changing the core or application. */
+    uint8_t state[]={0x81,17};fault_failures=1;unsigned cleared=fault_clear_writes;
+    assert(command(state,sizeof(state))==7 && out[2]==0 && fault_clear_writes==cleared+1);
+    rmlink_capture_closed(2,7);fault_ctrl=0;host_abort_reason=0;
+    /* The fixed 500 us DP-clear budget cannot turn into an unbounded wait. */
+    prepare(1,1,1);address(1,0,0x20000100);action(3,1);fault_failures=1;operation_us=600;cleared=fault_clear_writes;
+    assert(rmlink_capture_run() && rmlink_capture_take(frame,sizeof(frame),0)==60 && (frame[52]&1));
+    assert(fault_clear_writes==cleared);operation_us=20;fault_ctrl=0;rmlink_capture_closed(2,7);
+    /* A failed RTT header read yields and resumes its read phase once. */
+    memcpy(ram,"SEGGER RTT",10);ram[4]=1;ram[5]=0;ram[7]=0x20000200;ram[8]=64;ram[9]=16;ram[10]=0;
+    for(unsigned i=0;i<16;i++)((uint8_t*)&ram[128])[i]=i;
+    prepare(3,3,1);address(3,0,0x20000000);action(3,3);fault_failures=1;
+    unsigned read_before=reads;uint32_t recovered=fault_stat(5);
+    assert(rmlink_capture_run() && reads-read_before==4 && !rmlink_capture_take(frame,sizeof(frame),0));
+    assert(next_record(frame)==88 && fault_stat(5)==recovered+1 && ram[10]==16);
+    rmlink_capture_closed(2,7);fault_ctrl=0;host_abort_reason=0;
+    /* A physically completed RdOff write with a FAULT response is never
+     * replayed. Explicit resume reconciles the descriptor after DP repair. */
+    ram[10]=0;prepare(3,3,1);address(3,0,0x20000000);action(3,3);fail_after_write_fault=true;
+    unsigned write_before=writes;cleared=fault_clear_writes;uint32_t not_replayed=fault_stat(13);
+    for(unsigned i=0;i<16;i++) {assert(rmlink_capture_run());action(7,3);if(out[3]==3)break;}
+    assert(out[3]==3 && out[50]==3 && writes==write_before+1 && ram[10]==16);
+    assert(fault_stat(13)==not_replayed+1 && fault_clear_writes==cleared && !rmlink_capture_take(frame,sizeof(frame),0));
+    fail_after_write_fault=false;fault_ctrl=0;action(6,3);
+    assert(next_record(frame)==88 && writes==write_before+1);
+    rmlink_capture_closed(2,7);host_abort_reason=0;
+}
+
 int main(void) {
-    assert(rmlink_capture_init(NULL)==0);memap_cache_test();bounded_read_recovery_test();independent_pointer_prefetch_test();
+    assert(rmlink_capture_init(NULL)==0);memap_cache_test();bounded_read_recovery_test();read_fault_recovery_test();independent_pointer_prefetch_test();
     snapshot_read_test();
     memset(ram,0,sizeof(ram));reads=0;writes=0;commands=0;
     uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};

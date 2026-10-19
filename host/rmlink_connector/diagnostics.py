@@ -3,6 +3,14 @@ import statistics
 import struct
 
 
+def decode_fault_recovery(reply):
+    if len(reply)>=3 and reply[:2]==b'\x80\x0d' and reply[2]:return {'supported':False}
+    if len(reply)!=32 or reply[:4]!=b'\x80\x0d\0\x01':raise ValueError('Malformed read fault recovery snapshot')
+    attempts,recovered,exhausted,writes,status,at=struct.unpack_from('<5IQ',reply,4)
+    return dict(supported=True,attempts=attempts,recovered=recovered,exhausted=exhausted,
+        write_faults_not_replayed=writes,last_dp_ctrl_stat=status,last_fault_uptime_us=at)
+
+
 def decode_read_recovery(reply):
     if len(reply)>=3 and reply[:2]==b'\x80\x0c' and reply[2]:return {'supported':False}
     if len(reply)!=24 or reply[:4]!=b'\x80\x0c\0\x01':raise ValueError('Malformed read recovery snapshot')
