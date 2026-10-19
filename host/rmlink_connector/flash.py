@@ -1,7 +1,7 @@
 """One-owner, staged main-Flash programming using a documented target RAM loader.
 
-F103C8 full-page binary images only. No option-byte writes or uncertain replay.
-The independently built MIT algorithm is pinned in host/algorithms.
+Shared-package complete erase-sector images. No option-byte writes or uncertain replay.
+Independently built MIT algorithms are pinned in host/algorithms.
 """
 import asyncio
 import hashlib
@@ -9,8 +9,7 @@ import secrets
 import struct
 import time
 import zlib
-from pathlib import Path
-import sys
+from .target_pack import PACK,PACK_TAG,resolve_target,flash_sectors,algorithm_bytes
 
 BASE=0x20000000
 BUFFER=0x20003c00
@@ -36,6 +35,12 @@ class FlashProgrammer:
         self.busy=False;self.cancelled=False;self.backend='auto';self.verify_on_host=False
         self.progress={'phase':'idle','programmed_bytes':0,'erased_pages':0,'verified':False}
 
+    @property
+    def profile(self):return getattr(self.target,'profile',None) or resolve_target()
+    @property
+    def metadata(self):return PACK['algorithms'][self.profile['algorithm']]
+    def option_registers(self):return self.profile['optionRegisters']
+
     def stage(self,body):
         if self.busy:raise ValueError('Flash operation already running')
         action=body.get('action')
@@ -44,15 +49,18 @@ class FlashProgrammer:
             if backend not in ('auto','host','probe'):raise ValueError('Flash backend must be auto, host or probe')
             verify_on_host=body.get('verify_on_host',False)
             if type(verify_on_host) is not bool:raise ValueError('verify_on_host must be boolean')
+            reset_after=body.get('reset_after',True)
+            if type(reset_after) is not bool:raise ValueError('reset_after must be boolean')
             address=body.get('address',0x08000000);length=body.get('byte_length');digest=body.get('sha256')
-            if type(address) is not int or type(length) is not int or address%PAGE or length%PAGE or not 1<=length<=65536 or not 0x08000000<=address or address+length>0x08010000:
-                raise ValueError('F103C8 main-Flash page-aligned binary image required')
+            flash_sectors(self.profile,address,length)
             if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest):raise ValueError('sha256 required')
             self.image=bytearray(length);self.received=bytearray(length);self.address=address;self.digest=digest;self.cancelled=False;self.backend=backend;self.verify_on_host=verify_on_host
+            self.staged_profile=self.profile['name']
+            self.reset_after=reset_after
             self.progress={'phase':'staging','programmed_bytes':0,'erased_pages':0,'verified':False,
-                           'address':address,'byte_length':length,'image_sha256':digest,
+                           'address':address,'byte_length':length,'image_sha256':digest,'target':self.staged_profile,'pack_tag':PACK_TAG,
                            'host_verified':False,'probe_verified':False,'verification':'pending'}
-            return {'staged_bytes':length,'address':address,'page_bytes':PAGE}
+            return {'staged_bytes':length,'address':address,'page_bytes':self.metadata['pageSize'],'target':self.staged_profile}
         if action=='chunk':
             if self.progress['phase']!='staging':raise ValueError('Begin a new upload before staging data')
             offset=body.get('offset');data=bytes.fromhex(body.get('data',''))
@@ -74,11 +82,13 @@ class FlashProgrammer:
         if not self.busy:self.progress['phase']='cancelled'
         return {'cancel_requested':True,'phase':self.progress['phase']}
 
-    async def invoke(self,entry,args,timeout=3):
+    async def invoke(self,entry,args,timeout=None):
         self.check_cancel();target=self.target
+        loader=self.profile['loader'];base=loader['address'];bkpt=base+self.metadata['entries']['bkpt']
+        timeout=timeout or max(self.profile['eraseTimeoutMs'],self.profile['programTimeoutMs'])/1000
         await target.write_word(0xe000edf0,0xa05f0003)
         await target.poll_word(0xe000edf0,0x20000,0x20000)
-        await target.write_registers(list(enumerate(args))+[(9,BASE),(13,STACK),(14,BASE+0x501),(15,BASE+entry+1),(16,0x01000000)])
+        await target.write_registers(list(enumerate(args))+[(9,self.metadata['staticBase'] or base),(13,loader['stack']),(14,bkpt+1),(15,base+entry+1),(16,0x01000000)])
         await target.write_word(0xe000ed30,0x1f) # Clear old stop reasons, not target Flash.
         await target.write_word(0xe000edf0,0xa05f0001)
         deadline=asyncio.get_running_loop().time()+timeout
@@ -89,16 +99,12 @@ class FlashProgrammer:
             if asyncio.get_running_loop().time()>deadline:raise TimeoutError('RAM Flash algorithm deadline')
             await asyncio.sleep(.001)
         pc,result=await target.read_registers([15,0])
-        if pc&~1 not in (BASE+0x500,BASE+0x502):raise RuntimeError(f'Unexpected algorithm stop PC {pc:#x}')
+        if pc&~1 not in (bkpt,bkpt+2):raise RuntimeError(f'Unexpected algorithm stop PC {pc:#x}')
         if result:raise RuntimeError(f'Flash algorithm returned {result} at entry {entry:#x}')
 
     def code(self):
         if self.algorithm is not None:return self.algorithm
-        if getattr(sys,'frozen',False):path=Path(sys._MEIPASS)/'rmlink_algorithms/stm32f103c8.bin'
-        else:path=Path(__file__).resolve().parents[2]/'artifacts/build/flash-algorithms/stm32f103c8.bin'
-        data=path.read_bytes()
-        if not 0x510<=len(data)<=0x3c00 or len(data)%4:raise ValueError('Built-in Flash algorithm image invalid')
-        return data
+        return algorithm_bytes(self.profile)
 
     async def probe_command(self,sub,payload=b''):
         reply=await self.target.packet(bytes([0x82,sub])+payload)
@@ -126,13 +132,14 @@ class FlashProgrammer:
         created=commit_sent=False;terminal=False;clock=time.perf_counter();timings={}
         try:
             caps=await self.probe_command(0)
-            if len(caps)!=11 or caps[:2]!=b'\x01\x01' or int.from_bytes(caps[2:6],'little')!=65536 or int.from_bytes(caps[6:8],'little')!=PAGE:
+            if len(caps)!=11 or caps[0] not in (1,2) or caps[1]!=self.profile['profileId'] or int.from_bytes(caps[2:6],'little')!=self.profile['flashSize'] or (int.from_bytes(caps[6:8],'little') or 65536)!=self.metadata['pageSize']:
                 raise ValueError('Unsupported buffered Flash capabilities')
             chunk=int.from_bytes(caps[8:10],'little')
             if not 1<=chunk<=target.broker.packet_size-16:raise ValueError('Probe upload chunk capacity')
-            self.progress['erase_strategy']='mass' if caps[10]&8 and self.address==0x08000000 and len(self.image)==65536 else 'page'
-            options=[await target.read_word(0x1ffff800+i*4) for i in range(4)]
-            begin=await target.packet(b'\x82\x01'+struct.pack('<III',operation,self.address,len(self.image))+bytes.fromhex(self.digest))
+            if not self.reset_after and not caps[10]&16:raise ValueError('Probe firmware upgrade required for sparse Flash jobs')
+            self.progress['erase_strategy']='mass' if caps[10]&8 and self.address==self.profile['flashBase'] and len(self.image)==self.profile['flashSize'] else 'page' if self.profile['profileId']==1 else 'sector'
+            options=[await target.read_word(a) for a in self.option_registers()]
+            begin=await target.packet(b'\x82\x01'+struct.pack('<III',operation,self.address,len(self.image))+bytes.fromhex(self.digest)+(bytes([0xa5,int(self.reset_after)]) if caps[10]&16 else b''))
             if begin==b'\x82\x01\x04':raise ProbeImageMemoryUnavailable('Probe image cache memory unavailable')
             if begin!=b'\x82\x01\0':raise ConnectionError('Probe Flash BEGIN failed: '+begin.hex())
             created=True
@@ -154,7 +161,7 @@ class FlashProgrammer:
             # Set before sending: a lost response does not mean commit did not run.
             self.progress['write_completion_may_be_unknown']=True
             await self.probe_command(4,struct.pack('<I',operation))
-            target.breakpoints.clear();deadline=asyncio.get_running_loop().time()+150;cancel_sent=False
+            target.breakpoints.clear();deadline=asyncio.get_running_loop().time()+(150 if self.profile['profileId']==1 else 630);cancel_sent=False
             while True:
                 status=await self.probe_status(operation)
                 if status['probe_state'] in (10,11,12):terminal=True;break
@@ -186,7 +193,7 @@ class FlashProgrammer:
                 timings['host_verify_ms']=(time.perf_counter()-start)*1000
                 self.progress.update(host_verified=True,verification='probe_and_host')
             start=time.perf_counter()
-            if [await target.read_word(0x1ffff800+i*4) for i in range(4)]!=options:raise RuntimeError('Option bytes changed unexpectedly')
+            if [await target.read_word(a) for a in self.option_registers()]!=options:raise RuntimeError('Option bytes changed unexpectedly')
             timings['host_finalize_ms']=(time.perf_counter()-start)*1000;timings['enhanced_total_ms']=(time.perf_counter()-clock)*1000
             self.progress.update(phase='complete',verified=True,sha256=self.digest,option_bytes_unchanged=True,
                                  write_completion_may_be_unknown=False,timings=timings)
@@ -208,6 +215,7 @@ class FlashProgrammer:
         if self.busy or self.image is None or not all(self.received):raise ValueError('Complete staged image required')
         if self.progress['phase'] in ('complete','failed','cancelled'):raise ValueError('Begin a new upload; Flash commit is never replayed')
         if hashlib.sha256(self.image).hexdigest()!=self.digest:raise ValueError('Staged image hash mismatch')
+        if self.profile['name']!=self.staged_profile:raise ValueError('Target changed after image staging')
         target=self.target
         self.busy=True;self.cancelled=False;self.progress['phase']='preflight'
         modified=False
@@ -226,36 +234,46 @@ class FlashProgrammer:
                         self.progress['probe_fallback']='image_cache_memory_unavailable'
                 code=self.code()
                 self.progress['backend']='host'
-                self.progress['erase_strategy']='page'
-                if await target.read_word(0xe0042000)&0xfff!=0x410 or await target.read_word(0x1ffff7e0)&0xffff!=64:
-                    raise ValueError('Flash preflight requires STM32F103C8 64 KiB')
-                options=[await target.read_word(0x1ffff800+i*4) for i in range(4)]
+                self.progress['erase_strategy']='sector'
+                p=self.profile['preflight'];loader=self.profile['loader'];entries=self.metadata['entries'];page=self.metadata['pageSize']
+                capacity=await target.read_word(p['flashSizeRegisterAddress']&~3)
+                capacity=(capacity>>((p['flashSizeRegisterAddress']&3)*8))&0xffff
+                if await target.read_word(p['idcodeAddress'])&0xfff!=p['deviceId'] or capacity!=p['expectedFlashSizeKiB']:
+                    raise ValueError('Flash identity/capacity mismatch for '+self.profile['name'])
+                options=[await target.read_word(a) for a in self.option_registers()]
                 await target.write_word(0xe000edf0,0xa05f0003);await target.poll_word(0xe000edf0,0x20000,0x20000)
                 for slot in list(target.breakpoints):await target.write_word(0xe0002008+4*slot,0)
                 target.breakpoints.clear()
-                await target.write_range(BASE,code)
-                await self.invoke(0,[self.address,8000000,2])
-                for offset in range(0,len(self.image),PAGE):
+                # TargetEngine writes are word aligned and bounded; split the
+                # loader/buffer transfers without creating another SWD owner.
+                for at in range(0,len(code),4096):await target.write_range(loader['address']+at,code[at:at+4096])
+                await self.invoke(entries['init'],[self.address,8000000,2])
+                for sector in flash_sectors(self.profile,self.address,len(self.image)):
                     self.check_cancel();self.progress['phase']='erase';modified=True
-                    await self.invoke(0x200,[self.address+offset]);self.progress['erased_pages']+=1
-                    self.check_cancel();self.progress['phase']='program'
-                    data=bytes(self.image[offset:offset+PAGE]);await target.write_range(BUFFER,data)
-                    await self.invoke(0x300,[self.address+offset,len(data),BUFFER])
-                    self.progress['programmed_bytes']+=len(data)
-                    self.progress['phase']='verify';await self.invoke(0x400,[self.address+offset,len(data),BUFFER])
-                await self.invoke(0x100,[2])
+                    await self.invoke(entries['eraseSector'],[sector['address']]);self.progress['erased_pages']+=1
+                    offset=sector['address']-self.address
+                    for at in range(offset,offset+sector['size'],page):
+                        self.check_cancel();self.progress['phase']='program'
+                        data=bytes(self.image[at:at+page]);buffer=loader['buffer']
+                        for part in range(0,len(data),4096):await target.write_range(buffer+part,data[part:part+4096])
+                        await self.invoke(entries['programPage'],[self.address+at,len(data),buffer])
+                        self.progress['programmed_bytes']+=len(data)
+                        if 'verify' in entries:
+                            self.progress['phase']='verify';await self.invoke(entries['verify'],[self.address+at,len(data),buffer])
+                await self.invoke(entries['uninit'],[2])
                 # Independent host-side byte verification as well as the RAM algorithm.
                 digest=hashlib.sha256()
                 for offset in range(0,len(self.image),4096):
                     self.check_cancel();n=min(4096,len(self.image)-offset)
                     result=await target.read_range(self.address+offset,n);digest.update(bytes.fromhex(result['data']))
                 if digest.hexdigest()!=self.digest:raise RuntimeError('Independent Flash verification failed')
-                if [await target.read_word(0x1ffff800+i*4) for i in range(4)]!=options:raise RuntimeError('Option bytes changed unexpectedly')
+                if [await target.read_word(a) for a in self.option_registers()]!=options:raise RuntimeError('Option bytes changed unexpectedly')
                 self.progress.update(verified=True,sha256=self.digest,option_bytes_unchanged=True,phase='reset',
                                      host_verified=True,verification='host_sha256')
-                await target.write_word(0xe000ed0c,0x05fa0004)
-                await asyncio.sleep(.02)
-                await target.write_word(0xe000edf0,0xa05f0001)
+                if self.reset_after:
+                    await target.write_word(0xe000ed0c,0x05fa0004)
+                    await asyncio.sleep(.02)
+                    await target.write_word(0xe000edf0,0xa05f0001)
                 self.progress['phase']='complete'
                 return dict(self.progress,address=self.address,byte_length=len(self.image),original_restored=False)
         except BaseException as error:

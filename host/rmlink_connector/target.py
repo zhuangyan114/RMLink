@@ -6,6 +6,7 @@ import sys
 import time
 from .diagnostics import decode_clock_header,summarize_clock
 from contextlib import asynccontextmanager
+from .target_pack import PACK_TAG, resolve_target, contains
 
 DEFAULT_CLOCK_HZ=4_000_000
 
@@ -24,6 +25,7 @@ class TargetEngine:
         self.breakpoints={}
         self.capture_features=0
         self.packet_count=0
+        self.profile=resolve_target()
 
     async def packet(self, request, priority='control'):
         self.packet_count+=1
@@ -50,13 +52,14 @@ class TargetEngine:
             raise TargetAccessError('DAP transfer incomplete: '+reply.hex(),code,reply[1] if len(reply)>1 else 0)
         return list(struct.unpack('<'+'I'*reads,reply[3:]))
 
-    async def connect(self, clock_hz=DEFAULT_CLOCK_HZ):
+    async def connect(self, clock_hz=DEFAULT_CLOCK_HZ, device=None):
         if type(clock_hz) is not int or not 1000<=clock_hz<=10000000: raise ValueError('clock_hz range')
+        profile=resolve_target(device)
         async with self.lock:
             if self.broker.owner not in (None,self.source):
                 raise TargetAccessError('Target is busy in another debug session; end that session and retry. No Flash operation was started.','TargetBusy')
             if self.connected:
-                if clock_hz!=self.clock:raise ValueError('Already connected at a different clock; open a new target session')
+                if clock_hz!=self.clock or profile['name']!=self.profile['name']:raise ValueError('Already connected to a different target/clock; open a new target session')
                 return {'connected':True,'clock_hz':self.clock}
             try:
                 await self.exact(b'\x11'+struct.pack('<I',clock_hz),b'\x11\x00')
@@ -73,13 +76,24 @@ class TargetEngine:
                     await asyncio.sleep(.01)
                 else: raise ConnectionError('Debug power ACK timeout')
                 cpuid=await self.read_word(0xe000ed00)
-                device_id=await self.read_word(0xe0042000)
-                if cpuid!=0x411fc231 or device_id&0xfff!=0x410:
-                    raise ValueError('Enhanced profile currently supports STM32F103 medium-density Cortex-M3 only')
+                preflight=profile['preflight']
+                device_id=await self.read_word(preflight['idcodeAddress'])
+                if (cpuid>>4)&0xfff!=profile['corePart'] or device_id&0xfff!=preflight['deviceId']:
+                    raise ValueError('Target identity does not match '+profile['name'])
                 capabilities=await self.vendor(0)
                 self.capture_features=int.from_bytes(capabilities[17:21],'little') if len(capabilities)>=21 else 0
+                if self.capture_features&2048:
+                    if dp!=profile['dpIdcode']:raise ValueError('Target debug port identity mismatch')
+                    raw=await self.read_word(preflight['flashSizeRegisterAddress']&~3)
+                    capacity=(raw>>((preflight['flashSizeRegisterAddress']&3)*8))&0xffff
+                    if capacity!=preflight['expectedFlashSizeKiB']:raise ValueError('Target Flash capacity mismatch')
+                    selected=await self.vendor(21,struct.pack('<BI',profile['profileId'],PACK_TAG))
+                    if selected!=struct.pack('<BI',profile['profileId'],PACK_TAG):raise ValueError('Probe target package mismatch')
+                elif profile['profileId']!=1:
+                    raise ValueError('Probe firmware upgrade required for shared target packages')
+                self.profile=profile
                 self.connected=True; self.clock=clock_hz
-                return {'connected':True,'clock_hz':clock_hz,'dp_idcode':dp,'cpuid':cpuid,'device_id':device_id,'profile':'stm32f103-medium-density'}
+                return {'connected':True,'clock_hz':clock_hz,'dp_idcode':dp,'cpuid':cpuid,'device_id':device_id,'profile':profile['name'],'pack_tag':PACK_TAG}
             except BaseException:
                 # Keep this source reusable. Broker.release would permanently close it.
                 try:
@@ -161,12 +175,10 @@ class TargetEngine:
             if asyncio.get_running_loop().time()>=deadline:raise TimeoutError('Target status deadline')
             await asyncio.sleep(.001)
 
-    @staticmethod
-    def check_range(address,size):
+    def check_range(self,address,size):
         if type(address) is not int or type(size) is not int or address<0 or size<1 or size>4096 or address+size>2**32:
             raise ValueError('Memory range invalid')
-        if (address%4 or size%4) and not (
-            0x20000000<=address and address+size<=0x20005000 or 0x08000000<=address and address+size<=0x08010000):
+        if (address%4 or size%4) and not contains(self.profile,address&~3,((address+size+3)&~3)-(address&~3)):
             raise ValueError('Subword reads require known RAM/Flash; peripheral widening is not automatic')
 
     async def read_batch(self,reads):
@@ -185,19 +197,25 @@ class TargetEngine:
         raw=struct.pack('<'+'I'*len(values),*values)
         return {'reads':[{'address':a,'data':raw[offset:offset+n].hex()} for a,n,offset in ranges]}
 
-    @classmethod
-    def check_reads(cls,reads):
+    def check_reads(self,reads):
         if not isinstance(reads,list) or not 1<=len(reads)<=32 or any(not isinstance(r,dict) for r in reads):
             raise ValueError('Expected 1..32 memory ranges')
         if any(type(r.get('byte_length')) is not int or r['byte_length']<1 for r in reads) or sum(r['byte_length'] for r in reads)>4096:
             raise ValueError('Batch byte budget')
         for r in reads:
-            cls.check_range(r.get('address'),r['byte_length'])
+            self.check_range(r.get('address'),r['byte_length'])
+
+    def snapshot_range(self,address,size):
+        return contains(self.profile,address,size)
 
     @staticmethod
-    def snapshot_range(address,size):
-        return (0x20000000<=address and address+size<=0x20005000
-                or 0x08000000<=address and address+size<=0x08010000)
+    def breakpoint_value(address,ctrl):
+        revision=ctrl>>28
+        if revision==0:
+            if address>=0x20000000:raise ValueError('FPB v1 cannot compare this address')
+            return (address&0x1ffffffc)|1|((2 if address&2 else 1)<<30)
+        if revision==1:return (address&0xfffffffe)|1
+        raise ValueError('Unsupported FPB revision')
 
     async def read_snapshot_range(self,address,size):
         data=bytearray();limit=min(128,self.broker.packet_size-3)
@@ -246,16 +264,16 @@ class TargetEngine:
 
     async def run_to_address(self,body):
         requested=body.get('address');reset=body.get('reset',True)
-        if type(requested) is not int or not 0x08000000<=requested<0x08010000 or type(reset) is not bool:
-            raise ValueError('F103 startup requires a Flash address and boolean reset')
+        if type(requested) is not int or not self.profile['flashBase']<=requested<self.profile['flashBase']+self.profile['flashSize'] or type(reset) is not bool:
+            raise ValueError('Startup requires a declared executable address and boolean reset')
         address=requested&~1
         await self.write_word(0xe000edf0,0xa05f0003)
         await self.poll_word(0xe000edf0,0x20000,0x20000)
         ctrl=await self.read_word(0xe0002000)
         count=((ctrl>>4)&15)|((ctrl>>8)&0x70)
-        if ctrl>>28 or not 1<=count<=16:raise ValueError('Unsupported FPB revision/count')
+        if not 1<=count<=32:raise ValueError('Unsupported FPB comparator count')
         saved=[await self.read_word(0xe0002008+4*i) for i in range(count)]
-        comparator=(address&0x1ffffffc)|1|((2 if address&2 else 1)<<30)
+        comparator=self.breakpoint_value(address,ctrl)
         shared=next((i for i,v in enumerate(saved) if v==comparator),None)
         slot=shared if shared is not None else next((i for i,v in enumerate(saved) if not v&1 and i not in self.breakpoints),None)
         if slot is None:raise TargetAccessError('No free FPB comparator for startup','NoFreeBreakpoint')
@@ -292,7 +310,7 @@ class TargetEngine:
                     temporaryBreakpointCount=0 if shared is not None else 1,temporarySlot=slot,ignoredUserSlots=ignored)
 
     async def execute(self, command, body):
-        if command=='connect': return await self.connect(body.get('clock_hz',DEFAULT_CLOCK_HZ))
+        if command=='connect': return await self.connect(body.get('clock_hz',DEFAULT_CLOCK_HZ),body.get('device'))
         if command in ('read_memory','read_batch') and self.capture_features&128:
             reads=([{'address':body.get('address'),'byte_length':body.get('byte_length')}]
                    if command=='read_memory' else body.get('reads'))
@@ -344,16 +362,16 @@ class TargetEngine:
                 return {'index':index,'value':await self.read_word(0xe000edf8)}
             if command=='set_breakpoint':
                 address=body.get('address')
-                if type(address) is not int or address&1 or not 0x08000000<=address<0x08010000:
-                    raise ValueError('F103 FPB requires even Flash address')
+                if type(address) is not int or address&1 or not contains(self.profile,address,2):
+                    raise ValueError('FPB requires an even address in a declared memory window')
                 ctrl=await self.read_word(0xe0002000)
-                if ctrl>>28:raise ValueError('Unsupported FPB revision')
+                comparator=self.breakpoint_value(address,ctrl)
                 count=((ctrl>>4)&15)|((ctrl>>8)&0x70)
                 for index in range(count):
                     if index not in self.breakpoints and not (await self.read_word(0xe0002008+index*4))&1:break
                 else:raise ValueError('No free FPB comparator')
                 await self.write_word(0xe0002000,3)
-                await self.write_word(0xe0002008+index*4,(address&0x1ffffffc)|1|((2 if address&2 else 1)<<30))
+                await self.write_word(0xe0002008+index*4,comparator)
                 self.breakpoints[index]=address
                 return {'id':index,'address':address,'kind':'hardware'}
             if command=='clear_breakpoint':

@@ -10,9 +10,11 @@ from .capture_protocol import FrameDecoder, CompactFrameDecoder, KINDS, decode_r
 from .usb_capture import UsbCaptureReader
 from .recording import Recording
 from .tcp_options import configure_probe_tcp, probe_tcp_info
+from .target_pack import resolve_target,contains
 
 
-def compile_config(body):
+def compile_config(body,profile=None):
+    profile=profile or resolve_target()
     kind=body.get('kind')
     if kind not in KINDS: raise ValueError('kind must be memory_series, memory_snapshot or rtt_stream')
     addresses=body.get('addresses')
@@ -30,12 +32,11 @@ def compile_config(body):
         if not isinstance(offsets,list) or len(offsets)>4 or any(type(v) is not int or not -2**31<=v<2**31 for v in offsets) or type(f.get('byte_length',4)) is not int or f.get('byte_length',4) not in (1,2,4):
             raise ValueError('Bounded pointer offsets and width required')
         if kind=='rtt_stream' and offsets: raise ValueError('RTT requires explicit control block address')
-    if not isinstance(addresses,list) or not 1<=len(addresses)<=32 or any(type(a) is not int or not (
-        0x20000000<=a<=0x20004fff or (kind!='rtt_stream' and 0x08000000<=a<=0x0800ffff)) for a in addresses):
+    if not isinstance(addresses,list) or not 1<=len(addresses)<=32 or any(not contains(profile,a,1,kind=='rtt_stream') for a in addresses):
         raise ValueError('Supported aligned RAM/Flash addresses required')
     for a,f in zip(addresses,fields):
         width=4 if f.get('offsets') else f.get('byte_length',4)
-        if a%width or not (0x20000000<=a and a+width<=0x20005000 or kind!='rtt_stream' and 0x08000000<=a and a+width<=0x08010000):
+        if a%width or not contains(profile,a,width,kind=='rtt_stream'):
             raise ValueError('Field width/alignment/range invalid')
     period=body.get('period_us',5000 if kind=='rtt_stream' else 100000 if kind=='memory_snapshot' else 1000)
     limit=body.get('sample_limit',0); channel=body.get('channel',0)
@@ -171,7 +172,7 @@ class Subscriptions:
         self.error=None; self.task=asyncio.create_task(self._stream())
 
     async def create(self,body):
-        config=compile_config(body)
+        config=compile_config(body,getattr(self.target,'profile',None))
         if not self.target.connected: await self.target.connect()
         async with self.target.lock:
             await self.ensure_stream()

@@ -2,13 +2,16 @@
 #include <stdio.h>
 #include "capture_platform.h"
 #include "rmlink_capture.h"
+#include "rmlink_target.h"
 uint64_t host_clock=1000000;
 uint8_t host_abort_reason;
 static unsigned deadline_failures;
 static unsigned fault_failures,fault_clear_writes;
 static uint32_t fault_ctrl,fault_mask=0x80;
 static uint8_t injected_status=2,injected_abort=2;
-static uint32_t ram[5120], reads, writes, commands;
+static uint32_t ram[81920], reads, writes, commands;
+static unsigned oracle_profile=1;
+static uint32_t oracle_base=0x20000000,oracle_size=20*1024;
 static uint32_t dp_select,ap_csw,select_writes,csw_writes;
 static uint32_t operation_us=20;
 static bool fail;
@@ -40,14 +43,18 @@ uint32_t DAP_ProcessCommand(const uint8_t *r,uint8_t *out) {
         if(flags&2) {
             assert(flags==15 && !(address&3) && dp_select==0 && ap_csw==0x23000052);
             uint32_t observed=0x30003;
-            if(address!=0xe000edf0) {assert(address>=0x20000000 && address<0x20005000);observed=ram[(address-0x20000000)/4];}
+            if(address==0xe000ed00)observed=oracle_profile==4?0x411fc271:oracle_profile==1?0x411fc231:0x410fc241;
+            else if(address==0xe0042000 || address==0x5c001000)observed=oracle_profile==4?0x483:oracle_profile==1?0x410:0x413;
+            else if(address==0x1ffff7e0 || address==0x1fff7a20 || address==0x1ff1e880)
+                observed=oracle_profile==1?64:oracle_profile==2?512u<<16:oracle_profile==3?1024u<<16:1024;
+            else if(address!=0xe000edf0) {assert(address>=oracle_base && address<oracle_base+oracle_size);observed=ram[(address-oracle_base)/4];}
             memcpy(out+n,&observed,4);n+=4;reads++;address=(address&~0x3ffu)|((address+4)&0x3ff);
         }else {
             memcpy(&value,r+pos,4);pos+=4;
             if(flags==8){dp_select=value;select_writes++;}
             else if(flags==1){assert(dp_select==0);ap_csw=value;csw_writes++;}
             else if(flags==5){assert(dp_select==0 && ap_csw==0x23000052);address=value;}
-            else if(flags==13){assert(dp_select==0 && ap_csw==0x23000052 && address>=0x20000000 && address<0x20005000);ram[(address-0x20000000)/4]=value;writes++;address+=4;
+            else if(flags==13){assert(dp_select==0 && ap_csw==0x23000052 && address>=oracle_base && address<oracle_base+oracle_size);ram[(address-oracle_base)/4]=value;writes++;address+=4;
                 if(fail_after_write || fail_after_write_fault){dp_select=0x10;ap_csw=0;host_abort_reason=fail_after_write?2:0;out[1]=0;out[2]=fail_after_write?2:4;if(fail_after_write_fault)fault_ctrl=0x80;return 3;}}
             else assert(false);
         }
@@ -509,6 +516,19 @@ int main(void) {
         size_t reply=command(fuzz,length);assert(reply>=3 && reply<=64);
     }
     rmlink_capture_closed(2,7);
-    printf("Capture state machine: configuration, samples, barriers, Watch reuse/takeover, pointers, faults, RTT wrap, tickets, ownership, TIME_SYNC, realtime overflow, USB_PULL passed\n");
+    for(unsigned id=2;id<=4;id++) {
+        oracle_profile=id;oracle_base=id==4?0x24000000:0x20000000;oracle_size=(id==4?320:128)*1024;
+        uint8_t select[7]={0x81,21,id};uint32_t tag=rmlink_target_pack_tag();memcpy(select+3,&tag,4);
+        unsigned before=reads;select[3]^=1;command(select,7);assert(out[2] && reads==before);select[3]^=1;
+        assert(command(select,7)==8 && !out[2] && out[3]==id);
+        assert(rmlink_target_current()->id==id);
+        rmlink_target_lock(true);before=reads;command(select,7);assert(out[2] && reads==before);rmlink_target_lock(false);
+        prepare(1,1,1);address(1,0,oracle_base+oracle_size-4);ram[oracle_size/4-1]=0x12345678;action(3,1);
+        assert(next_record(frame)==60);memcpy(&v,frame+56,4);assert(v==0x12345678);
+        command(select,7);assert(out[2]); /* subscriptions cannot change target identity */
+        rmlink_capture_closed(2,7);
+    }
+    rmlink_target_reset();
+    printf("Capture state machine: subscriptions, pointers, RTT, recovery, ownership and shared F407/H723 identity/RAM boundaries passed\n");
     return 0;
 }

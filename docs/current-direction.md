@@ -1,5 +1,7 @@
 # 当前项目方向
 
+2026-10-19 新决定与实现：Orbit 普通 CMSIS-DAP 和 RMLink 共用 [统一目标算法包](shared-target-package.md)，以 `host/algorithms/targets.json` 和可构建源码为唯一描述来源，覆盖 F103C8、F407VE、F407IG、H723VG。保留唯一 SWD owner、板端订阅和缓存烧录；用身份/容量/包 tag 与内存窗口拒绝不匹配。新目标本轮只有源码、模型和构建证据，实板验收单独推进。以下版本及性能数据保留其历史条件。
+
 更新：2026-10-16。以用户最新决定为准；最初方向记录保留讨论历史。完整实施设计见 [订阅采集与 Orbit 接入方案](subscription-design.md)。当前固件候选0.2.28、连接服务／SDK 0.2.8；缓存烧录已实现，本轮只优化五条独立三级指针链＋五个普通字段，结果与各版失败见 [千赫兹优化记录](mixed-1khz-optimization.md)。更早的 [0.2.11记录](memap-reuse-0211.md) 等保留其原条件，不代表当前版本验收。
 
 RMLink 使用普通 ESP32-S3 开发板，以乐鑫 esp-usb-bridge 为固件基座，保留一套 ARM CMSIS-DAP / SWD 内核，为 Orbit 增加无线接入、板端采样和批量操作。

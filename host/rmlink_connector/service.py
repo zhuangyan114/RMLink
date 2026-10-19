@@ -19,6 +19,7 @@ from .usbip import UsbIpServer
 from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
 from .flash import FlashProgrammer, FlashJobError
+from .target_pack import PACK, PACK_TAG
 from .clock_sync import ClockSync
 from .diagnostics import decode_health,decode_performance,decode_read_recovery,decode_fault_recovery
 from .runtime_diagnostics import monitor_event_loop
@@ -152,10 +153,10 @@ class Connector:
         if method=='GET' and path=='/v1/capabilities':
             return {'api_version':{'major':1,'minor':4},'default_clock_hz':4000000,
                 'device_management':True,'passive_metrics':True,'probe_firmware_update':True,
-                'enhanced_profile':'stm32f103-medium-density','subscription_kinds':['memory_series','memory_snapshot','rtt_stream'],
+                'enhanced_profile':'shared-target-package','target_package':{'version':PACK['packVersion'],'tag':PACK_TAG,'targets':[{'name':t['name'],'aliases':t['aliases'],'profile_id':t['profileId']} for t in PACK['targets']]},'subscription_kinds':['memory_series','memory_snapshot','rtt_stream'],
                 'target_commands':['connect','state','read_memory','read_batch','write_memory','halt','run','step','reset','run_to_address','read_register','write_register','set_breakpoint','clear_breakpoint','benchmark_local','measure_swd_clock'],
                 'limits':{'fields':32,'pointer_depth':4,'rtt_up_channels':2,'period_min_us':200,'local_frame_max_bytes':384},
-                'capture_wire_version':1,'flash_api':True,'flash_profile':'stm32f103c8-page-images','source_stepping':False,
+                'capture_wire_version':1,'flash_api':True,'flash_profile':'shared-target-sector-images','source_stepping':False,
                 'flash_backends':['auto','host','probe'],'flash_verification':{'full_image_required':True,'optional_host_readback':True},
                 'time_sync':True,'device_health':True,'memory_overflow_policy':'drop_old_bounded',
                 'recording':{'format':'rmlrec','version':1,'strict_gap_detection':True,

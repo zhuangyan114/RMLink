@@ -14,7 +14,7 @@ New-Item -ItemType Directory -Force $build | Out-Null
 & (Join-Path $PSScriptRoot 'Build-FlashAlgorithm.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Flash algorithm build failed' }
 & $pythonExe -m pip freeze | Set-Content -Encoding utf8 (Join-Path $build 'build-requirements.txt')
-& $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name RMLinkConnector --add-data "$(Join-Path $root 'artifacts\build\flash-algorithms\stm32f103c8.bin');rmlink_algorithms" --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\connector_entry.py')
+& $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name RMLinkConnector --add-data "$(Join-Path $root 'artifacts\build\target-pack');rmlink_algorithms" --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\connector_entry.py')
 if ($LASTEXITCODE -ne 0) { throw 'Connector executable build failed' }
 & $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name rmlink --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work-client') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\client_entry.py')
 if ($LASTEXITCODE -ne 0) { throw 'RMLink client build failed' }

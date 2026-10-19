@@ -41,7 +41,7 @@ class ApiClient:
                  headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
         # Bypass HTTP proxy environment variables for this local-only endpoint.
         try:
-            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=180 if path.endswith('/flash') else self.timeout) as reply:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=660 if path.endswith('/flash') else self.timeout) as reply:
                 return json.load(reply)
         except urllib.error.HTTPError as error:
             result=json.load(error)
@@ -63,9 +63,9 @@ class ApiClient:
 
     def target(self, command, **parameters):
         return self.request('POST', f'/v1/sessions/{self.session}/target', {'command':command,**parameters})
-    def flash_image(self,data,address=0x08000000,backend='auto',verify_on_host=False):
+    def flash_image(self,data,address=0x08000000,backend='auto',verify_on_host=False,reset_after=True):
         data=bytes(data);path=f'/v1/sessions/{self.session}/flash'
-        self.request('POST',path,{'action':'begin','address':address,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest(),'backend':backend,'verify_on_host':verify_on_host})
+        self.request('POST',path,{'action':'begin','address':address,'byte_length':len(data),'sha256':hashlib.sha256(data).hexdigest(),'backend':backend,'verify_on_host':verify_on_host,'reset_after':reset_after})
         for offset in range(0,len(data),4096):self.request('POST',path,{'action':'chunk','offset':offset,'data':data[offset:offset+4096].hex()})
         return self.request('POST',path,{'action':'commit'})
     def flash_status(self):

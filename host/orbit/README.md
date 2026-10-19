@@ -1,5 +1,9 @@
 # Orbit 实验适配补丁
 
+新增或扩展芯片时遵守[新增芯片适配规范](../../docs/adding-targets.md)，以[适配记录模板](../../docs/templates/target-adaptation.md)交付资料、增量补丁、自动化与分层验收结果。
+
+2026-10-19：新增 `patches/unified-target-pack.patch` 与 `tests/shared-target-pack.test.ts`，将普通 CMSIS-DAP 与 RMLink 的芯片描述/算法统一。构建算法后运行 `scripts/sync_orbit_target_pack.py <Orbit工作树>`，在现有 RMLink 集成工作树上应用增量并同步源码、产物和 SDK。脚本检查补丁上下文，不覆盖不同上下文的既有修改。完整设计、四组目标范围、构建和本轮验证见 [统一目标算法包](../../docs/shared-target-package.md)。下文为此前集成记录。
+
 Orbit 源码在忽略的独立工作树 `artifacts/worktrees/orbit-rmlink`，原用户工作区未修改。此处只保存本轮适配的压缩补丁和固定版本记录，不包含完整 Orbit 仓库。
 
 `patches/provenance.json` 记录原始提交、适配提交和压缩包 SHA256。用 Python 的 gzip 解压后，在所记录的基线 Orbit 独立工作树执行 `git am <patch>`；不要对有用户改动的主工作区直接应用。

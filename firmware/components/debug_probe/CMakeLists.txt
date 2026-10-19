@@ -10,6 +10,7 @@ set(debug_probe_sources
     "esp_usb_jtag.c"
     "debug_gpio.c"
     "rmlink_core.c"
+    "rmlink_target.c"
     "rmlink_capture.c"
     "rmlink_flash.c"
     "rmlink_flash_port.c"

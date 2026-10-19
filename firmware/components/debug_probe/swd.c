@@ -21,6 +21,7 @@
 #include "DAP.h"
 #include "rmlink_capture.h"
 #include "rmlink_flash.h"
+#include "rmlink_target.h"
 #include "rmlink_ota.h"
 
 typedef struct {
@@ -124,6 +125,7 @@ static size_t process(const request_t *job, uint8_t *out)
         DAP_TransferBeginBounded(2000); /* permit bounded cleanup after an RX Abort */
         rmlink_flash_closed(job->transport, job->session);
         rmlink_capture_closed(job->transport, job->session);
+        rmlink_target_reset();
         return DAP_ProcessCommand(r, out) & 0xffff;
     }
 #if !CONFIG_RMLINK_TARGET_PINS_CONFIRMED
@@ -179,6 +181,7 @@ static void swd_task(void *arg)
             rmlink_flash_closed(job.transport, job.session);
             rmlink_capture_closed(job.transport, job.session);
             if (rmlink_owner_release(&s_owner, job.transport, job.session)) {
+                rmlink_target_reset();
                 const uint8_t disconnect[] = {3};
                 DAP_ProcessCommand(disconnect, out);
             }

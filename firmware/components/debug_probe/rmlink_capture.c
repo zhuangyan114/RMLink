@@ -23,6 +23,7 @@
 #include "DAP.h"
 #endif
 #include "rmlink_capture.h"
+#include "rmlink_target.h"
 #include "rmlink_usb_stream.h"
 #ifndef RMLINK_HOST_TEST
 #include "rmlink_clock_trace.h"
@@ -112,9 +113,7 @@ static uint32_t crc32(const uint8_t *p,size_t n) {
 }
 /* First target family: F103C8. Unknown/peripheral regions must be explicit. */
 static bool memory(uint32_t a, size_t n, bool write) {
-    if (!n || n>65536 || a>UINT32_MAX-n) return false;
-    return (a>=0x20000000u && a+n<=0x20005000u) ||
-        (!write && a>=0x08000000u && a+n<=0x08010000u);
+    return n<=65536 && rmlink_target_memory(a,n,write);
 }
 void rmlink_capture_failure_stats(uint8_t output[24]) {memcpy(output,s_failure,24);}
 void rmlink_capture_profile_enable(bool enabled) {
@@ -475,7 +474,7 @@ pending:;
     return count;
 }
 static bool deep_root_window(subscription_t *s,uint32_t root) {
-    if(root<0x20000000u || root>0x20005000u-12 || (root&0x3ff)>0x400-12)return false;
+    if(!rmlink_target_memory(root,12,true) || (root&0x3ff)>0x400-12)return false;
     uint32_t ignored;
     if(cached_word(s,root+4,&ignored) || cached_word(s,root+8,&ignored))return false;
     for(unsigned i=0;i<s->count;i++)if(!(s->resolved&(1u<<i)) && !s->resolve_depth[i] &&
@@ -677,7 +676,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(r[1]==0) {
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,s_record_bytes);
-        w32(out+20,63|128|256|512 /* bounded reads and negotiated RMS2/RMS3 TCP stream */
+        w32(out+20,63|128|256|512|2048 /* shared target package selection */
 #ifndef RMLINK_HOST_TEST
             |64 /* RMT clock trace */
 #if RMLINK_USB_STREAM_AVAILABLE
@@ -693,6 +692,17 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
     if(!rmlink_owner_matches(owner,transport,session)) { out[2]=2; return 3; }
     if(s_session && (s_session!=session || s_transport!=transport)) { out[2]=2; return 3; }
     s_session=session; s_transport=transport; s_lease=esp_timer_get_time()+LEASE_US;
+    if(r[1]==21) { /* SELECT_TARGET: profile8, package-tag32. No target writes. */
+        if(len<7 || u32(r+3)!=rmlink_target_pack_tag() || rmlink_target_locked())return 3;
+        for(unsigned i=0;i<SLOTS;i++)if(s_sub[i].state)return 3;
+        const rmlink_target_profile_t *p=rmlink_target_find(r[2]);uint32_t v;
+        if(!p)return 3;
+        if(!word(0xe000ed00,&v,false) || ((v>>4)&0xfff)!=p->core_part ||
+           !word(p->id_address,&v,false) || (v&0xfff)!=p->device_id ||
+           !word(p->size_address&~3u,&v,false) || ((v>>((p->size_address&3)*8))&0xffff)!=p->flash_size/1024) {out[2]=5;return 3;}
+        if(!rmlink_target_select(p))return 3;
+        rmlink_capture_invalidate_ap();out[2]=0;out[3]=p->id;w32(out+4,rmlink_target_pack_tag());return 8;
+    }
     if(r[1]==20) { /* READ_MEMORY: address32, length16. Same executor, bounded work. */
         /* Native CMSIS-DAP USB OUT reports include packet padding. Only the
          * command header is required; the declared read length bounds output. */

@@ -1,5 +1,7 @@
 # 缓存烧录接口：固件 0.2.12、服务／SDK 0.2.7
 
+2026-10-19：[统一目标算法包](shared-target-package.md)扩展到 F407VE/F407IG/H723VG。目标选择、包 tag、64 KiB ProgramPage 编码与可选保持暂停扩展见该文档；以下保留 F103 历史协议和性能条件。
+
 0.2.13 扩展：features bit3 表示完整 64 KiB 镜像批量擦除，mask=15；结果增加 erase_strategy=mass/page，旧字段和命令兼容。[条件与验收](buffered-flash-0213.md)。
 
 服务 0.2.8 起，默认在板端完成全镜像比较；`verify_on_host=true` 额外做独立主机 SHA256。verification、probe_verified、host_verified 明确区分层级，见 [校验模式](buffered-flash-0214.md)。下文 0.2.7 的历史耗时包含两种回读。

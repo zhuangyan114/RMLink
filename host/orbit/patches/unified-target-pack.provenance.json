@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/zhuangyan114/Orbit",
+  "orbit_head": "bcb5e4626e29050b07d2d958a507cf13641e78c7",
+  "scope": "Incremental unified-package integration only; preserves pre-existing Orbit working-tree changes",
+  "baseline_files": {
+    "src/ozone-backend/cmsis-dap-flasher.ts": "921d20fd82b7ea3bd353a3fa86211f67f61db0f79a7496e09cfdcb749246c7b4",
+    "src/ozone-backend/rmlink-target-channel.ts": "ffce8f71a55f8d97588a38eb316fdf6375acac00c6a436832a794659bfc54c6c"
+  },
+  "patch_sha256": "2b0a24e754fdce6ee2312c2dd68f3b3be719cf08bdaa268c3f261d6cc943a2f5",
+  "pack_tag": 3492192438,
+  "hardware_tested": false,
+  "validation": {
+    "orbit_test_files": 79,
+    "orbit_passed": 1089,
+    "orbit_skipped": 1,
+    "host_passed": 206,
+    "native_mock": true,
+    "builds": true
+  }
+}

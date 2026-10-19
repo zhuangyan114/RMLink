@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/zhuangyan114/Orbit",
+  "commit": "bcb5e4626e29050b07d2d958a507cf13641e78c7",
+  "source": "native/cmsis-dap-flash-algorithm/stm32f407_flash_algorithm.c",
+  "license": "MIT"
+}
