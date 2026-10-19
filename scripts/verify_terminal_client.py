@@ -27,10 +27,8 @@ def main():
     if report_path.exists():
         raise RuntimeError('Preserve existing evidence; use a new directory')
     state = directory / 'isolated state'
-    api, usbip = free_port(), free_port()
-    while api == usbip:
-        usbip = free_port()
-    prefix = [str(args.exe.resolve()), '--state-dir', str(state), '--api-port', str(api), '--usbip-port', str(usbip)]
+    api = free_port()
+    prefix = [str(args.exe.resolve()), '--state-dir', str(state), '--api-port', str(api)]
     report = dict(complete=False, scope='frozen CLI and local API; isolated unpaired state; no Wi-Fi credential writes, kernel driver changes or target writes', checks=[])
     outputs = []
     def run(*command, success=0):
@@ -62,7 +60,6 @@ def main():
         report['service_pid'] = first_pid
         devices = run('devices')
         report['discovered_count'] = len(devices['devices'])
-        report['driver'] = run('driver', 'status')
         report['hotspot'] = run('wifi', 'hotspot')
         report['diagnostics'] = run('doctor', '--output', str(directory / 'diagnostics.json'))
         run('logs', '--lines', '10')

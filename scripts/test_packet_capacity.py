@@ -50,15 +50,15 @@ def main():
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     report = dict(capturedAt=datetime.now().astimezone().isoformat(), complete=False,
-                  scope='Transport only, no target access' if args.transport_only else 'Read-only target Flash; native USB, virtual WiFi USB and local API')
+                  scope='Transport only, no target access' if args.transport_only else 'Read-only target Flash; native USB and local API')
     try:
         backup = None if args.transport_only else args.expected_image.read_bytes()
         api = ApiClient()
         snapshot = api.request('GET', '/v1/status')
         assert all(d['owner'] is None for d in snapshot['devices'])
         report['connectorVersion'] = snapshot['version']
-        for name, serial, capacity in (('native', '50787D15A924', 64), ('virtual', 'RM50787D15A924', args.tcp_size)):
-            with UsbClient(serial=serial) as client: report[name] = check(client, capacity, backup,args.transport_only)
+        with UsbClient(serial='50787D15A924') as client:
+            report['native'] = check(client, 64, backup,args.transport_only)
         with api.open('50787d15a924'): report['api'] = check(api, args.tcp_size, backup,args.transport_only)
         assert all(d['owner'] is None for d in api.request('GET', '/v1/status')['devices'])
         report['complete'] = True

@@ -6,6 +6,6 @@
 *.json text eol=lf
 *.ps1 text eol=crlf
 # Preserve tested patch bytes; unified-diff context has required spaces/tabs.
-host/windows/patches/*.patch -text whitespace=-blank-at-eol,-space-before-tab,cr-at-eol
+host/orbit/patches/*.patch -text whitespace=-blank-at-eol,-space-before-tab,cr-at-eol
 *.png binary
 *.jpg binary

@@ -2,6 +2,8 @@
 
 基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
 
+**2026-10-19 战略调整：无线 CMSIS-DAP 只通过 TCP 提供给 OpenOCD，停止虚拟 USB 路线。** 原生 USB 有线功能和 RMLink 增强采集路线保留。当前源码已删除 USB/IP 服务、虚拟挂载、驱动管理与专用验收脚本；已发布包仍保留旧行为，下文相关版本说明与验收按历史条件阅读。具体范围及 TCP 验收待办见[当前项目方向](docs/current-direction.md)。
+
 2026-10-19：[统一目标算法包](docs/shared-target-package.md)已接入 Orbit 普通 CMSIS-DAP 与 RMLink 增强路径，源码范围对齐 F103C8、F407VE、F407IG、H723VG 四组目标；新增目标的 RMLink 实板验收仍待完成。
 
 当前测试候选为 **固件／客户端／连接服务 0.3.2**，SDK 为 0.2.8。[RMLink 终端控制台](docs/terminal-client.md)安装后输入 `rmlink`，统一管理设备、USB 配网、连接／虚拟 USB 挂载、实时速率、驱动检测和诊断；支持本地应用导入、GitHub 正式／测试通道与 RMLink 自身 OTA，保留明确的 Enter 安装确认及上传、校验和重连进度。[OTA](docs/ota-upgrade.md)采用 Espressif 官方双升级分区和回滚 bootloader；最新测试条件、实板故障注入和未覆盖项见 [0.3.2 测试版验收](docs/test-release-0.3.2.md)。下面的实板性能检查点保留各历史版本条件。
@@ -12,7 +14,7 @@
 
 新增[LibXR SWD参考与实板试验](docs/libxr-swd-review.md)：已拉取固定版本，试验字节展开与奇偶校验优化。实际线时钟校准后未证明优于原版，候选未采用，保留原0.2.28及新增底层协议模型；“1M/s”的原测试条件未知。
 
-标准CMSIS-DAP经虚拟USB接入。0.2.28的OpenOCD完整烧录/调试和原生／虚拟USB完整回读通过；pyOCD保留此前版本的验收结论。增强接口的历史实板证据针对STM32F103C8；新增目标范围见统一算法包文档。正式签名分发、Keil/IAR及已安装VS Code界面仍待单独验收。
+标准无线 CMSIS-DAP 改为 OpenOCD TCP 接入。此前 0.2.28 的 OpenOCD 虚拟 USB 烧录/调试、原生／虚拟 USB 完整回读及更早 pyOCD 结果保留为历史证据，不替代新路线验收。增强接口的历史实板证据针对 STM32F103C8；新增目标范围见统一算法包文档，已安装 VS Code 界面仍待单独验收。虚拟 USB 驱动正式签名及借此接入 Keil/IAR 的工作不再推进。
 
 ESP32缓存镜像并通过唯一SWD执行器自主烧录。同一全密度64 KiB镜像，默认包含板端完整回读比较，五次总耗时中位 **3.623 s**；可再加主机SHA256回读。支持进度、取消、断连停止和新作业恢复，未知写入不自动重放。见[缓存烧录协议](docs/buffered-flash-protocol.md)。
 
@@ -25,7 +27,7 @@ Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共�
 | 目录 | 用途 |
 | --- | --- |
 | firmware/ | 以乐鑫 esp-usb-bridge 为基础的 RMLink 固件源码 |
-| host/ | Windows 连接服务、本机 USB/IP 代理及 Orbit 接入 SDK |
+| host/ | 用户态连接服务、目标算法包、公开 SDK 与 Orbit 接入 |
 | reference/ | 上游参考仓库及引用版本记录；保持上游源码可对照 |
 | scripts/ | 可复现构建、设备检查及验证脚本 |
 | docs/ | 项目方向、源码核对、协议、接线与开发进度 |
@@ -37,6 +39,7 @@ Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共�
 
 ## 入口
 
+- [当前项目方向与无线 TCP/OpenOCD 决策](docs/current-direction.md)
 - [新增芯片适配规范](docs/adding-targets.md)与[适配记录模板](docs/templates/target-adaptation.md)
 - [Orbit 与 RMLink 统一目标算法包](docs/shared-target-package.md)
 - [最初方向记录（2026-10-12）](docs/RMLink项目方向记录.md)：保留讨论历史，后续实施以新的源码核对与开发记录为准。
@@ -51,9 +54,9 @@ Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共�
 - [Orbit 的 RMLink 专用连接配置](docs/orbit-rmlink-connection.md)
 - [构建、连接与接线](docs/quickstart.md)
 - [已实现的开发协议](docs/protocol-v1.md)
-- [Windows 连接组件评估](docs/windows-connector-evaluation.md)
-- [Windows 连接组件使用与验收](docs/windows-connector.md)
-- [虚拟 USB 取消问题与测试驱动](docs/virtual-usb-cancellation.md)
+- [历史 Windows 连接组件评估](docs/windows-connector-evaluation.md)
+- [连接组件历史实现与验收](docs/windows-connector.md)
+- [历史虚拟 USB 取消问题与测试驱动](docs/virtual-usb-cancellation.md)
 - [ESP32 / 电脑传输速率与延迟](docs/transport-benchmark.md)
 - [完整提速计划与阶段验收](docs/performance-plan.md)
 - [提速实现与实板结果](docs/performance-results.md)

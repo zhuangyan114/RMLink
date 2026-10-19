@@ -57,9 +57,9 @@ def run_powershell_script(script, arguments=(), timeout=20):
 
 
 class LocalService:
-    def __init__(self, directory=None, api_port=3243, usbip_port=3240):
+    def __init__(self, directory=None, api_port=3243):
         self.directory = Path(directory) if directory else default_directory()
-        self.api_port, self.usbip_port = api_port, usbip_port
+        self.api_port = api_port
         # Keep logs shared with ordinary terminals; packaged hosts virtualize AppData.
         self.logs = self.directory / 'logs'
 
@@ -80,8 +80,7 @@ class LocalService:
         return self.client().request(method, path, body)
 
     def command(self):
-        args = ['--state-dir', str(self.directory), '--api-port', str(self.api_port),
-                '--usbip-port', str(self.usbip_port), 'serve']
+        args = ['--state-dir', str(self.directory), '--api-port', str(self.api_port), 'serve']
         if getattr(sys, 'frozen', False):
             executable = Path(sys.executable).with_name('RMLinkConnector.exe')
             if not executable.is_file():

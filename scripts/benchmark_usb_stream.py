@@ -38,8 +38,8 @@ def idle_connector(serial):
         except (urllib.error.URLError,ConnectionError,TimeoutError):devices=[]
         device=next((d for d in devices if d['device_id'].lower()==serial.lower() and d.get('paired')),None)
         if device:
-            if device.get('owner') or device.get('mounted'):
-                raise RuntimeError('Close target sessions and unmount virtual USB before the raw USB benchmark')
+            if device.get('owner'):
+                raise RuntimeError('Close target sessions before the raw USB benchmark')
             if device.get('transport')=='usb':
                 api.timeout=30
                 previous=device['device_id']

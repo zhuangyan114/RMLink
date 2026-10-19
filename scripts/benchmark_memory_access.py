@@ -65,7 +65,7 @@ def legacy_read(client, address, count, pipelined):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--transport', choices=['USB', 'TCP', 'VirtualUSB'], required=True)
+    parser.add_argument('--transport', choices=['USB', 'TCP'], required=True)
     parser.add_argument('--host', help='Required for direct TCP; connector must have released its TCP connection')
     parser.add_argument('--bytes', type=int, default=4096)
     parser.add_argument('--offset', type=lambda value: int(value, 0), default=0)
@@ -101,8 +101,7 @@ def main():
             if dev['owner'] is not None: raise RuntimeError('Connector target is occupied')
             report['connectorVersion'] = snapshot['version']
         if args.transport == 'TCP': client = TcpClient(args.host, 3241)
-        else: client = UsbClient(serial='50787D15A924' if args.transport == 'USB' else 'RM50787D15A924',
-                                 bcd_device=2 if args.transport == 'USB' else 0x100)
+        else: client = UsbClient(serial='50787D15A924', bcd_device=2)
         with client as raw:
             report['device'] = status(raw)
             report['packetSize'] = raw.packet_size

@@ -83,7 +83,7 @@ class OtaUiTests(unittest.TestCase):
         with patch.object(self.terminal, 'menu', side_effect=['i', None]) as menu, patch.object(
                 self.terminal, 'prompt', return_value=str(self.path)), patch.object(
                 self.terminal, 'key', side_effect=['enter', 'enter']) as key, patch('rmlink_connector.cli.time.sleep'):
-            ui_action(5, self.controller, self.terminal)
+            ui_action(4, self.controller, self.terminal)
         self.assertEqual(key.call_count, 2)  # Install confirmation, then success-page return.
         self.assertEqual(menu.call_count, 2)  # No second hidden install menu.
         self.assertIn('安装成功', self.output.getvalue())

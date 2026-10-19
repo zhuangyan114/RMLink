@@ -98,7 +98,7 @@ class FirmwareUpdates:
                 if profile != info['profile']:
                     raise FirmwareError('固件硬件配置与当前设备不一致，未写入 Flash')
                 broker = c.brokers[key]
-                self.idle(key)  # Re-check after the awaited INFO: USBip may have acquired a target meanwhile.
+                self.idle(key)  # Re-check after INFO: another API session may now own the target.
                 if broker.maintenance:
                     raise FirmwareError('设备正在维护')
                 source = 'ota-' + uuid.uuid4().hex
@@ -106,8 +106,6 @@ class FirmwareUpdates:
                 upload = dict(source=source,broker=broker,size=size,received=0,touched=time.monotonic(),elf=elf)
                 self.uploads[key] = upload
                 try:
-                    if key in c.driver.ports:
-                        await c.driver.detach(key)
                     packet = b'\x83\x01' + struct.pack('<I',size) + bytes.fromhex(digest)
                     reply_ok((await broker.submit(source,[packet],'background'))[0],1)
                 except BaseException:

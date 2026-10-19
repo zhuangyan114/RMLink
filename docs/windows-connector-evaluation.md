@@ -1,5 +1,7 @@
 # Windows 统一连接组件评估
 
+> 历史评估：2026-10-19 已决定停止虚拟 USB 路线，标准无线 CMSIS-DAP 仅通过 TCP 提供给 OpenOCD。下文 USB/IP、UDE 与签名方案保留作技术记录，后续以[当前项目方向](current-direction.md)为准。
+
 2026-10-13：下文保留最初源码评估。现已选择本机 USB/IP 代理，后台服务、签名驱动封装及 OpenOCD 实板验收已完成，实际使用与证据见 [Windows 连接组件](windows-connector.md)。
 
 ## 当前版本的控制与数据路径

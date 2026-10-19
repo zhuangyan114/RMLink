@@ -183,7 +183,7 @@ class UpdateTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(len(packet)<=512 for packet in packets))
     async def test_raw_debug_and_forged_ota_packets_cannot_interleave(self):
         upload=await self.begin();before=len(self.transport.requests)
-        self.assertEqual(await self.broker.submit('virtual-usb',[b'\x02\x01']),[b'\x02\x00'])
+        self.assertEqual(await self.broker.submit('foreign-session',[b'\x02\x01']),[b'\x02\x00'])
         self.assertEqual(await self.broker.submit('api-other',[b'\x83\x04']),[b'\x83\xff'])
         result=await self.broker.submit('api-other',[b'\x83\x00',b'\x83\x04'])
         self.assertEqual(result[-1],b'\x83\xff')

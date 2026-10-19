@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 
 from .client import ApiClient
 from .service import Connector
@@ -12,7 +11,7 @@ from .recording_audit import audit_recording
 
 
 async def serve(args):
-    logging.basicConfig(level=logging.INFO if os.environ.get('RMLINK_USBIP_TRACE') == '1' else logging.WARNING)
+    logging.basicConfig(level=logging.WARNING)
     loop = asyncio.get_running_loop()
     def loop_error(loop, context):
         exc = context.get('exception')
@@ -27,8 +26,8 @@ async def serve(args):
     loop.set_exception_handler(loop_error)
     connector = Connector(State(args.state_dir))
     try:
-        port = await connector.start(args.api_port, args.usbip_port)
-        print(json.dumps({'ready': True, 'api_port': port, 'usbip_port': connector.usbip_port}), flush=True)
+        port = await connector.start(args.api_port)
+        print(json.dumps({'ready': True, 'api_port': port}), flush=True)
         await connector.stopping.wait()
     finally: await connector.close()
 
@@ -37,8 +36,7 @@ def main():
     parser = argparse.ArgumentParser(description='RMLink connection service development tool')
     parser.add_argument('--state-dir')
     parser.add_argument('--api-port', type=int, default=3243)
-    parser.add_argument('--usbip-port', type=int, default=3240)
-    parser.add_argument('command', choices=['serve', 'status', 'devices', 'pair', 'mount', 'unmount', 'stop','inspect-recording'])
+    parser.add_argument('command', choices=['serve', 'status', 'devices', 'pair', 'stop','inspect-recording'])
     parser.add_argument('device_id', nargs='?')
     parser.add_argument('--anomalies',action='store_true',help='Offline sample validity and sequence diagnostics for inspect-recording')
     args = parser.parse_args()

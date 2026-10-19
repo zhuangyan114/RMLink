@@ -73,7 +73,7 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.probe=ProbeModel();self.broker=Broker(self.probe,'model');await self.broker.start()
         self.connector.brokers['model']=self.broker
         self.server=await asyncio.start_server(self.peer,'127.0.0.1',3244)
-        self.api=await self.connector.start(0,0)
+        self.api=await self.connector.start(0)
         # Avoid discovery/mounting real devices during a host-only test.
         self.connector.background.cancel();await asyncio.gather(self.connector.background,return_exceptions=True)
         self.connector.background=None

@@ -6,7 +6,7 @@ from benchmark_usb_stream import expected_pattern,idle_connector
 
 class UsbBenchmarkTests(unittest.TestCase):
     def test_raw_benchmark_restores_connector_after_read_failure(self):
-        api=Mock();api.request.return_value={'devices':[dict(device_id='abc',paired=True,transport='usb',owner=None,mounted=False)]}
+        api=Mock();api.request.return_value={'devices':[dict(device_id='abc',paired=True,transport='usb',owner=None)]}
         with patch('benchmark_usb_stream.Path.is_file',return_value=True),patch('benchmark_usb_stream.ApiClient',return_value=api):
             with self.assertRaisesRegex(ValueError,'read failed'):
                 with idle_connector('ABC') as changed:
@@ -16,7 +16,7 @@ class UsbBenchmarkTests(unittest.TestCase):
         self.assertEqual(api.set_transport.call_args_list,[call('abc','wifi'),call('abc','usb')])
 
     def test_raw_benchmark_does_not_interrupt_an_active_owner(self):
-        api=Mock();api.request.return_value={'devices':[dict(device_id='abc',paired=True,transport='usb',owner='active',mounted=False)]}
+        api=Mock();api.request.return_value={'devices':[dict(device_id='abc',paired=True,transport='usb',owner='active')]}
         with patch('benchmark_usb_stream.Path.is_file',return_value=True),patch('benchmark_usb_stream.ApiClient',return_value=api):
             with self.assertRaisesRegex(RuntimeError,'Close target sessions'):
                 with idle_connector('abc'):self.fail('Busy target was accepted')

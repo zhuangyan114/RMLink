@@ -10,11 +10,11 @@ if ($RemoveStartAtLogon) {
 }
 if (-not $Install) {
     Write-Output "Prepared per-user component install: $target"
-    Write-Output 'Use -Install to install rmlink, its service and driver-management entry. Add -StartAtLogon for hidden startup.'
+    Write-Output 'Use -Install to install rmlink, its connection service. Add -StartAtLogon for hidden startup.'
     exit 0
 }
 $source = Join-Path $root 'artifacts\build\connector\dist'
-foreach ($name in @('rmlink.exe','RMLinkConnector.exe','Driver.ps1','Hotspot.ps1')) {
+foreach ($name in @('rmlink.exe','RMLinkConnector.exe','Hotspot.ps1')) {
     if (-not (Test-Path -LiteralPath (Join-Path $source $name))) { throw 'Run Build-Connector.ps1 first.' }
 }
 $running = Get-Process -Name RMLinkConnector,rmlink -ErrorAction SilentlyContinue | Where-Object {
@@ -23,7 +23,7 @@ $running = Get-Process -Name RMLinkConnector,rmlink -ErrorAction SilentlyContinu
 if ($running) { throw 'Close the installed client and stop its service before upgrading.' }
 $bin = Join-Path $target 'bin'
 New-Item -ItemType Directory -Force $bin | Out-Null
-foreach ($name in @('rmlink.exe','RMLinkConnector.exe','Driver.ps1','Hotspot.ps1')) {
+foreach ($name in @('rmlink.exe','RMLinkConnector.exe','Hotspot.ps1')) {
     Copy-Item -LiteralPath (Join-Path $source $name) -Destination $bin -Force
 }
 Get-ChildItem -LiteralPath $source -Filter '*.txt' | Copy-Item -Destination $bin -Force
@@ -54,5 +54,5 @@ if ($StartAtLogon -or $existingStartup) {
 }
 Write-Output "Installed: $bin\rmlink.exe"
 Write-Output 'Run rmlink in a new terminal. The current PowerShell session can also run it immediately.'
-Write-Output 'Kernel drivers and Windows boot settings were not changed; use rmlink driver status to inspect them.'
+Write-Output 'Wireless CMSIS-DAP uses OpenOCD TCP. Kernel drivers and Windows boot settings were not changed.'
 Write-Output ('Logon startup: ' + [bool]$StartAtLogon)

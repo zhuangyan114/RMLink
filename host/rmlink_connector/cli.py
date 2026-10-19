@@ -12,7 +12,7 @@ import urllib.error
 
 from . import __version__
 from .client import RMLinkError
-from .console import Terminal, dashboard, safe_text, rate
+from .console import MENU, Terminal, dashboard, safe_text, rate
 from .local_service import ClientError, LocalService, inspect_firmware, run_powershell_script
 from .telemetry import Rates
 from .firmware import DEFAULT_REPOSITORY, FirmwareError, image_info, inspect_image, latest_release, download_release, repository_name
@@ -25,7 +25,6 @@ def shared(parser, defaults=False):
     parser.add_argument('--no-color', action='store_true', default=False if defaults else argparse.SUPPRESS, help='关闭颜色')
     parser.add_argument('--state-dir', default=default, help=argparse.SUPPRESS)
     parser.add_argument('--api-port', type=int, default=3243 if defaults else argparse.SUPPRESS, help=argparse.SUPPRESS)
-    parser.add_argument('--usbip-port', type=int, default=3240 if defaults else argparse.SUPPRESS, help=argparse.SUPPRESS)
 
 
 def parser():
@@ -38,12 +37,11 @@ def parser():
         result = parent.add_parser(name, help=help, description=help)
         shared(result)
         return result
-    add(commands, 'devices', '发现设备并列出配对、连接和挂载状态')
+    add(commands, 'devices', '发现设备并列出配对和连接状态')
     add(commands, 'status', '查看后台服务与设备状态')
     add(commands, 'info', '查看设备信息和健康状态')
     for name, help in [('pair', '配对设备'), ('unpair', '取消配对'), ('connect', '连接设备'),
-                       ('disconnect', '断开设备并暂停自动重连'), ('mount', '挂载为虚拟 USB 调试器'),
-                       ('unmount', '卸载虚拟 USB 调试器')]:
+                       ('disconnect', '断开设备并暂停自动重连')]:
         item = add(commands, name, help)
         item.add_argument('device_id', nargs='?', help='设备编号')
         if name == 'connect':
@@ -60,14 +58,6 @@ def parser():
     monitor = add(commands, 'monitor', '被动查看实时收发速率和活动订阅')
     monitor.add_argument('--interval', type=float, default=1, help='刷新间隔，0.25–10 秒')
     monitor.add_argument('--count', type=int, default=0, help='输出指定次数后退出；0 为持续监控')
-    driver = add(commands, 'driver', '检测、安装或维护虚拟 USB 驱动')
-    driver_sub = driver.add_subparsers(dest='action', metavar='操作')
-    add(driver_sub, 'status', '核对已安装客户端和内核驱动状态')
-    for name in ('install', 'repair'):
-        item = add(driver_sub, name, '从有 SHA256 清单的本地驱动包安装；由 Windows 请求提权')
-        item.add_argument('--package', required=True, help='已审核驱动包的 driver-package.json')
-    uninstall = add(driver_sub, 'uninstall', '卸载明确指定的 USBip 驱动包')
-    uninstall.add_argument('--published-name', required=True, help='Windows 发布名，例如 oem123.inf')
     firmware = add(commands, 'firmware', 'RMLink 自身固件检查、GitHub 获取与 OTA 升级')
     fw_sub = firmware.add_subparsers(dest='action', metavar='操作')
     add(fw_sub, 'status', '查看当前固件版本与升级支持状态')
@@ -92,7 +82,7 @@ def parser():
     auto.add_argument('mode', nargs='?', choices=('on', 'off', 'status'), default='status')
     logs = add(commands, 'logs', '查看近期服务日志')
     logs.add_argument('--lines', type=int, default=40)
-    doctor = add(commands, 'doctor', '检查服务、发现、连接、驱动与挂载环节')
+    doctor = add(commands, 'doctor', '检查服务、设备发现与连接')
     doctor.add_argument('--output', help='导出脱敏诊断 JSON，不覆盖已有文件')
     config = add(commands, 'config', '查看设置或设置默认设备、设备别名')
     config_sub = config.add_subparsers(dest='action', metavar='操作')
@@ -109,7 +99,7 @@ def parser():
 class Controller:
     def __init__(self, args):
         self.args = args
-        self.runtime = LocalService(args.state_dir, args.api_port, args.usbip_port)
+        self.runtime = LocalService(args.state_dir, args.api_port)
         self.device_id = args.device or getattr(args, 'device_id', None)
         self.rates = Rates()
 
@@ -163,56 +153,30 @@ class Controller:
         data['band'] = {'TwoPointFourGigahertz': '2.4 GHz', 'FiveGigahertz': '5 GHz', 'Auto': '自动'}.get(data.get('band'), data.get('band'))
         return data
 
-    def driver(self, action='status', package=None, published_name=None):
-        if os.name != 'nt':
-            raise ClientError('驱动管理目前仅支持 Windows')
-        if action != 'status':
-            current = self.runtime.status()
-            if current and any(d.get('owner') for d in current['devices']):
-                raise ClientError('请先结束活动调试会话，再维护驱动')
-        script = (Path(sys.executable).parent / 'Driver.ps1' if getattr(sys, 'frozen', False) else
-                  Path(__file__).resolve().parents[1] / 'distribution' / 'Driver.ps1')
-        args = ['-Action', action]
-        if package:
-            args += ['-ManifestPath', str(Path(package).expanduser().resolve())]
-        if published_name:
-            args += ['-PublishedName', published_name]
-        result = run_powershell_script(script, args, timeout=120 if action != 'status' else 20)
-        if result.returncode not in (0, 3010):
-            raise ClientError(result.stderr.strip() or '驱动操作未完成，请运行 rmlink doctor 检查')
-        return json.loads(result.stdout.lstrip('\ufeff'))
 
     def diagnose(self):
         status = self.runtime.status()
         checks = [dict(name='后台服务', ok=bool(status), detail='运行中' if status else '未启动；运行 rmlink service start')]
         if status:
-            checks += [dict(name='设备发现', ok=not status.get('discovery_error'), detail=status.get('discovery_error') or '正常'),
-                       dict(name='虚拟 USB 客户端', ok=status['driver']['installed_cli'],
-                            detail='已安装' if status['driver']['installed_cli'] else '未安装；有线直连与增强 API 可独立使用')]
+            checks.append(dict(name='设备发现', ok=not status.get('discovery_error'),
+                               detail=status.get('discovery_error') or '正常'))
             for device in status['devices']:
                 key = device['device_id']
                 checks.append(dict(name=device.get('alias') or key, ok=device['connected'],
                                    detail=status.get('connection_errors', {}).get(key) or ('已连接' if device['connected'] else '未连接')))
-                if key in status.get('mount_errors', {}):
-                    checks.append(dict(name='虚拟 USB 挂载', ok=False, detail=status['mount_errors'][key]))
-        try:
-            driver = self.driver()
-        except (ClientError, OSError, subprocess.TimeoutExpired) as error:
-            driver = dict(error=str(error))
-        return dict(client_version=__version__, checks=checks, driver=driver, status=status,
+        return dict(client_version=__version__, checks=checks, status=status,
                     note='未读取凭据文件内容，未获取目标控制权，未执行主动测速')
 
 
 LABELS = {'device_id': '设备编号', 'hostname': '设备名称', 'alias': '别名', 'address': '地址',
           'firmware': '固件', 'version': '版本', 'paired': '已配对', 'connected': '已连接',
-          'mounted': '虚拟 USB 已挂载', 'owner': '目标占用', 'transport': '传输', 'running': '服务运行中',
-          'installed_cli': 'USBip 客户端已安装', 'supported': '支持', 'saved': '已保存',
+          'owner': '目标占用', 'transport': '传输', 'running': '服务运行中',
+          'supported': '支持', 'saved': '已保存',
           'default_device': '默认设备', 'start_at_logon': '登录自启', 'message': '说明', 'ip': 'IP',
           'configured': '已保存网络参数', 'rssi_dbm': '信号强度 / dBm', 'bytes': '字节数',
           'upgrade_supported': '支持自身升级', 'scope': '检查范围', 'path': '文件', 'state': '状态',
           'name': '名称', 'ok': '通过', 'detail': '详情', 'chip': '芯片', 'service': '服务',
-          'services': '内核驱动', 'signature': '签名', 'managed_ports': '已管理端口',
-          'virtual_port': '虚拟 USB 端口', 'error': '错误', 'completed': '已完成'}
+          'error': '错误', 'completed': '已完成'}
 
 
 def human(value, indent=0):
@@ -400,26 +364,17 @@ def ui_action(index, controller, terminal):
                 view(terminal, 'Wi-Fi 配置', controller.call('POST', path, dict(ssid=ssid, password=password)))
     elif index == 2:
         device = controller.select()
-        options = [('c', '连接设备'), ('d', '断开连接'), ('m', '挂载虚拟 USB'), ('u', '卸载虚拟 USB'),
+        options = [('c', '连接设备'), ('d', '断开连接'),
                    ('1', '切换到 USB'), ('2', '切换到 Wi-Fi')]
-        for choice in submenu(terminal, '连接与挂载', options):
-            if choice in ('c', 'd', 'm', 'u'):
-                action = {'c': 'connect', 'd': 'disconnect', 'm': 'mount', 'u': 'unmount'}[choice]
-                view(terminal, '连接与挂载', controller.device_action(action, device))
+        for choice in submenu(terminal, '连接管理', options):
+            if choice in ('c', 'd'):
+                action = {'c': 'connect', 'd': 'disconnect'}[choice]
+                view(terminal, '连接管理', controller.device_action(action, device))
             elif choice in ('1', '2'):
-                view(terminal, '连接与挂载', controller.device_action('connect', device, 'usb' if choice == '1' else 'wifi'))
+                view(terminal, '连接管理', controller.device_action('connect', device, 'usb' if choice == '1' else 'wifi'))
     elif index == 3:
         monitor(controller, terminal)
     elif index == 4:
-        options = [('s', '查看驱动状态'), ('i', '安装已审核驱动包'), ('r', '修复驱动')]
-        for choice in submenu(terminal, '驱动管理', options, '驱动维护时 Windows 将请求管理员权限。'):
-            if choice == 's':
-                view(terminal, '驱动状态', controller.driver())
-            else:
-                package = terminal.prompt('  driver-package.json 路径 › ').strip().strip('"')
-                if package:
-                    view(terminal, '驱动管理', controller.driver('install' if choice == 'i' else 'repair', package))
-    elif index == 5:
         options = [('s','查看固件与升级状态'),('i','导入本地固件'),('g','从 GitHub 获取最新正式固件'),
                    ('t','从 GitHub 获取测试固件'),('r','设置 GitHub 固件仓库')]
         for choice in submenu(terminal,'固件升级',options):
@@ -439,7 +394,7 @@ def ui_action(index, controller, terminal):
                 firmware_result(terminal,upgrade_firmware(controller,terminal,latest=True))
             elif choice=='t':
                 firmware_result(terminal,upgrade_firmware(controller,terminal,latest=True,prerelease=True))
-    elif index == 6:
+    elif index == 5:
         for choice in submenu(terminal, '诊断与日志', [('d', '运行故障诊断'), ('l', '查看日志'), ('e', '导出诊断')]):
             if choice == 'd':
                 view(terminal, '故障诊断', controller.diagnose())
@@ -450,7 +405,7 @@ def ui_action(index, controller, terminal):
                 if path:
                     export_report(controller.diagnose(), path)
                     view(terminal, '诊断已导出', dict(path=path))
-    elif index == 7:
+    elif index == 6:
         options = [('d', '当前设备设为默认'), ('n', '设置设备别名'), ('a', '开启登录自启'), ('x', '关闭登录自启')]
         for choice in submenu(terminal, '设置', options):
             if choice in ('d', 'n'):
@@ -483,13 +438,18 @@ def shell(controller, terminal):
             if key in ('q', '\x1b'):
                 return 0
             if key in ('up', 'down'):
-                selected = (selected + (1 if key == 'down' else -1)) % 8
+                selected = (selected + (1 if key == 'down' else -1)) % len(MENU)
             if key in ('left', 'right'):
-                step = 4 if terminal.size().columns >= 72 else 1
-                selected = (selected + (step if key == 'right' else -step)) % 8
-            if key in '12345678' and key:
+                if terminal.size().columns >= 72:
+                    other = selected + 4 if selected < 4 else selected - 4
+                    if other < len(MENU):
+                        selected = other
+                else:
+                    selected = (selected + (1 if key == 'right' else -1)) % len(MENU)
+            shortcuts = ''.join(str(i + 1) for i in range(len(MENU)))
+            if key in shortcuts and key:
                 selected = int(key) - 1
-            if key == 'enter' or key in '12345678' and key:
+            if key == 'enter' or key in shortcuts and key:
                 try:
                     ui_action(selected, controller, terminal)
                     message = ''
@@ -588,8 +548,6 @@ def run(args, controller, terminal):
             controller.runtime.stop()
         status = controller.runtime.start() if action in ('start', 'restart') else controller.runtime.status()
         return dict(running=bool(status), version=status.get('version') if status else None)
-    if command == 'driver':
-        return controller.driver(args.action or 'status', getattr(args, 'package', None), getattr(args, 'published_name', None))
     if command == 'status':
         return controller.runtime.status() or dict(running=False, message='运行 rmlink service start 启动后台服务')
     if command is None and terminal.tty and sys.stdin.isatty() and not args.json:
@@ -600,7 +558,7 @@ def run(args, controller, terminal):
         return controller.runtime.status()
     if command == 'devices':
         return controller.scan()
-    if command in ('pair', 'unpair', 'connect', 'disconnect', 'mount', 'unmount'):
+    if command in ('pair', 'unpair', 'connect', 'disconnect'):
         if command == 'pair':
             controller.scan()
         return controller.device_action(command, transport=getattr(args, 'transport', None))
@@ -660,7 +618,7 @@ def main(argv=None):
     args = parser().parse_args(argv)
     terminal = Terminal(args.no_color)
     try:
-        if not 1 <= args.api_port <= 65535 or not 1 <= args.usbip_port <= 65535:
+        if not 1 <= args.api_port <= 65535:
             raise ClientError('端口需为 1–65535', 2)
         result = run(args, Controller(args), terminal)
         if result is not None:

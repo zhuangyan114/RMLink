@@ -50,7 +50,6 @@ def main():
     def add(destination,source):files[destination]=source.read_bytes()
     add('bin/RMLinkConnector.exe',ROOT/'artifacts/build/connector/dist/RMLinkConnector.exe')
     add('bin/rmlink.exe',ROOT/'artifacts/build/connector/dist/rmlink.exe')
-    add('bin/Driver.ps1',ROOT/'host/distribution/Driver.ps1')
     add('bin/Hotspot.ps1',ROOT/'host/distribution/Hotspot.ps1')
     add('docs/terminal-client.md',ROOT/'docs/terminal-client.md')
     add('docs/ota-upgrade.md',ROOT/'docs/ota-upgrade.md')
@@ -70,8 +69,9 @@ def main():
         add('docs/'+name,ROOT/'docs'/name)
     for name in ('Start.ps1','Start-Service.ps1','Register-Command.ps1','Wait-Ready.ps1','Install.ps1','README.md'):
         add(name,ROOT/'host/distribution'/name)
-    for source in sorted((ROOT/'artifacts/build/connector/dist').glob('*.txt')):
-        add('licenses/'+source.name,source)
+    for name in ('RMLink-LICENSE.txt','Orbit-FlashAlgorithm-LICENSE.txt','PyInstaller-COPYING.txt','Python-LICENSE.txt'):
+        source=ROOT/'artifacts/build/connector/dist'/name
+        if source.is_file():add('licenses/'+source.name,source)
     add('licenses/Firmware-LICENSE',ROOT/'firmware/LICENSE')
     add('firmware/dependencies.lock',ROOT/'firmware/dependencies.lock')
     add('docs/reference-versions.json',ROOT/'docs/reference-versions.json')

@@ -22,7 +22,7 @@ class SelectionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp=tempfile.TemporaryDirectory();self.connector=Connector(State(self.temp.name))
         device=Device(ID,'model','127.0.0.1',3241,'0.2.2');self.connector.devices[ID]=device
-        self.connector.state.data['paired'][ID]=dict(device.as_dict(),auto_mount=False)
+        self.connector.state.data['paired'][ID]=dict(device.as_dict())
         self.probe=Probe();broker=Broker(self.probe,ID);await broker.start();self.connector.brokers[ID]=broker
     async def asyncTearDown(self):
         await self.connector.close();self.temp.cleanup()

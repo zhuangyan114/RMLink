@@ -18,7 +18,7 @@ from rmlink_usb import UsbClient
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--transport', choices=['USB','VirtualUSB'], required=True)
+    parser.add_argument('--transport', choices=['USB'], required=True)
     parser.add_argument('--samples', type=int, default=5)
     parser.add_argument('--expected-image', type=Path, default=ROOT / 'artifacts/build/stm32-fixture/fixture-64k.bin')
     parser.add_argument('--output', type=Path, required=True)
@@ -32,7 +32,7 @@ def main():
         assert all(d['owner'] is None for d in snapshot['devices'])
         backup = args.expected_image.read_bytes()
         assert len(backup) == 65536
-        serial = '50787D15A924' if args.transport == 'USB' else 'RM50787D15A924'
+        serial = '50787D15A924'
         with UsbClient(serial=serial) as client:
             report['packetSize'] = client.packet_size
             for clock in (1000000, 2000000, 4000000, 6000000, 8000000, 10000000):

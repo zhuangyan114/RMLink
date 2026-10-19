@@ -1,5 +1,7 @@
 # RMLink 终端客户端
 
+> 2026-10-19 方向变更：无线 CMSIS-DAP 改为 OpenOCD TCP 接入，停止推进虚拟 USB。当前源码已删除挂载和驱动管理，终端保留七个菜单：设备管理、Wi-Fi 配置、连接管理、实时监控、固件升级、诊断与日志、设置。旧版本验收记录保留其历史条件；本机已安装程序尚未替换。见[当前项目方向](current-direction.md)。
+
 客户端 0.3.1 完善 OTA 确认和进度提示，与本机现有连接服务 0.3.0 兼容。固件从 0.3.0 开始支持 OTA；SDK 使用各自版本，目标程序和 Orbit 工作树保留。
 
 0.3.1 交互修复：导入后保留固件信息停顿页，展示当前版本到所选版本的变化，底部以蓝色明确显示「Enter 确认安装并重启 RMLink」，`q / Esc` 取消并返回固件菜单；不再把回车标成返回，也不再追加第二个安装菜单。确认后立即显示 0% 进度，持续显示上传百分比、校验、等待重连秒数和最终成功提示。181 项主机测试通过，冻结 EXE 在 Windows PowerShell 伪终端配合隔离模拟服务完成取消不上传、完整上传、VALID 等待与各阶段提示验收；记录在本机 `artifacts/tests/ota-ui-031-conpty/acceptance.json`。已安装客户端还在真实设备上完成信息页／版本对比／q 取消检查，设备分区和镜像摘要保持一致，记录为 `artifacts/tests/ota-ui-031-installed.json`。客户端文件与构建哈希一致，保留原服务及真实设备 0.3.0，留给用户体验真实升级。
@@ -26,9 +28,9 @@ rmlink
 & "$env:USERPROFILE\.rmlink\app\bin\rmlink.exe"
 ```
 
-不带参数进入交互控制台：RMLINK 字标采用参考图中的规整像素块风格，保持七行高度，宽度为 66 列；`RM` 深蓝、`LINK` 浅蓝，搭配设备概览、实时速率及八个操作入口。主菜单和操作子菜单使用同一字标；窗口空间不足时自动使用紧凑字标，优先显示菜单与操作提示。仅当前选中的菜单项变蓝，上下键选择，左右键切换两列同一行，Enter 打开，也支持数字快捷键；`q`、Ctrl+C 退出界面，后台连接服务继续运行。窄终端使用单列菜单，左右键依次选择；`NO_COLOR` 或 `--no-color` 关闭颜色，同时保留选中标记。重定向输出时不启动交互循环。
+不带参数进入交互控制台：RMLINK 字标采用参考图中的规整像素块风格，保持七行高度，宽度为 66 列；`RM` 深蓝、`LINK` 浅蓝，搭配设备概览、实时速率及七个操作入口。主菜单和操作子菜单使用同一字标；窗口空间不足时自动使用紧凑字标，优先显示菜单与操作提示。仅当前选中的菜单项变蓝，上下键选择，左右键切换两列同一行，Enter 打开，也支持数字快捷键；`q`、Ctrl+C 退出界面，后台连接服务继续运行。窄终端使用单列菜单，左右键依次选择；`NO_COLOR` 或 `--no-color` 关闭颜色，同时保留选中标记。重定向输出时不启动交互循环。
 
-Wi-Fi、设备管理、连接与挂载、驱动管理、诊断与日志、设置均使用上下键选择、Enter 进入的列表。详情页返回后保留子菜单焦点；选择「返回上一级」或按 `q`／Esc 返回。只有网络名称、密码、路径、别名等文字表单需要输入文本，密码隐藏输入。电脑热点状态可在未发现设备时查看。
+Wi-Fi、设备管理、连接管理、固件升级、诊断与日志、设置均使用上下键选择、Enter 进入的列表。详情页返回后保留子菜单焦点；选择「返回上一级」或按 `q`／Esc 返回。只有网络名称、密码、路径、别名等文字表单需要输入文本，密码隐藏输入。电脑热点状态可在未发现设备时查看。
 
 2026-10-17 最新界面调整通过 18 项终端测试和全部 162 项主机测试，覆盖两种菜单布局的单项蓝色、左右切换后 Enter 打开正确入口、Windows 原生／VT 方向键、Wi-Fi 状态／配网表单／无设备热点查询、取消菜单不执行操作、长列表滚动及小终端布局。重建并更新本机 `rmlink.exe`，在 Windows PowerShell 5.1 的 ConPTY 中确认 Wi-Fi 子菜单上下选择、Enter 打开电脑热点状态、`q` 返回后保留焦点、Esc 返回主菜单及 `q` 恢复原终端；本轮未写入 Wi-Fi 凭据或维护驱动。
 
@@ -50,13 +52,10 @@ rmlink wifi status
 rmlink wifi hotspot
 rmlink wifi configure --ssid "电脑热点"
 rmlink connect --transport wifi
-rmlink mount
 rmlink monitor
-rmlink unmount
 rmlink disconnect
 rmlink unpair
 rmlink info
-rmlink driver status
 rmlink doctor --output .\rmlink-diagnostics.json
 rmlink logs --lines 80
 rmlink service status
@@ -65,7 +64,7 @@ rmlink firmware status
 rmlink firmware inspect .\rmlink.bin
 ```
 
-所有命令支持 `--json`、`--device <完整 MAC 编号>` 和 `--no-color`。多设备且未选择默认设备时要求明确选择，不自动选择第一块设备。USB 发现只查询真实 OTG 设备，忽略虚拟 USB；USB 配对默认使用有线承载，已有传输偏好保留。
+所有命令支持 `--json`、`--device <完整 MAC 编号>` 和 `--no-color`。多设备且未选择默认设备时要求明确选择，不自动选择第一块设备。USB 发现只查询真实 OTG 设备；USB 配对默认使用有线承载，已有传输偏好保留。
 
 密码使用隐藏输入；脚本可使用 `--password-stdin` 通过 UTF-8 stdin 传入，开放网络需显式 `--open-network`。不提供密码命令行参数，不回读或显示已保存密码，不将密码写入主机设置或诊断文件。SSID 和密码按 UTF-8 字节校验，USB 侧重发完整字段；提交未确认时不自动重试。
 
@@ -77,33 +76,9 @@ rmlink firmware inspect .\rmlink.bin
 
 订阅信息来自现有 owner 的缓存，仅显示已存在任务，不创建订阅、不连接目标、不读写目标内存。实际均值以收到样本的板端时间戳计算，与请求采样率分开；没有样本、没有任务或旧服务未提供统计时显示不可用，不伪造频率和丢样指标。首页读取本机缓存，不主动测速。
 
-## 驱动维护与升级边界
+## 固件升级边界
 
-客户端管理现有 USBip 驱动的安装状态和服务状态，设备通过原有挂载接口呈现为虚拟 CMSIS-DAP。`driver status` 同时核对 USBip CLI、内核服务状态及文件签名；签名有效不等价于正式微软发布认证。
-
-安装／修复入口接受经审核的本地 `driver-package.json`，校验所有列明文件 SHA256 和 CAT 信任状态后通过 Windows UAC 调用 pnputil。不修改 Secure Boot、TESTSIGNING 或内存完整性，不自动重启。当前不自动下载或替换本机已验证的修补驱动；普通上游包不能替代本机修补驱动的验收结论。
-
-```powershell
-rmlink driver install --package .\drivers\driver-package.json
-rmlink driver repair --package .\drivers\driver-package.json
-rmlink driver uninstall --published-name oem123.inf
-```
-
-清单格式如下，文件需来自同一经审核的签名驱动包：
-
-```json
-{
-  "format": "rmlink-driver-v1",
-  "infs": ["usbip2_ude.inf"],
-  "files": [
-    {"path": "usbip2_ude.inf", "sha256": "完整 SHA256"},
-    {"path": "usbip2_ude.sys", "sha256": "完整 SHA256"},
-    {"path": "usbip2_ude.cat", "sha256": "完整 SHA256"}
-  ]
-}
-```
-
-卸载只接受明确的 Windows `oem数字.inf` 发布名并核对 USBip 内容，不使用强制删除。当前驱动安装／修复／卸载入口需要独立系统验收，开发客户端验证不等价于驱动发布或替换验收。
+虚拟 USB 的挂载、驱动查询、安装、修复和卸载命令已从当前源码删除；不再分发 `Driver.ps1`。标准无线 CMSIS-DAP 由 OpenOCD 直接连接板端 TCP 3241，有线 CMSIS-DAP 继续使用原生 USB。旧驱动实验仅保留[历史故障记录](virtual-usb-cancellation.md)，源码可在切换前检查点 `022ff12` 查阅。
 
 `firmware` 专指 RMLink 自身。0.3.0 支持本地 `.bin` 导入和 GitHub 最新正式固件获取，使用官方双升级分区和启动确认／失败回滚。`inspect` 离线核对芯片、应用结构、镜像完整性、版本及硬件配置；`update 文件 --yes` 或 `update --latest --yes` 在空闲设备上写入备用分区并等待重启确认。旧固件明确返回首次 USB 迁移要求，不发送 STM32 Flash 命令。完整协议、发布清单、迁移和验证边界见 [OTA 升级](ota-upgrade.md)。
 

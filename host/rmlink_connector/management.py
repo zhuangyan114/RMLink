@@ -183,8 +183,6 @@ class Management:
                     await c._refresh()
                     return dict(device_id=key, connected=key in c.brokers and not c.brokers[key].failed,
                                 error=c.connection_errors.get(key))
-                if key in c.driver.ports:
-                    await c.driver.detach(key)
                 broker = c.brokers.pop(key, None)
                 if broker:
                     await broker.close()

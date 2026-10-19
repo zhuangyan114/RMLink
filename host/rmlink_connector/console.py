@@ -17,8 +17,8 @@ WORDMARK = (
     '██      ██  ██      ██  ██████████  ██████  ██      ██  ██      ██',
 )
 COMPACT_WORDMARK = 'R M L I N K'
-MENU = ('设备管理', 'Wi-Fi 配置', '连接与挂载', '实时监控',
-        '驱动管理', '固件升级', '诊断与日志', '设置')
+MENU = ('设备管理', 'Wi-Fi 配置', '连接管理', '实时监控',
+        '固件升级', '诊断与日志', '设置')
 ESCAPE = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 
 
@@ -232,7 +232,7 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
         name = device.get('alias') or device.get('hostname') or device['device_id']
         lines += [(f'  当前设备  {name}', 'strong'),
                   (f'  {device["device_id"]}  ·  {"USB" if device.get("transport") == "usb" else "Wi-Fi"}  ·  '
-                   f'{"在线" if device.get("connected") else "离线"}  ·  {"已挂载" if device.get("mounted") else "未挂载"}', None),
+                   f'{"在线" if device.get("connected") else "离线"}', None),
                   (f'  目标占用  {"调试会话" if device.get("owner") else "空闲"}    固件  {device.get("firmware", "--")}', 'muted')]
     else:
         lines += [('  尚未选择设备', 'strong'), ('  按 1 发现并配对，或按 2 通过 USB 配置 Wi-Fi', 'muted'), ('', None)]
@@ -262,7 +262,7 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
         if width >= 68:
             for i in range(4):
                 left = ('›' if selected == i else ' ') + f' {i + 1}  {MENU[i]}'
-                right = ('›' if selected == i + 4 else ' ') + f' {i + 5}  {MENU[i + 4]}'
+                right = (('›' if selected == i + 4 else ' ') + f' {i + 5}  {MENU[i + 4]}') if i + 4 < len(MENU) else ''
                 lines.append([('  ' + pad(left, 32), 'selected' if selected == i else None),
                               (right, 'selected' if selected == i + 4 else None)])
         else:

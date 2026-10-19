@@ -43,7 +43,7 @@ class ManagementTests(unittest.IsolatedAsyncioTestCase):
         self.connector = Connector(State(self.temp.name))
         self.device = Device(ID, 'rmlink-test.local', '127.0.0.1', 3241, '0.2.40')
         self.connector.devices[ID] = self.device
-        self.connector.state.data['paired'][ID] = dict(self.device.as_dict(), alias='工作台', auto_mount=False)
+        self.connector.state.data['paired'][ID] = dict(self.device.as_dict(), alias='工作台')
         self.transport = FakeTransport()
         self.transport.traffic = Traffic()
         self.broker = Broker(self.transport, ID)
@@ -81,13 +81,12 @@ class ManagementTests(unittest.IsolatedAsyncioTestCase):
                 'rmlink_connector.service.TcpTransport', side_effect=AssertionError('Reconnected manually disconnected device')):
             await self.connector.refresh()
 
-    async def test_pair_again_preserves_alias_mount_and_transport_preferences(self):
+    async def test_pair_again_preserves_alias_and_transport_preferences(self):
         self.connector.state.data['paired'][ID].update(auto_connect=False, transport='usb')
         with patch.object(self.connector, 'refresh', AsyncMock()):
             await self.connector.route('POST', '/v1/pair', {'device_id': ID})
         saved = self.connector.state.data['paired'][ID]
         self.assertEqual(saved['alias'], '工作台')
-        self.assertFalse(saved['auto_mount'])
         self.assertEqual(saved['transport'], 'usb')
 
     async def test_unpair_removes_default_but_preserves_other_preferences_and_token(self):

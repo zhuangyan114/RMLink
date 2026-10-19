@@ -1,4 +1,4 @@
-"""Discovery, paired-device connection, local Orbit API and virtual USB lifecycle."""
+"""Discovery, paired-device connection and local enhanced debugging API."""
 import asyncio
 import contextlib
 import hmac
@@ -11,11 +11,9 @@ from urllib.parse import parse_qs
 from . import __version__
 from .broker import Broker, PRIORITIES
 from .discovery import Device, discover
-from .driver import Driver
 from .state import State
 from .transport import TcpTransport
 from .usb_transport import UsbTransport
-from .usbip import UsbIpServer
 from .target import TargetEngine, TargetAccessError
 from .subscriptions import Subscriptions
 from .flash import FlashProgrammer, FlashJobError
@@ -32,15 +30,11 @@ class Connector:
     def __init__(self, state=None):
         self.state = state or State()
         self.devices, self.brokers, self.sessions = {}, {}, {}
-        self.driver = Driver()
-        self.usbip = UsbIpServer(self.brokers)
         self.api = None
-        self.usbip_port = None
         self.stopping = asyncio.Event()
         self.background = None
         self.loop_monitor = None
         self.scan_error = None
-        self.mount_errors = {}
         self.connection_errors = {}
         self.refresh_lock = asyncio.Lock()
         self.clock_sync=ClockSync()
@@ -74,8 +68,6 @@ class Connector:
                     if session['device_id'] == key:await self.close_session(sid)
                 await broker.close(); self.brokers.pop(key, None)
                 # A lost active session is terminal. Reconnection never replays writes.
-                if key in self.driver.ports:
-                    with contextlib.suppress(Exception): await self.driver.detach(key)
                 broker = None
             if broker is None:
                 device = self.devices[key]
@@ -99,10 +91,6 @@ class Connector:
                 except (OSError, TimeoutError, ValueError, ConnectionError) as exc:
                     self.connection_errors[key] = f'{type(exc).__name__}: {exc}'
                     await fresh.close(); continue
-            if saved.get('auto_mount', False) and self.driver.exe.exists() and key not in self.driver.ports:
-                try:
-                    await self.driver.attach(key, self.usbip_port); self.mount_errors.pop(key, None)
-                except Exception as exc: self.mount_errors[key] = str(exc)
 
     async def upkeep(self):
         while not self.stopping.is_set():
@@ -127,21 +115,18 @@ class Connector:
         broker=self.brokers.get(session['device_id'])
         if broker:await broker.release(sid)
 
-    async def start(self, api_port=3243, usbip_port=3240):
-        self.usbip_port = await self.usbip.start(usbip_port)
+    async def start(self, api_port=3243):
         self.api = await asyncio.start_server(self.handle_http, '127.0.0.1', api_port, limit=16384)
         self.background = asyncio.create_task(self.upkeep())
         self.loop_monitor = asyncio.create_task(monitor_event_loop())
         return self.api.sockets[0].getsockname()[1]
 
     def snapshot(self):
-        return {'version': __version__, 'usbip_port': self.usbip_port, 'driver': self.driver.status(),
-                'discovery_error': self.scan_error, 'mount_errors': self.mount_errors,
+        return {'version': __version__, 'discovery_error': self.scan_error,
                 'connection_errors': self.connection_errors,
                 'devices': [dict(d.as_dict(), paired=key in self.state.data['paired'],
                             alias=self.state.data['paired'].get(key,{}).get('alias',''),
                             auto_connect=self.state.data['paired'].get(key,{}).get('auto_connect',True),
-                            mounted=key in self.driver.ports,
                             connected=key in self.brokers and not self.brokers[key].failed,
                             packet_size=self.brokers[key].packet_size if key in self.brokers else None,
                             transport=('usb' if getattr(self.brokers[key].transport,'native_usb',False) else 'wifi') if key in self.brokers else self.state.data['paired'].get(key,{}).get('transport','wifi'),
@@ -161,7 +146,7 @@ class Connector:
                 'time_sync':True,'device_health':True,'memory_overflow_policy':'drop_old_bounded',
                 'recording':{'format':'rmlrec','version':1,'strict_gap_detection':True,
                     'scope':'existing subscriptions in one owner session','acknowledged_retransmission':False},
-                'validation':'development; F103C8 virtual USB 4 MHz acceptance measured; physical NRST and other target families pending'}
+                'validation':'development; native USB and enhanced API have historical F103C8 evidence; OpenOCD TCP, physical NRST and other target families require separate acceptance'}
         if method == 'GET' and path == '/v1/status': return self.snapshot()
         if method == 'GET' and path == '/v1/devices': return self.snapshot()['devices']
         if method=='GET' and path.startswith('/v1/devices/') and path.endswith('/health'):
@@ -185,7 +170,6 @@ class Connector:
                     raise ValueError('Close all target sessions before changing transport')
                 self.switching.add(key)
                 try:
-                    if key in self.driver.ports:await self.driver.detach(key)
                     if broker:await broker.close();self.brokers.pop(key,None)
                     self.state.data['paired'][key]['transport']=mode;self.state.save()
                     await self._refresh()
@@ -208,19 +192,6 @@ class Connector:
                 saved.setdefault('transport','usb')
             self.state.save(); await self.refresh()
             return {'paired': key}
-        if method == 'POST' and path == '/v1/mount':
-            key = body.get('device_id')
-            if key in self.switching: raise ConnectionError('Device maintenance in progress')
-            if key not in self.brokers: raise ValueError('Pair and connect the discovered device first')
-            port = await self.driver.attach(key, self.usbip_port)
-            self.state.data['paired'][key]['auto_mount'] = True; self.state.save()
-            return {'device_id': key, 'virtual_port': port}
-        if method == 'POST' and path == '/v1/unmount':
-            key = body.get('device_id')
-            if key not in self.state.data['paired']: raise ValueError('Unknown paired device')
-            self.state.data['paired'][key]['auto_mount'] = False; self.state.save()
-            await self.driver.detach(key)
-            return {'unmounted': key}
         if method == 'POST' and path == '/v1/sessions':
             if len(self.sessions)>=64:raise asyncio.QueueFull()
             key = body.get('device_id')
@@ -393,8 +364,5 @@ class Connector:
         if self.loop_monitor:self.loop_monitor.cancel();await asyncio.gather(self.loop_monitor,return_exceptions=True)
         if self.background: self.background.cancel(); await asyncio.gather(self.background, return_exceptions=True)
         for sid in list(self.sessions):await self.close_session(sid)
-        for key in list(self.driver.ports):
-            with contextlib.suppress(Exception): await self.driver.detach(key)
-        await self.usbip.close()
         for broker in self.brokers.values(): await broker.close()
         if self.api: self.api.close(); await self.api.wait_closed()

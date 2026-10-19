@@ -10,7 +10,6 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'host'))
 from rmlink_connector.client import ApiClient,RMLinkError
 from rmlink_connector.recording_reader import inspect_recording
 from rmlink_native_usb import UsbClient
-from accept_virtual_usb import wait_virtual_usb
 
 
 def main():
@@ -47,12 +46,9 @@ def main():
         while time.perf_counter()<deadline:
             status=discovery.request('GET','/v1/status')
             connected=next((d for d in status['devices'] if d['device_id']==args.device_id and d['connected']),None)
-            if connected and connected['owner'] is None and args.device_id in status['driver']['managed_ports']:break
+            if connected and connected['owner'] is None:break
             time.sleep(.2)
-        else:raise TimeoutError('New broker/virtual device did not recover')
-        with wait_virtual_usb(timeout=max(1,deadline-time.perf_counter())) as virtual:
-            assert virtual.serial=='RM'+args.device_id.upper()
-            assert virtual.exchange(b'\x00\xff')==b'\x00\x02\x00\x02'
+        else:raise TimeoutError('New broker did not recover')
         report['automaticRecoveryMs']=(time.perf_counter()-begin)*1000
         try:old.target('state')
         except RMLinkError as error:assert error.status==503

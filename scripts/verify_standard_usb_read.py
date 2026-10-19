@@ -1,4 +1,4 @@
-"""Read the current 64 KiB fixture through native and virtual USB CMSIS-DAP.
+"""Read the current 64 KiB fixture through native USB CMSIS-DAP.
 
 Does not halt, reset or program the STM32. The SWD connection configures DP/AP
 registers as usual; target Flash and RAM are only read. Run after subscriptions
@@ -35,7 +35,7 @@ def main():
         device = next(d for d in devices if d['device_id'] == '50787d15a924')
         if device['owner'] is not None:
             raise RuntimeError('A service session still owns the target')
-        for serial in ('50787D15A924', 'RM50787D15A924'):
+        for serial in ('50787D15A924',):
             with UsbClient(serial=serial) as usb:
                 with SwdSession(usb, clock=4000000) as swd:
                     cpuid = swd.read32(0xe000ed00)

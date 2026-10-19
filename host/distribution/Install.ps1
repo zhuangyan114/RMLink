@@ -29,4 +29,4 @@ if ($StartAtLogon -or $existingStartup) {
     $command = '"' + $powershell + '" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $target 'Start.ps1') + '"'
     New-ItemProperty -Path $run -Name 'RMLinkConnector' -Value $command -PropertyType String -Force | Out-Null
 }
-Write-Output 'Installed. Run rmlink in a new terminal. Virtual USB uses the separately installed driver.'
+Write-Output 'Installed. Run rmlink in a new terminal. Wireless CMSIS-DAP connects through OpenOCD TCP.'

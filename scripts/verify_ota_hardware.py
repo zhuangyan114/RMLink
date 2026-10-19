@@ -201,31 +201,12 @@ class Checks:
                     injected_reset_observed=True, valid_running_image_restored=True,
                     serial_log=str(self.args.output.with_suffix('.serial.log'))))
 
-    def mount_cycle(self):
-        assert self.api.set_transport(self.args.device, 'wifi')['connected']
-        result = self.api.request('POST','/v1/mount',dict(device_id=self.args.device))
-        self.check('mounted-before-upgrade', result)
-        try:
-            self.update(self.args.previous, 'wifi')
-            deadline = time.monotonic()+40
-            while time.monotonic() < deadline:
-                status = self.api.request('GET','/v1/status')
-                row = next(d for d in status['devices'] if d['device_id'] == self.args.device)
-                if row['mounted'] and row['connected']:
-                    self.check('remounted-after-upgrade', row)
-                    break
-                time.sleep(1)
-            else:
-                raise AssertionError('Virtual USB did not remount')
-            self.update(self.args.image, 'wifi')
-        finally:
-            self.api.request('POST','/v1/unmount',dict(device_id=self.args.device))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--allow-device-write', action='store_true', required=True)
-    parser.add_argument('--case', choices=('cycle','negative','reset-upload','rollback','mount-cycle'), required=True)
+    parser.add_argument('--case', choices=('cycle','negative','reset-upload','rollback'), required=True)
     parser.add_argument('--device', default='50787d15a924')
     parser.add_argument('--port', default='COM13')
     parser.add_argument('--exe', type=Path, default=Path.home()/'.rmlink/app/bin/rmlink.exe')

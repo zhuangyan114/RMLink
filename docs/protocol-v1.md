@@ -1,5 +1,7 @@
 # RMLink 开发协议 v1
 
+> 2026-10-19 接入决策：标准无线 CMSIS-DAP 仅通过现有 TCP DAP 承载提供给 OpenOCD，不再走虚拟 USB；默认 TCP 端口仍为 3241，帧格式不因本次方向记录而改变。下文虚拟 USB 容量和 UDE 行为属于历史实现。见[当前项目方向](current-direction.md)。
+
 当前开发固件 0.2.11，更新：2026-10-15。本页描述标准 DAP 承载与 0x80 设备管理接口；板端采样、指针解析、离散地址读取和三类订阅已实现。
 
 已实现的 Watch / Timeline / RTT 使用 0x81 控制、TCP3244 或原生 USB_PULL 回传，字段、命令和公开接入见 [API](api-v1.md)，架构见 [订阅方案](subscription-design.md)。实现和验收范围见 [进度](development-status.md)，不能把支持的周期范围当作实测采样频率。

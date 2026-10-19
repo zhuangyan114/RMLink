@@ -1,6 +1,6 @@
 """One physical connection and one whole-session target owner per probe.
 
-API and virtual USB clients share this broker. Priorities apply between batches;
+Enhanced API clients share this broker. Priorities apply between batches;
 a batch remains ordered. Abort bypasses the job queue, never another owner.
 """
 import asyncio

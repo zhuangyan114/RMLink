@@ -4,17 +4,17 @@
 
 ## 接入与能力
 
-Orbit 开发工作树现可用 `"probe":"rmlink"` 直接选择本服务后端，保留单一目标 owner；`rmlinkDeviceId` 可选，省略时仅在恰有一台已配对且在线的设备时自动选择。多台设备返回 AmbiguousDevice，不自动抢占。该入口默认启用 F5 烧录；`flashBeforeDebug:false` 仍明确跳过烧录。标准 CMSIS-DAP/虚拟 USB 继续使用 `probe:cmsis-dap`。
+Orbit 开发工作树现可用 `"probe":"rmlink"` 直接选择本服务后端，保留单一目标 owner；`rmlinkDeviceId` 可选，省略时仅在恰有一台已配对且在线的设备时自动选择。多台设备返回 AmbiguousDevice，不自动抢占。该入口默认启用 F5 烧录；`flashBeforeDebug:false` 仍明确跳过烧录。有线标准 CMSIS-DAP 继续使用 `probe:cmsis-dap`；标准无线接入改为 OpenOCD TCP，旧虚拟 USB 已从当前源码删除。
 
 服务 0.2.11 起，增强 target/connect 遇到其他会话占用时返回 HTTP 409、`code:TargetBusy`、`write_completion_may_be_unknown:false`，不发送 SWD 命令、不释放其他 owner。租约建立成功不等于获得目标所有权；调用者须处理该冲突。原始 `/dap` 路径仍返回标准 CMSIS-DAP 的拒绝响应。
 
-安装组件后，低频控制通过 `http://127.0.0.1:3243/v1`；要求 Bearer token，token 保存在当前用户受 ACL 保护的 `.rmlink/connector.json`，SDK 自动读取，不应记录或传给远程网页。USB/IP 环回与普通软件仍使用现有虚拟 CMSIS-DAP。增强能力需要客户端调用本 API。
+安装组件后，低频控制通过 `http://127.0.0.1:3243/v1`；要求 Bearer token，token 保存在当前用户受 ACL 保护的 `.rmlink/connector.json`，SDK 自动读取，不应记录或传给远程网页。标准无线 CMSIS-DAP 由 OpenOCD 直接连接板端 TCP 3241，增强能力由客户端调用本 API；本机不再监听 USB/IP 3240，也不再提供挂载/卸载接口或驱动状态字段。
 
-`GET /v1/capabilities` 提供 API 版本、支持的目标命令、订阅类型、字段/指针/周期等限制。该接口报告软件实现范围；物理设备须在线且成功取得 owner。增强目标当前限定 F103 medium-density Cortex-M3，采样允许的 RAM 为 20 KiB、Flash 为前 64 KiB；烧录进一步检查实际容量为 64 KiB。其他芯片先使用标准虚拟 USB，不能将本版增强 profile 泛化。
+`GET /v1/capabilities` 提供 API 版本、支持的目标命令、订阅类型、字段/指针/周期等限制。该接口报告软件实现范围；物理设备须在线且成功取得 owner。当前源码使用[统一目标算法包](shared-target-package.md)，按选定型号核对身份、容量、包标识及各独立 RAM/Flash 窗口。F103C8 的历史实板证据不代表新增 F407/H723 或当前固件已通过实板验收。
 
 `POST /v1/sessions`：`{"device_id":"50787d15a924"}`，返回 session_id、heartbeat_seconds=5、expiry_seconds=30 和 packet_size。SDK 自动续期；最多 64 个本地租约，每块物理目标仅一个控制 owner。`DELETE /v1/sessions/{id}` 停止订阅、尝试清理本会话断点并释放 owner，未知写不重放。
 
-`POST /v1/transport`：`{"device_id":"50787d15a924","transport":"usb"}`或wifi，只允许在该设备无owner且全部本地租约已关闭时执行。USB用原生WinUSB独占句柄，Wi-Fi用原有TCP；同一设备只保留一个Broker，虚拟USB重新挂载并协商实际64／512字节。偏好保存并用于后续重连；离线时返回connected=false及connection_error，不自动改选其他传输。首版尚未自动发现／配对未配置热点的全新USB设备，应先完成已有配对。已配对设备的有线采集不需要TCP数据socket。
+`POST /v1/transport`：`{"device_id":"50787d15a924","transport":"usb"}`或wifi，只允许在该设备无owner且全部本地租约已关闭时执行。USB用原生WinUSB独占句柄，Wi-Fi用原有TCP；同一设备只保留一个 Broker，切换后重新协商实际包容量。偏好保存并用于后续重连；离线时返回connected=false及connection_error，不自动改选其他传输。首版尚未自动发现／配对未配置热点的全新USB设备，应先完成已有配对。已配对设备的有线采集不需要TCP数据socket。
 
 ## 高层目标操作
 
@@ -85,7 +85,7 @@ RMS2 连接输出连续 RMC2 组：组头 20 B，布局为 `magic[4]="RMC2", kin
 
 服务还原原RML1帧后逐条检查原始CRC和schema，再交给现有消费者。时间戳、序号、duration、有效位、flags及数值的原始字节全部保留，不合并相同值的样本，也不改变SWD操作；每组重置前值，独立解码，不跨连接续用压缩状态。RMS3解码器同时接受RMC2；旧RMS2解码器拒绝未协商RMC3。真实十变量记录中RMS3的bytes/raw_bytes约20.9%，取决于变量变化情况，不能作为任意布局的固定压缩率。
 
-有线数据走0x81/16 USB_PULL：请求frame_id(uint32 LE，初始1)、offset(uint16 LE)。回应为command/sub/status、frame_id32、total16、offset16、chunk_len8和最多52 B数据。total=0为空轮询，不推进frame_id；每帧最多384 B，重复读取相同id/offset稳定，下一帧id递增并跳过0，旧id／跳号拒绝。USB_PULL与TCP数据绑定互斥。服务组帧后使用同样CRC／schema和本地stream接口；分片格式不是标准CMSIS-DAP命令，标准软件仍使用虚拟USB。
+有线数据走0x81/16 USB_PULL：请求frame_id(uint32 LE，初始1)、offset(uint16 LE)。回应为command/sub/status、frame_id32、total16、offset16、chunk_len8和最多52 B数据。total=0为空轮询，不推进frame_id；每帧最多384 B，重复读取相同id/offset稳定，下一帧id递增并跳过0，旧id／跳号拒绝。USB_PULL与TCP数据绑定互斥。服务组帧后使用同样CRC／schema和本地stream接口；分片格式不是标准 CMSIS-DAP 命令，标准无线软件通过 OpenOCD TCP 使用普通 DAP 命令。
 
 帧头为 32 B：RML1、version、kind、subscription_id、flags、capture_id、revision、sequence、payload_len、record_count、header_len、payload CRC32。内存样本头为 24 B：seq32、timestamp_us64、duration_us32、valid_bitmap32、sample_flags16、data_len16，之后是每字段 uint32 原始值。sample_flags：bit0 partial、bit1 执行预算超限、bit2 Watch 复用。RTT 数据部分为 channel32 + byte_sequence64 + length32 + bytes。
 

@@ -15,6 +15,28 @@ from rmlink_connector.local_service import ClientError, LocalService, inspect_fi
 
 
 class TerminalClientTests(unittest.TestCase):
+    def test_removed_commands_are_rejected_before_starting_the_service(self):
+        for command in (['mount'], ['unmount'], ['driver', 'status'], ['--usbip-port', '3240', 'status']):
+            with self.subTest(command=command), contextlib.redirect_stderr(io.StringIO()), patch(
+                    'rmlink_connector.local_service.LocalService.start') as start:
+                with self.assertRaises(SystemExit) as error:
+                    main(command)
+                self.assertEqual(error.exception.code, 2)
+                start.assert_not_called()
+
+    def test_seven_item_navigation_wraps_to_settings_and_skips_the_empty_column(self):
+        for keys, expected in ((['up', 'enter', 'q'], 6),
+                               (['down', 'down', 'down', 'right', 'enter', 'q'], 3),
+                               (['right', 'left', 'enter', 'q'], 0)):
+            controller, terminal = MagicMock(), MagicMock()
+            controller.runtime.status.return_value = None
+            terminal.size.return_value = os.terminal_size((80, 32))
+            terminal.screen.return_value = contextlib.nullcontext()
+            terminal.key.side_effect = keys
+            with patch('rmlink_connector.cli.dashboard', return_value=[]), patch('rmlink_connector.cli.ui_action') as action:
+                self.assertEqual(shell(controller, terminal), 0)
+            action.assert_called_once_with(expected, controller, terminal)
+
     def test_log_location_is_shared_when_a_packaged_host_redirects_localappdata(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.dict(os.environ, USERPROFILE=directory, LOCALAPPDATA=str(Path(directory)/'package cache')):
@@ -162,7 +184,7 @@ class TerminalClientTests(unittest.TestCase):
         self.assertEqual(terminal.stream.getvalue().count('› 电脑热点状态'), 2)
 
     def test_canceling_submenus_does_not_execute_an_operation(self):
-        for index in (1, 2, 4, 6, 7):
+        for index in (1, 2, 5, 6):
             for keys in (['q'], ['\x1b'], ['up', 'enter']):
                 with self.subTest(index=index, keys=keys):
                     controller = MagicMock()
@@ -172,7 +194,6 @@ class TerminalClientTests(unittest.TestCase):
                         ui_action(index, controller, terminal)
                     controller.call.assert_not_called()
                     controller.device_action.assert_not_called()
-                    controller.driver.assert_not_called()
                     controller.diagnose.assert_not_called()
                     controller.runtime.autostart.assert_not_called()
 

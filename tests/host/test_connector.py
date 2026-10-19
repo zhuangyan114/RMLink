@@ -1,16 +1,13 @@
-"""Independent host tests: broker ownership, USB/IP golden bytes and API bounds."""
+"""Independent host tests: broker ownership, DNS parsing and API bounds."""
 import asyncio
 import json
-import struct
 import tempfile
 import unittest
 
 from rmlink_connector.broker import Broker
-from rmlink_connector.descriptors import Descriptors
 from rmlink_connector.discovery import dns_name, parse_dns
 from rmlink_connector.service import Connector
 from rmlink_connector.state import State
-from rmlink_connector.usbip import OP, URB, DEVICE, UsbIpServer
 
 ID = '50787d15a924'
 
@@ -132,15 +129,7 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.transport.requests[-2:], [b'\x00\xff', b'\x00\xfe'])
 
 
-class DescriptorDnsTests(unittest.TestCase):
-    def test_descriptor_lengths_and_multi_sz(self):
-        d = Descriptors(ID)
-        self.assertEqual(len(d.device), 18); self.assertEqual(len(d.config), 32)
-        self.assertEqual(len(d.ms_os), 162); self.assertEqual(len(d.bos), 33)
-        self.assertEqual(d.ms_os[-4:], bytes(4)); self.assertIn(b'WINUSB\0\0', d.ms_os)
-        self.assertEqual(d.control(struct.pack('<BBHHH', 0x80, 6, 0x100, 0, 8)), d.device[:8])
-        self.assertEqual(d.control(struct.pack('<BBHHH', 0xc0, 0x20, 0, 7, 162)), d.ms_os)
-        with self.assertRaises(ValueError): d.control(struct.pack('<BBHHH', 0x80, 6, 0x600, 0, 10))
+class DnsTests(unittest.TestCase):
 
     def test_dns_pointer_cycle_and_truncation(self):
         with self.assertRaises(ValueError): dns_name(b'\xc0\x00', 0)
@@ -148,91 +137,27 @@ class DescriptorDnsTests(unittest.TestCase):
         with self.assertRaises(ValueError): parse_dns(bytes(12))
 
 
-class UsbIpTests(unittest.IsolatedAsyncioTestCase):
-    async def test_512_byte_urb_short_response_and_oversized_out(self):
-        self.broker.transport.packet_size = 512
-        r, w = await self.connect()
-        # The endpoint's physical max remains 64; one URB carries a 512-byte DAP.
-        await self.submit(w, 1, 1, 3, 512)
-        await self.submit(w, 2, 0, 3, 512, data=b'\x80\x07' + bytes(510))
-        h, _ = await self.response(r); self.assertEqual((h[1], h[5], h[6]), (2, 0, 512))
-        h, data = await self.response(r, True)
-        self.assertEqual((h[1], h[6]), (1, 512)); self.assertEqual(data, bytes(range(256))*2)
-        await self.submit(w, 3, 1, 3, 512)
-        await self.submit(w, 4, 0, 3, 2, data=b'\x00\xff')
-        await self.response(r)
-        h, data = await self.response(r, True)
-        self.assertEqual((h[1], h[6], data), (3, 4, b'\x00\x02\x00\x02'))
-        before = len(self.broker.transport.requests)
-        await self.submit(w, 5, 0, 3, 513, data=bytes(513))
-        h, _ = await self.response(r); self.assertEqual(h[5], -32)
-        self.assertEqual(len(self.broker.transport.requests), before)
-
-    async def asyncSetUp(self):
-        self.broker = Broker(FakeTransport(), ID); await self.broker.start()
-        self.server = UsbIpServer({ID: self.broker}); self.port = await self.server.start(0)
-        self.clients = []
-    async def asyncTearDown(self):
-        for writer in self.clients: writer.close(); await writer.wait_closed()
-        await self.server.close(); await asyncio.sleep(.02); await self.broker.close()
-    async def connect(self, import_device=True):
-        r, w = await asyncio.open_connection('127.0.0.1', self.port); self.clients.append(w)
-        if import_device:
-            w.write(OP.pack(0x111, 0x8003, 0) + ('rmlink-' + ID).encode().ljust(32, b'\0')); await w.drain()
-            self.assertEqual(await r.readexactly(8), OP.pack(0x111, 3, 0))
-            self.assertEqual(len(await r.readexactly(312)), DEVICE.size)
-        return r, w
-    async def submit(self, w, seq, direction, ep, length, setup=bytes(8), data=b''):
-        w.write(URB.pack(1, seq, 0x10001, direction, ep, 0, length, 0, 0, 0, setup) + data); await w.drain()
-    async def response(self, r, payload=False):
-        h = URB.unpack(await asyncio.wait_for(r.readexactly(48), 2))
-        return h, await r.readexactly(h[6]) if payload and h[5] == 0 else b''
-
-    async def test_devlist_golden_layout(self):
-        r, w = await self.connect(False); w.write(OP.pack(0x111, 0x8005, 0)); await w.drain()
-        self.assertEqual(await r.readexactly(12), OP.pack(0x111, 5, 0) + b'\x00\x00\x00\x01')
-        device = DEVICE.unpack(await r.readexactly(312))
-        self.assertEqual(device[1].rstrip(b'\0'), b'rmlink-' + ID.encode())
-        self.assertEqual(await r.readexactly(4), b'\xff\x00\x00\x00')
-
-    async def test_control_and_bulk_in_before_out(self):
-        r, w = await self.connect()
-        await self.submit(w, 1, 1, 0, 18, struct.pack('<BBHHH', 0x80, 6, 0x100, 0, 18))
-        h, data = await self.response(r, True); self.assertEqual(h[6], 18); self.assertEqual(data[0:2], b'\x12\x01')
-        await self.submit(w, 2, 1, 3, 64)
-        await self.submit(w, 3, 0, 3, 64, data=b'\x00\xff' + bytes(62))
-        h, _ = await self.response(r); self.assertEqual(h[1], 3); self.assertEqual(h[6], 64)
-        h, data = await self.response(r, True); self.assertEqual(h[1], 2); self.assertEqual(data, b'\x00\x02\x40\x00')
-
-    async def test_unlink_pending_in_no_late_completion(self):
-        r, w = await self.connect()
-        await self.submit(w, 1, 1, 3, 64)
-        w.write(URB.pack(2, 2, 0x10001, 1, 3, 1, 0, 0, 0, 0, bytes(8))); await w.drain()
-        h, _ = await self.response(r); self.assertEqual(h[0], 4); self.assertEqual(h[5], -104)
-        await self.submit(w, 3, 0, 3, 2, data=b'\x00\xff')
-        h, _ = await self.response(r); self.assertEqual(h[1], 3)
-        await self.submit(w, 4, 1, 3, 64)
-        h, data = await self.response(r, True); self.assertEqual(h[1], 4); self.assertEqual(data, b'\x00\x02\x40\x00')
-
-    async def test_winusb_rounded_read_and_non_iso_marker(self):
-        r, w = await self.connect()
-        # Captured usbip-win2/WinUSB behavior: non-ISO -1 and 512-byte IN URB.
-        w.write(URB.pack(1, 1, 0x10001, 1, 3, 0, 512, 0, -1, 0, bytes(8)))
-        w.write(URB.pack(1, 2, 0x10001, 0, 3, 0, 64, 0, -1, 0, bytes(8)) + b'\x00\xff' + bytes(62))
-        await w.drain()
-        h, _ = await self.response(r); self.assertEqual(h[1], 2); self.assertEqual(h[6], 64)
-        h, data = await self.response(r, True)
-        self.assertEqual(h[1], 1); self.assertEqual(h[6], 4)
-        self.assertEqual(data, b'\x00\x02\x40\x00')
-
-    async def test_second_import_is_busy(self):
-        await self.connect()
-        r, w = await self.connect(False)
-        w.write(OP.pack(0x111, 0x8003, 0) + ('rmlink-' + ID).encode().ljust(32, b'\0')); await w.drain()
-        self.assertEqual(await r.readexactly(8), OP.pack(0x111, 3, 2))
 
 
 class ApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_status_reports_device_connections_without_virtual_usb_metadata(self):
+        status = await self.connector.route('GET', '/v1/status', {})
+        self.assertEqual(status['devices'], [])
+        for key in ('driver', 'usbip_port', 'mount_errors'):
+            self.assertNotIn(key, status)
+
+    async def test_retired_mount_routes_cannot_claim_a_target_or_send_commands(self):
+        transport = FakeTransport()
+        broker = Broker(transport, ID)
+        await broker.start()
+        self.connector.brokers[ID] = broker
+        before = list(transport.requests)
+        for path in ('/v1/mount', '/v1/unmount'):
+            with self.assertRaisesRegex(ValueError, 'Unsupported local API route'):
+                await self.connector.route('POST', path, {'device_id': ID})
+        self.assertIsNone(broker.owner)
+        self.assertEqual(transport.requests, before)
+
     async def test_full_eight_packet_512_batch_fits_http_body_limit(self):
         transport = FakeTransport(); transport.packet_size = 512
         broker = Broker(transport, ID); await broker.start()
@@ -256,7 +181,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.connector = Connector(State(self.temp.name))
-        self.port = await self.connector.start(0, 0)
+        self.port = await self.connector.start(0)
         self.connector.background.cancel(); await asyncio.gather(self.connector.background, return_exceptions=True)
     async def asyncTearDown(self): await self.connector.close(); self.temp.cleanup()
     async def send(self, headers=''):
