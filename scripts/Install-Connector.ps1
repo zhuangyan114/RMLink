@@ -35,6 +35,8 @@ Copy-Item -LiteralPath (Join-Path $root 'docs\terminal-client.md') -Destination 
 Copy-Item -LiteralPath (Join-Path $root 'docs\ota-upgrade.md') -Destination $docs -Force
 Copy-Item -LiteralPath (Join-Path $root 'docs\ota-acceptance-20261017.md') -Destination $docs -Force
 Copy-Item -LiteralPath (Join-Path $root 'docs\test-release-0.3.2.md') -Destination $docs -Force
+Copy-Item -LiteralPath (Join-Path $root 'docs\test-release-0.3.3.md') -Destination $docs -Force
+Copy-Item -LiteralPath (Join-Path $root 'docs\usb-throughput.md') -Destination $docs -Force
 $sdkSource = Join-Path $root 'artifacts\build\sdk'
 $sdkTarget = Join-Path $target 'sdk'
 New-Item -ItemType Directory -Force $sdkTarget | Out-Null

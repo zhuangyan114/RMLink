@@ -10,7 +10,7 @@ from build_development_package import select_firmware,firmware_assets
 class PackageProfileTests(unittest.TestCase):
     def test_selects_exact_flashed_profile_and_rejects_modified_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root=Path(temporary);profile='firmware-target-tcp512-core0-psram-streamdiag-video-ota'
+            root=Path(temporary);profile='firmware-target-tcp512-core0-psram-streamdiag-video-usb-033'
             directory=root/'artifacts/build'/profile;directory.mkdir(parents=True)
             config=b'CONFIG_RMLINK_EXECUTOR_CORE=0\nCONFIG_RMLINK_TARGET_PINS_CONFIRMED=y\nCONFIG_DEBUG_PROBE_IFACE_SWD=y\n'
             (directory/'sdkconfig').write_bytes(config);(directory/'rmlink.bin').write_bytes(b'qualified')

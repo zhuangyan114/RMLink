@@ -25,10 +25,16 @@
 #include "rmlink_executor.h"
 #include "rmlink_network.h"
 #include "rmlink_ota.h"
+#include "rmlink_usb_stream.h"
 
 static const char *TAG = "bridge_main";
 
-#define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN + CFG_TUD_MSC * TUD_MSC_DESC_LEN)
+#if RMLINK_USB_STREAM_AVAILABLE
+#define RMLINK_USB_ALT_DESC_LEN 30
+#else
+#define RMLINK_USB_ALT_DESC_LEN 0
+#endif
+#define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN + RMLINK_USB_ALT_DESC_LEN + CFG_TUD_MSC * TUD_MSC_DESC_LEN)
 
 static const tusb_desc_device_t descriptor_config = {
     .bLength = sizeof(descriptor_config),
@@ -83,6 +89,15 @@ static uint8_t const desc_configuration[] = {
 
     // Interface number, string index, EP Out & IN address, EP size
     TUD_VENDOR_EUB_DESCRIPTOR(ITF_NUM_VENDOR, EUB_VENDORD_IFACE_STR_IDX, EPNUM_VENDOR, 0x80 | EPNUM_VENDOR, 64),
+#if RMLINK_USB_STREAM_AVAILABLE
+    /* Alternate zero remains the standard two-pipe CMSIS-DAP interface.
+     * RMLink opts into alternate one: independent, continuous bulk IN. */
+    9, TUSB_DESC_INTERFACE, ITF_NUM_VENDOR, 1, 3, TUSB_CLASS_VENDOR_SPECIFIC,
+    EUB_VENDORD_IFACE_SUBCLASS, EUB_VENDORD_IFACE_PROTOCOL, EUB_VENDORD_IFACE_STR_IDX,
+    7, TUSB_DESC_ENDPOINT, EPNUM_VENDOR, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+    7, TUSB_DESC_ENDPOINT, 0x80 | EPNUM_VENDOR, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+    7, TUSB_DESC_ENDPOINT, RMLINK_USB_STREAM_EP, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+#endif
 
     // Interface number, string index, EP Out & EP In address, EP size
 #if CONFIG_RMLINK_MSC_ENABLED

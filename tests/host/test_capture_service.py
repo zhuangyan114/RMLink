@@ -134,6 +134,35 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.http('DELETE',root))[0],200)
         self.assertIsNone(self.broker.owner)
 
+    async def test_bulk_usb_records_cross_reads_without_fragment_pull_or_target_lock(self):
+        self.probe.native_usb=True
+        code,r=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+r['session_id']
+        self.assertEqual((await self.http('POST',root+'/target',{'command':'connect'}))[0],200)
+        owned=self.connector.sessions[r['session_id']]
+        owned['target'].capture_features|=1024
+        pieces=asyncio.Queue();opened=[];closed=[]
+        async def open_stream(ticket):opened.append(ticket)
+        async def read_stream():return await pieces.get()
+        async def close_stream():closed.append(True)
+        self.probe.open_capture_stream=open_stream
+        self.probe.read_capture_stream=read_stream
+        self.probe.close_capture_stream=close_stream
+        self.assertEqual((await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]}))[0],200)
+        raw=b''.join(record(i) for i in range(5))
+        # Split both the header and a record body; include several records in
+        # one USB read. The DAP lock stays held while the independent IN runs.
+        async with owned['target'].lock:
+            for start,end in ((0,3),(3,77),(77,len(raw))):await pieces.put(raw[start:end])
+            for _ in range(20):
+                if owned['captures'].next_sequence==5:break
+                await asyncio.sleep(.01)
+            self.assertEqual(owned['captures'].next_sequence,5)
+        self.assertEqual(opened,[b'X'*16])
+        self.assertFalse(any(p[:2]==b'\x81\x10' for p in self.probe.requests))
+        self.assertEqual((await self.http('DELETE',root))[0],200)
+        self.assertEqual(closed,[True]);self.assertIsNone(self.broker.owner)
+
     async def test_native_c_sdk_uses_public_api_without_orbit(self):
         dll_path=Path(__file__).resolve().parents[2]/'artifacts/build/sdk/rmlink.dll'
         if not dll_path.exists():self.skipTest('Build-Sdk.ps1 required for native ABI test')

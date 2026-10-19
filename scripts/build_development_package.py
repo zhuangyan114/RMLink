@@ -15,7 +15,7 @@ from rmlink_connector import __version__
 def select_firmware(root):
     receipt=json.loads((root/'artifacts/hardware/rmlink-last-flash.json').read_text(encoding='utf-8-sig'))
     profile=receipt.get('profile','')
-    if not re.fullmatch(r'firmware-target-tcp512-core0(?:-psram)?(?:-streamdiag)?(?:-video)?(?:-ota(?:-\d+-test(?:ed)?)?)?',profile):
+    if not re.fullmatch(r'firmware-target-tcp512-core0(?:-psram)?(?:-streamdiag)?(?:-video)?(?:-ota(?:-\d+-test(?:ed)?)?|-usb-\d+)?',profile):
         raise RuntimeError('Only the last flashed target/TCP512/CPU0 profile may be packaged')
     directory=root/'artifacts/build'/profile
     config=(directory/'sdkconfig').read_bytes()
@@ -56,6 +56,8 @@ def main():
     add('docs/ota-upgrade.md',ROOT/'docs/ota-upgrade.md')
     add('docs/ota-acceptance-20261017.md',ROOT/'docs/ota-acceptance-20261017.md')
     add('docs/test-release-0.3.2.md',ROOT/'docs/test-release-0.3.2.md')
+    add('docs/test-release-0.3.3.md',ROOT/'docs/test-release-0.3.3.md')
+    add('docs/usb-throughput.md',ROOT/'docs/usb-throughput.md')
     for name in ('rmlink.dll','rmlink.h','rmlink.def','librmlink.a',f'rmlink-client-{sdk_version}.tgz'):
         add('sdk/'+name,ROOT/'artifacts/build/sdk'/name)
     for name in ('api-v1.md','current-direction.md','subscriptions-implementation.md','quickstart.md','recording-format.md',

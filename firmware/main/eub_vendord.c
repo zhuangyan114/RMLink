@@ -12,12 +12,102 @@
 #include "device/usbd_pvt.h"
 #include "tusb_config.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
+#include "soc/soc.h"
+#include <stdatomic.h>
 
 #include "eub_vendord.h"
 #include "debug_probe.h"
 #include "rmlink_executor.h"
 #include "usb_defs.h"
 #include "util.h"
+#include "rmlink_usb_stream.h"
+#if RMLINK_USB_STREAM_AVAILABLE
+#include "rmlink_capture.h"
+/* PSRAM owns the large capture rings. Only these two DMA/USB staging buffers
+ * remain internal. ESP32-S3 GHWCFG3 reports a seven-bit packet counter:
+ * 8192 / 64 = 128 overflows it. Queue 64 packets per hardware transfer. */
+#define STREAM_BLOCK 4096
+#define STREAM_EP RMLINK_USB_STREAM_EP
+#define STREAM_REQUEST 0x22
+static uint8_t s_stream_buf[2][STREAM_BLOCK] TU_ATTR_ALIGNED(4);
+static tusb_desc_endpoint_t s_stream_desc;
+static tusb_desc_endpoint_t s_dap_desc[2];
+static TaskHandle_t s_stream_task;
+static atomic_uint s_stream_mode, s_stream_epoch;
+static atomic_uchar s_alternate;
+static uint8_t s_ticket[16];
+static uint8_t *s_bench_pattern;
+static uint32_t s_stream_generation, s_bench_bytes;
+static atomic_uint s_submitted,s_completed,s_stream_error,s_blocks;
+static atomic_uint s_transfer_expected;
+static atomic_bool s_transfer_done;
+
+static void stream_stop(void) {
+    unsigned old=atomic_exchange(&s_stream_mode,0);
+    atomic_fetch_add(&s_stream_epoch,1);
+    if(old==1)rmlink_capture_stream_lost(s_stream_generation);
+    if(s_stream_task)xTaskNotifyGive(s_stream_task);
+}
+
+static void usb_stream_task(void *unused) {
+    unsigned which=0;
+    uint64_t sent=0;
+    unsigned epoch=0;
+    for(;;) {
+        unsigned mode=atomic_load(&s_stream_mode),current=atomic_load(&s_stream_epoch);
+        if(epoch!=current){sent=0;epoch=current;}
+        if(!mode || !s_alternate || !tud_mounted()) {ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(10));continue;}
+        if(mode==1 && !rmlink_capture_stream_live(s_stream_generation)){stream_stop();continue;}
+        uint8_t *buf=s_stream_buf[which];size_t n=0;
+        if(mode==2) {
+            uint32_t remain=s_bench_bytes-(uint32_t)sent;
+            n=remain<STREAM_BLOCK?remain:STREAM_BLOCK;
+            if(!n){atomic_store(&s_stream_mode,0);continue;}
+            /* Pattern is immutable PSRAM, period 64 KiB; offset is block aligned. */
+            memcpy(buf,s_bench_pattern+(sent&65535),n);
+            uint32_t block=(uint32_t)(sent/STREAM_BLOCK);
+            memcpy(buf,&block,sizeof(block)); /* absolute sequence, not a repeating test page */
+        } else {
+            int64_t until=esp_timer_get_time()+2000;
+            while(n+384<=STREAM_BLOCK) {
+                size_t got=rmlink_capture_take(buf+n,STREAM_BLOCK-n,0);
+                if(got){n+=got;continue;}
+                if(n || esp_timer_get_time()>=until)break;
+                ulTaskNotifyTake(pdTRUE,1);
+            }
+            if(!n)continue;
+        }
+        if(epoch!=atomic_load(&s_stream_epoch) || !s_alternate)continue;
+        if(mode==1 && !rmlink_capture_stream_live(s_stream_generation)){stream_stop();continue;}
+        atomic_store(&s_transfer_expected,n);atomic_store(&s_transfer_done,false);
+        if(!usbd_edpt_xfer(0,STREAM_EP,buf,n)){atomic_store(&s_stream_error,1);stream_stop();continue;}
+        atomic_fetch_add(&s_submitted,n);
+        /* A blocked host applies backpressure here; records stay in PSRAM.
+         * Never overwrite an in-flight staging buffer, including cancellation. */
+        int64_t deadline=esp_timer_get_time()+5000000;
+        while(s_alternate && epoch==atomic_load(&s_stream_epoch) && !atomic_load(&s_transfer_done)) {
+            ulTaskNotifyTake(pdTRUE,1);
+            if(esp_timer_get_time()>deadline){atomic_store(&s_stream_error,2);stream_stop();break;}
+        }
+        if(epoch!=atomic_load(&s_stream_epoch) || !s_alternate)continue;
+        sent+=n;which^=1;
+        atomic_fetch_add(&s_completed,n);atomic_fetch_add(&s_blocks,1);
+        /* A short logical transfer ending on a full physical packet needs a
+         * ZLP, otherwise the host's 8192-byte read waits for a later record. */
+        if(mode==1 && !(n&63)) {
+            deadline=esp_timer_get_time()+5000000;
+            atomic_store(&s_transfer_expected,0);atomic_store(&s_transfer_done,false);
+            if(usbd_edpt_xfer(0,STREAM_EP,NULL,0)) {
+                while(s_alternate && epoch==atomic_load(&s_stream_epoch) && !atomic_load(&s_transfer_done)) {
+                    ulTaskNotifyTake(pdTRUE,1);
+                    if(esp_timer_get_time()>deadline){stream_stop();break;}
+                }
+            }
+        }
+    }
+}
+#endif
 
 static const char *TAG = "eub_vendor";
 #define USB_BUSY_TOUT_US    100000 /* 100ms */
@@ -45,6 +135,9 @@ static void eub_vendord_reset(uint8_t rhport)
 
     s_eub_vendord_itf.ep_in = 0;
     s_eub_vendord_itf.ep_out = 0;
+#if RMLINK_USB_STREAM_AVAILABLE
+    s_alternate=0;stream_stop();
+#endif
 #if CONFIG_DEBUG_PROBE_IFACE_SWD
     rmlink_transport_closed(RMLINK_USB, 0);
 #endif
@@ -69,6 +162,16 @@ static uint16_t eub_vendord_open(uint8_t rhport, tusb_desc_interface_t const *de
     ESP_LOGI(TAG, "EP_OUT:0x%x EP_IN:0x%x", p_vendor->ep_out, p_vendor->ep_in);
 
     p_desc += desc_intf->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
+#if RMLINK_USB_STREAM_AVAILABLE
+    memcpy(s_dap_desc,tu_desc_next(desc_intf),sizeof(s_dap_desc));
+    /* Consume and bind the alternate descriptors once; activate its extra pipe
+     * only on SET_INTERFACE. TinyUSB maps all described endpoints to us. */
+    if(max_len>=(p_desc-(const uint8_t*)desc_intf)+30 &&
+       tu_desc_type(p_desc)==TUSB_DESC_INTERFACE && ((tusb_desc_interface_t*)p_desc)->bAlternateSetting==1) {
+        memcpy(&s_stream_desc,p_desc+9+14,sizeof(s_stream_desc));p_desc+=30;
+        TU_VERIFY(usbd_edpt_iso_alloc(rhport,STREAM_EP,64),0);
+    }
+#endif
 
     // Prepare for incoming data
     if (p_vendor->ep_out) {
@@ -140,6 +243,64 @@ TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
 bool tud_vendor_control_xfer_cb(const uint8_t rhport, const uint8_t stage, tusb_control_request_t const *request)
 {
+#if RMLINK_USB_STREAM_AVAILABLE
+    if(request->bmRequestType_bit.type==TUSB_REQ_TYPE_STANDARD &&
+       request->bmRequestType_bit.recipient==TUSB_REQ_RCPT_INTERFACE && request->wIndex==ITF_NUM_VENDOR) {
+        if(stage!=CONTROL_STAGE_SETUP)return true;
+        if(request->bRequest==TUSB_REQ_GET_INTERFACE)return tud_control_xfer(rhport,request,&s_alternate,1);
+        if(request->bRequest==TUSB_REQ_SET_INTERFACE && request->wValue<=1) {
+            stream_stop();s_alternate=0;
+            /* DWC2 separates FIFO allocation from activation. Its individual
+             * close API is a no-op, so repeated open would leak FIFO space.
+             * The iso-named activation API also accepts bulk descriptors. */
+            TU_VERIFY(usbd_edpt_iso_activate(rhport,&s_stream_desc));
+            TU_VERIFY(usbd_edpt_iso_activate(rhport,&s_dap_desc[0]) && usbd_edpt_iso_activate(rhport,&s_dap_desc[1]));
+            TU_VERIFY(usbd_edpt_xfer(rhport,s_eub_vendord_itf.ep_out,s_eub_vendord_itf.epout_buf,EUB_VENDORD_EPSIZE));
+            s_alternate=request->wValue;
+            return tud_control_status(rhport,request);
+        }
+        return false;
+    }
+    if(request->bmRequestType_bit.type==TUSB_REQ_TYPE_VENDOR && request->bRequest==STREAM_REQUEST) {
+        if(stage==CONTROL_STAGE_SETUP)ESP_LOGI(TAG,"USB stream mode=%u index=%u alternate=%u",request->wValue,request->wIndex,s_alternate);
+        if(request->wValue==1 && !request->bmRequestType_bit.direction && request->wLength==16) {
+            if(stage==CONTROL_STAGE_SETUP){TU_VERIFY(s_alternate && !atomic_load(&s_stream_mode));return tud_control_xfer(rhport,request,s_ticket,16);}
+            if(stage==CONTROL_STAGE_DATA){TU_VERIFY(rmlink_capture_bind(s_ticket,&s_stream_generation));atomic_fetch_add(&s_stream_epoch,1);atomic_store(&s_stream_mode,1);xTaskNotifyGive(s_stream_task);}
+            return true;
+        }
+        if(stage!=CONTROL_STAGE_SETUP)return true;
+        if(request->wValue==3 && request->bmRequestType_bit.direction && request->wLength==32) {
+            static uint32_t stats[8];stats[0]=1;stats[1]=atomic_load(&s_stream_mode);
+            stats[2]=atomic_load(&s_stream_epoch);stats[3]=s_alternate;
+            stats[4]=atomic_load(&s_submitted);stats[5]=atomic_load(&s_completed);
+            stats[6]=atomic_load(&s_stream_error);stats[7]=atomic_load(&s_blocks);
+            return tud_control_xfer(rhport,request,stats,sizeof(stats));
+        }
+        if(request->wValue==0){stream_stop();return tud_control_status(rhport,request);}
+#if CONFIG_IDF_TARGET_ESP32S3 && CONFIG_RMLINK_STREAM_DIAGNOSTICS
+        if(request->wValue==4 && request->bmRequestType_bit.direction && request->wLength==32) {
+            /* Read-only DWC2 registers, independent of target memory. */
+            static uint32_t regs[8];const unsigned ep=STREAM_EP&15;
+            const unsigned offsets[]={0x44,0x48,0x4c,0x900+32*ep+16,0x900+32*ep,0x900+32*ep+8,0x100+4*ep,0x50};
+            for(unsigned i=0;i<8;i++)regs[i]=REG_READ(0x60080000+offsets[i]);
+            return tud_control_xfer(rhport,request,regs,sizeof(regs));
+        }
+#endif
+        if(request->wValue==2 && request->bmRequestType_bit.direction && request->wLength==8) {
+            TU_VERIFY(s_alternate && !atomic_load(&s_stream_mode) && request->wIndex>=1 && request->wIndex<=128);
+            if(!s_bench_pattern) {
+                s_bench_pattern=heap_caps_malloc(65536,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+                TU_VERIFY(s_bench_pattern);
+                for(unsigned i=0;i<65536;i++)s_bench_pattern[i]=(i*31+(i>>8)*17+77)&255;
+            }
+            s_bench_bytes=(uint32_t)request->wIndex*1024*1024;atomic_fetch_add(&s_stream_epoch,1);
+            static uint32_t reply[2];reply[0]=s_bench_bytes;reply[1]=65536;
+            atomic_store(&s_stream_mode,2);xTaskNotifyGive(s_stream_task);
+            return tud_control_xfer(rhport,request,reply,8);
+        }
+        return false;
+    }
+#endif
     // nothing to with DATA & ACK stage
     if (stage != CONTROL_STAGE_SETUP) {
         return true;
@@ -208,6 +369,16 @@ static bool eub_endpt_transfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buf, ui
 
 static bool eub_vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+#if RMLINK_USB_STREAM_AVAILABLE
+    if(ep_addr==STREAM_EP){
+        if(atomic_load(&s_stream_mode) && (result!=XFER_RESULT_SUCCESS || xferred_bytes!=atomic_load(&s_transfer_expected))) {
+            atomic_store(&s_stream_error,3);stream_stop();
+        }
+        atomic_store(&s_transfer_done,true);
+        if(s_stream_task)xTaskNotifyGive(s_stream_task);
+        return true;
+    }
+#endif
     TU_VERIFY(xferred_bytes > 0 && xferred_bytes <= 64, false);
     TU_VERIFY(ep_addr == s_eub_vendord_itf.ep_out || ep_addr == s_eub_vendord_itf.ep_in, false);
 
@@ -265,6 +436,9 @@ void eub_vendord_start(void)
     static bool init = false;
 
     if (!init) {
+#if RMLINK_USB_STREAM_AVAILABLE
+        if(xTaskCreate(usb_stream_task,"usb_stream",4096,NULL,DEBUG_PROBE_TASK_PRI-1,&s_stream_task)!=pdPASS)eub_abort();
+#endif
         if (xTaskCreate(usb_send_task,
                         "usb_send_task",
                         4 * 1024,

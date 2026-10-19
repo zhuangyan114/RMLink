@@ -33,3 +33,52 @@ class ShutdownTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(close.done());self.assertEqual(order,[])
         release.set();await close
         self.assertEqual(order,['io','close'])
+    async def test_cancelled_stream_read_finishes_before_alternate_and_handle_close(self):
+        entered=threading.Event();release=threading.Event();order=[]
+        class Native:
+            streaming=True
+            def read_stream(self):
+                entered.set();release.wait(3);order.append('read');return b''
+            def stop_stream(self):order.append('abort');release.set()
+            def close_stream(self):order.append('alternate0');self.streaming=False
+            def close(self):order.append('close')
+        transport=UsbTransport('test');transport.client=Native()
+        read=asyncio.create_task(transport.read_capture_stream())
+        await asyncio.to_thread(entered.wait,1)
+        read.cancel();await asyncio.gather(read,return_exceptions=True)
+        await transport.close()
+        self.assertEqual(order,['abort','read','alternate0','close'])
+    async def test_cancelled_open_drains_control_then_restores_the_alternate(self):
+        entered=threading.Event();release=threading.Event();order=[]
+        class Native:
+            streaming=False
+            def open_stream(self,ticket):
+                entered.set();release.wait(3);self.streaming=True;order.append('open')
+            def stop_stream(self):order.append('abort')
+            def close_stream(self):order.append('alternate0');self.streaming=False
+        transport=UsbTransport('test');transport.client=Native()
+        opening=asyncio.create_task(transport.open_capture_stream(b'X'*16))
+        await asyncio.to_thread(entered.wait,1);opening.cancel();await asyncio.sleep(0)
+        self.assertFalse(opening.done());release.set()
+        with self.assertRaises(asyncio.CancelledError):await opening
+        self.assertEqual(order,['open','abort','alternate0'])
+        self.assertFalse(transport.client.streaming)
+    async def test_aborted_worker_error_after_reader_cancel_is_consumed(self):
+        entered=threading.Event();release=threading.Event();warnings=[]
+        class Native:
+            streaming=True
+            def read_stream(self):
+                entered.set();release.wait(3);raise OSError('transfer aborted')
+            def stop_stream(self):release.set()
+            def close_stream(self):self.streaming=False
+            def close(self):pass
+        loop=asyncio.get_running_loop();old=loop.get_exception_handler()
+        loop.set_exception_handler(lambda _,context:warnings.append(context))
+        try:
+            transport=UsbTransport('test');transport.client=Native()
+            read=asyncio.create_task(transport.read_capture_stream())
+            await asyncio.to_thread(entered.wait,1);read.cancel()
+            await asyncio.gather(read,return_exceptions=True);await transport.close()
+            await asyncio.sleep(.01)
+            self.assertFalse(transport.stream_pending);self.assertEqual(warnings,[])
+        finally:loop.set_exception_handler(old)

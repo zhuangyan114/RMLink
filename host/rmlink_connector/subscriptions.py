@@ -63,6 +63,7 @@ class Subscriptions:
         self.recording=None
         self.observed={}
         self.last_status={}
+        self.usb_bulk_stream=False
 
     def accept_frames(self,frames):
         for frame in frames:
@@ -133,7 +134,7 @@ class Subscriptions:
             async with self.target.lock:return await self.target.packet(packet,'background')
         try:
             while True:
-                data=await reader.read(exchange)
+                data=await self.target.broker.transport.read_capture_stream() if self.usb_bulk_stream else await reader.read(exchange)
                 if data is None:await asyncio.sleep(.001);continue
                 frames=decoder.feed(data)
                 async with self.condition:
@@ -149,6 +150,11 @@ class Subscriptions:
         if self.task and not self.task.done(): return
         if self.error:raise ConnectionError('Capture stream failed; close the owner session before reconnecting')
         if getattr(self.target.broker.transport,'native_usb',False):
+            if self.target.capture_features&1024:
+                ticket=await self.target.vendor(11)
+                if len(ticket)!=16:raise ValueError('Stream ticket size')
+                await self.target.broker.transport.open_capture_stream(ticket)
+                self.usb_bulk_stream=True
             self.error=None;self.task=asyncio.create_task(self._usb_stream());return
         ticket=await self.target.vendor(11)
         if len(ticket)!=16: raise ValueError('Stream ticket size')
@@ -259,6 +265,9 @@ class Subscriptions:
             try: await self.action(sid,'stop')
             except Exception: pass
         if self.task: self.task.cancel(); await asyncio.gather(self.task,return_exceptions=True)
+        if self.usb_bulk_stream:
+            await self.target.broker.transport.close_capture_stream()
+            self.usb_bulk_stream=False
         if self.writer:
             self.writer.close()
             try: await self.writer.wait_closed()

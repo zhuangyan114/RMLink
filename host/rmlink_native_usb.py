@@ -23,12 +23,20 @@ class PipeInfo(C.Structure):
     _fields_ = [('type', C.c_uint32), ('id', C.c_ubyte), ('max_packet', C.c_uint16), ('interval', C.c_ubyte)]
 
 
+class SetupPacket(C.Structure):
+    _pack_ = 1
+    _fields_ = [('request_type', C.c_ubyte), ('request', C.c_ubyte),
+                ('value', C.c_uint16), ('index', C.c_uint16), ('length', C.c_uint16)]
+
+
 class UsbClient:
     GUID_TEXT = '{CDB3B5AD-293B-4663-AA36-1AAE46463776}'
 
     def __init__(self, *, bcd_device=None, serial=None, exclude_serials=()):
         self.packet_size = 64
         self.file = self.handle = None
+        self.streaming = False
+        self.stream_ep = None
         self.kernel = C.WinDLL('kernel32', use_last_error=True)
         self.setup = C.WinDLL('setupapi', use_last_error=True)
         self.usb = C.WinDLL('winusb', use_last_error=True)
@@ -45,6 +53,9 @@ class UsbClient:
         self.usb.WinUsb_Free.argtypes = [ptr]
         self.usb.WinUsb_QueryInterfaceSettings.argtypes = [ptr, C.c_ubyte, C.POINTER(UsbInterface)]
         self.usb.WinUsb_QueryPipe.argtypes = [ptr, C.c_ubyte, C.c_ubyte, C.POINTER(PipeInfo)]
+        self.usb.WinUsb_SetCurrentAlternateSetting.argtypes = [ptr, C.c_ubyte]
+        self.usb.WinUsb_AbortPipe.argtypes = [ptr, C.c_ubyte]
+        self.usb.WinUsb_ControlTransfer.argtypes = [ptr, SetupPacket, ptr, C.c_uint32, C.POINTER(C.c_uint32), ptr]
         self.usb.WinUsb_SetPipePolicy.argtypes = [ptr, C.c_ubyte, C.c_uint32, C.c_uint32, ptr]
         self.usb.WinUsb_GetDescriptor.argtypes = [ptr, C.c_ubyte, C.c_ubyte, C.c_uint16, ptr, C.c_uint32, C.POINTER(C.c_uint32)]
         for name in ('WinUsb_WritePipe', 'WinUsb_ReadPipe'):
@@ -80,6 +91,8 @@ class UsbClient:
                     self.close()
                     continue
                 interface = UsbInterface()
+                # Recover alternate state left by a terminated capture client.
+                self._check(self.usb.WinUsb_SetCurrentAlternateSetting(handle, 0))
                 self._check(self.usb.WinUsb_QueryInterfaceSettings(handle, 0, C.byref(interface)))
                 self.ep_in = self.ep_out = None
                 for index in range(interface.endpoints):
@@ -133,6 +146,68 @@ class UsbClient:
         self._check(self.usb.WinUsb_GetDescriptor(self.handle, kind, index, lang, buffer, 256, C.byref(count)))
         return buffer.raw[:count.value]
 
+    def _stream_control(self, mode, *, data=b'', length=0, index=0):
+        setup = SetupPacket(0xc0 if length else 0x40, 0x22, mode, index, length or len(data))
+        buffer = C.create_string_buffer(length or max(1, len(data)))
+        if data: C.memmove(buffer, data, len(data))
+        count = C.c_uint32()
+        self._check(self.usb.WinUsb_ControlTransfer(self.handle, setup, buffer, setup.length, C.byref(count), None))
+        if count.value != setup.length: raise RuntimeError('Short USB stream control transfer')
+        return buffer.raw[:count.value]
+
+    def open_stream(self, ticket=None, *, benchmark_mib=None):
+        if self.streaming: raise RuntimeError('USB stream already open')
+        if (ticket is None) == (benchmark_mib is None): raise ValueError('Choose capture ticket or benchmark')
+        if ticket is not None and len(ticket) != 16: raise ValueError('Capture ticket must contain 16 bytes')
+        if benchmark_mib is not None and (type(benchmark_mib) is not int or not 1 <= benchmark_mib <= 128):
+            raise ValueError('Benchmark size must be 1..128 MiB')
+        self._check(self.usb.WinUsb_SetCurrentAlternateSetting(self.handle, 1))
+        self.streaming = True
+        try:
+            interface=UsbInterface()
+            self._check(self.usb.WinUsb_QueryInterfaceSettings(self.handle,1,C.byref(interface)))
+            self.stream_ep=None
+            for index in range(interface.endpoints):
+                pipe=PipeInfo()
+                self._check(self.usb.WinUsb_QueryPipe(self.handle,1,index,C.byref(pipe)))
+                if pipe.type==2 and pipe.id&0x80 and pipe.id!=self.ep_in:self.stream_ep=pipe.id
+            if self.stream_ep is None:raise RuntimeError('No independent USB capture endpoint')
+            timeout = C.c_uint32(250)
+            self._check(self.usb.WinUsb_SetPipePolicy(self.handle, self.stream_ep, 3, C.sizeof(timeout), C.byref(timeout)))
+            if ticket is not None: self._stream_control(1, data=ticket)
+            else: return self._stream_control(2, length=8, index=benchmark_mib)
+        except BaseException:
+            self.close_stream()
+            raise
+
+    def read_stream(self):
+        if not self.streaming: raise RuntimeError('USB stream is closed')
+        response = C.create_string_buffer(8192); count = C.c_uint32()
+        ok = self.usb.WinUsb_ReadPipe(self.handle, self.stream_ep, response, len(response), C.byref(count), None)
+        if not ok and C.get_last_error() == 121:
+            if count.value:raise ConnectionError('Partial USB read timed out; completion state unknown')
+            # An idle subscription is valid. A stopped device stream must end
+            # the recording instead of leaving the UI waiting indefinitely.
+            state=self._stream_control(3,length=32)
+            if int.from_bytes(state[4:8],'little')==0:
+                raise ConnectionError('Device USB stream stopped, error='+str(int.from_bytes(state[24:28],'little')))
+            return b''
+        self._check(ok)
+        return response.raw[:count.value]
+
+    def stop_stream(self):
+        if self.streaming:
+            try: self._stream_control(0)
+            finally:
+                if self.stream_ep is not None:self.usb.WinUsb_AbortPipe(self.handle, self.stream_ep)
+
+    def close_stream(self):
+        if self.streaming:
+            try: self.stop_stream()
+            finally:
+                self.streaming = False
+                self._check(self.usb.WinUsb_SetCurrentAlternateSetting(self.handle, 0))
+
     def exchange(self, request):
         if bytes(request)[:1] == b'\x07':
             raise ValueError('TransferAbort has no response; use abort_transfer()')
@@ -175,6 +250,9 @@ class UsbClient:
         return response.raw[:count.value]
 
     def close(self):
+        if self.handle and self.streaming:
+            try: self.close_stream()
+            except OSError: pass
         if self.handle: self.usb.WinUsb_Free(self.handle); self.handle = None
         if self.file: self.kernel.CloseHandle(self.file); self.file = None
 

@@ -101,7 +101,7 @@ class SoakMeasurementsTests(unittest.TestCase):
             def __exit__(self,*args):pass
             def exchange(self,request):return b'\x80\x04\x00\x00\x01\xe0\x00\x00\x00\x00'
             def device_health(self,device_id):return {'supported':True,'last_capture_io_failure':None}
-            def request(self,method,path):return {'devices':[{'device_id':'50787d15a924','firmware':'model'}]}
+            def request(self,method,path):return {'devices':[{'device_id':'50787d15a924','firmware':'model','transport':'wifi','packet_size':512}]}
             def target(self,action,**options):
                 if action=='read_memory':
                     if options.get('address')==0x40021000:return {'data':struct.pack('<3I',0x03038b83,0x001d840a,0).hex()}

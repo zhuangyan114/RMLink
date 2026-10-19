@@ -23,6 +23,7 @@
 #include "DAP.h"
 #endif
 #include "rmlink_capture.h"
+#include "rmlink_usb_stream.h"
 #ifndef RMLINK_HOST_TEST
 #include "rmlink_clock_trace.h"
 #endif
@@ -607,7 +608,10 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
         w32(out+8,4000000); w32(out+12,200); w32(out+16,s_record_bytes);
         w32(out+20,63|128|256|512 /* bounded reads and negotiated RMS2/RMS3 TCP stream */
 #ifndef RMLINK_HOST_TEST
-            |64 /* RMT clock trace, owner control only */
+            |64 /* RMT clock trace */
+#if RMLINK_USB_STREAM_AVAILABLE
+            |1024 /* independent USB bulk capture */
+#endif
 #endif
         );
         return 24;
