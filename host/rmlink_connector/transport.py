@@ -6,6 +6,8 @@ from rmlink_protocol import packet_size_from_info
 from .tcp_options import configure_probe_tcp
 from .telemetry import Traffic
 
+TCP_IO_TIMEOUT = 6
+
 
 class TcpTransport:
     def __init__(self, host, port=3241):
@@ -27,15 +29,16 @@ class TcpTransport:
         async with self.write_lock:
             self.writer.write(frames)
             self.traffic.tx_bytes += len(frames)
-            await asyncio.wait_for(self.writer.drain(), 3)
+            # Allow brief STA reassociation plus TCP retransmission on the same socket.
+            await asyncio.wait_for(self.writer.drain(), TCP_IO_TIMEOUT)
 
     async def receive(self):
-        header = await asyncio.wait_for(self.reader.readexactly(8), 3)
+        header = await asyncio.wait_for(self.reader.readexactly(8), TCP_IO_TIMEOUT)
         self.traffic.rx_bytes += len(header)
         magic, size, kind, reserved = struct.unpack('<4sHBB', header)
         if magic != b'DAP\0' or kind != 2 or reserved or not 1 <= size <= self.packet_size:
             raise ConnectionError('Invalid TCP DAP response; transport completion is unknown')
-        data = await asyncio.wait_for(self.reader.readexactly(size), 3)
+        data = await asyncio.wait_for(self.reader.readexactly(size), TCP_IO_TIMEOUT)
         self.traffic.rx_bytes += len(data)
         return data
 

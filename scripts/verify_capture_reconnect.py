@@ -23,7 +23,8 @@ def main():
         before=int.from_bytes(bytes.fromhex(old.target('read_memory',address=0x20000008,byte_length=4)['data']),'little')
         sub=old.subscribe('memory_series',addresses=[0x20000100+i*64 for i in range(10)],period_us=2000)
         recording=old.start_recording(strict=False);time.sleep(1)
-        assert old.recording(recording['recording_id'])['frames']>0
+        frames_before=old.recording(recording['recording_id'])['frames']
+        assert frames_before>0
         begin=time.perf_counter();deadline=begin+30
         with UsbClient(bcd_device=0x0002,serial=args.device_id.upper()) as physical:
             assert physical.exchange(b'\x80\x05')==b'\x80\x05\x00'
@@ -31,6 +32,20 @@ def main():
             try:old.target('state')
             except RMLinkError as error:
                 assert error.status==503;report['oldSessionFailedMs']=(time.perf_counter()-begin)*1000;break
+            if time.perf_counter()-begin>=2:
+                current=old.subscription(sub['subscription_id'])
+                progress=old.recording(recording['recording_id'])
+                if current['capture_id']==sub['capture_id'] and current['state']==2 and progress['frames']>frames_before:
+                    sealed=old.recording(recording['recording_id'],stop=True)
+                    assert sealed['phase']=='complete',sealed
+                    report['preservedSession']=True
+                    report['captureId']=sub['capture_id']
+                    report['recordedFramesBeforeAfter']=[frames_before,sealed['frames']]
+                    old.unsubscribe(sub['subscription_id']);old.close()
+                    report['ownerAtEnd']=next(d for d in old.request('GET','/v1/status')['devices'] if d['device_id']==args.device_id)['owner']
+                    assert report['ownerAtEnd'] is None
+                    report['complete']=True
+                    return
             time.sleep(.05)
         else:raise TimeoutError('Old session did not fail')
         sealed=None

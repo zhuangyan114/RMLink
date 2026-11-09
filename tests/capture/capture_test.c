@@ -470,6 +470,17 @@ int main(void) {
     uint8_t bad[]={0x81,1,1,1,1,0,0,0,0}; command(bad,sizeof(bad)); assert(out[2]==1);
     owner.session=8; command(ticket,2); assert(out[2]==2);
     owner.session=7;rmlink_capture_closed(2,7);
+    /* Buffer a 500 ms sender outage at 1 kHz with one field, then drain in order. */
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);
+    for(unsigned i=0;i<500;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
+    action(5,1);action(7,1);uint64_t buffered_drops;memcpy(&buffered_drops,out+30,8);
+    assert(buffered_drops==0);
+    for(unsigned i=0;i<500;i++) {
+        assert(rmlink_capture_take(frame,sizeof(frame),0)==60);
+        memcpy(&v,frame+32,4);assert(v==i);
+        memcpy(&v,frame+56,4);assert(v==i);
+    }
+    assert(!rmlink_capture_take(frame,sizeof(frame),0));rmlink_capture_closed(2,7);
     prepare(1,1,1);address(1,0,0x20000000);action(3,1);
     for(unsigned i=0;i<10000;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
     action(5,1);unsigned retained=0;uint32_t last_value=0;

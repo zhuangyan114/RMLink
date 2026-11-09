@@ -1,6 +1,7 @@
 """Real probe idle/STA recovery, while a native USB SWD owner stays active.
 
 Stop Connector first: this diagnostic holds its one physical TCP connection.
+Fast same-AP reassociation may preserve TCP within the firmware recovery grace.
 This does not simulate a silent remote-host crash or turn off the PC hotspot.
 """
 import argparse
@@ -43,7 +44,7 @@ def main():
     else:busy.close();p.error('Stop Connector before this direct-TCP diagnostic')
     report={'capturedAt':datetime.now().astimezone().isoformat(),'complete':False,
         'requestedClockHz':4000000,'actualClockMeasured':False,'fixtureRetained':True,
-        'scope':'healthy TCP idle, then native USB SWD stays active across probe STA reconnects; no silent-host-crash simulation',
+        'scope':'healthy TCP idle, then native USB SWD stays active across probe STA reconnects; TCP may be preserved within recovery grace; no silent-host-crash simulation',
         'rows':[]}
     try:
         with UsbClient(bcd_device=0x0002,serial=args.device_id.upper()) as usb:
@@ -68,13 +69,13 @@ def main():
                     with TcpClient(ip,3241) as old:
                         assert old.exchange(b'\x80\x09')==b'\x80\x09\0'+bytes.fromhex(args.device_id)
                         begin=time.perf_counter();assert usb.exchange(b'\x80\x05')==b'\x80\x05\0'
-                        old.sock.settimeout(.05);closed=None;restored=None;reads=0;max_read_ms=0
+                        old.sock.settimeout(.05);closed=None;restored=None;preserved=False;reads=0;max_read_ms=0
                         row={'repetition':i+1};report['rows'].append(row)
                         deadline=begin+30
                         while time.perf_counter()<deadline:
                             start=time.perf_counter();assert wired.read32(0xe000ed00)==0x411fc231
                             max_read_ms=max(max_read_ms,(time.perf_counter()-start)*1000);reads+=1
-                            if closed is None:
+                            if closed is None and not preserved:
                                 try:
                                     data=old.sock.recv(1)
                                     assert data==b'','Unexpected old TCP payload'
@@ -82,20 +83,20 @@ def main():
                                 except (ConnectionResetError,ConnectionAbortedError):closed=(time.perf_counter()-begin)*1000
                                 except TimeoutError:pass
                             up,ip=network(usb)
-                            if up and closed is None:
-                                # FIN sent while WiFi was down may never reach
-                                # the old peer. A read-only probe makes its TCP
-                                # stack observe the invalid tuple after return.
-                                # No target command is replayed.
+                            if up and closed is None and not preserved:
+                                # A read-only identity query distinguishes a
+                                # preserved socket from an expired old tuple.
                                 old.sock.settimeout(.25)
-                                try:old.exchange(b'\x00\xff')
+                                try:reply=old.exchange(b'\x80\x09')
                                 except (ConnectionResetError,ConnectionAbortedError,ConnectionError):
                                     closed=(time.perf_counter()-begin)*1000
                                 except TimeoutError:pass
-                                else:raise AssertionError('Old TCP session survived STA reassociation')
+                                else:
+                                    assert reply==b'\x80\x09\0'+bytes.fromhex(args.device_id)
+                                    preserved=True;old.sock.close()
                             row.update(oldTcpClosedMs=closed,usbCpuidReadsDuringFault=reads,maxUsbCpuidReadMs=max_read_ms,
-                                       networkUp=up)
-                            if closed is not None and up:
+                                       networkUp=up,tcpPreserved=preserved)
+                            if (closed is not None or preserved) and up:
                                 try:
                                     with TcpClient(ip,3241) as fresh:
                                         assert fresh.exchange(b'\x80\x09')==b'\x80\x09\0'+bytes.fromhex(args.device_id)
@@ -104,7 +105,7 @@ def main():
                                     restored=(time.perf_counter()-begin)*1000;break
                                 except (OSError,ConnectionError):pass
                             time.sleep(.025)
-                        assert restored is not None and closed is not None,'TCP did not recover'
+                        assert restored is not None and (closed is not None or preserved),'TCP did not recover'
                     assert wired.read32(0xe000ed00)==0x411fc231
                     counter_after=wired.read32(0x20000008);assert counter_after>counter_before
                     row.update({'oldTcpClosedMs':closed,'newTcpReadyMs':restored,

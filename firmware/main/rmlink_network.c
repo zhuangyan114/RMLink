@@ -4,6 +4,9 @@
  */
 #include "sdkconfig.h"
 #if CONFIG_RMLINK_WIFI_ENABLED
+#ifdef RMLINK_NETWORK_HOST_TEST
+#include "network_platform.h"
+#else
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -30,6 +33,10 @@
 #include "rmlink_capture.h"
 #include "rmlink_network.h"
 #include "rmlink_transport_bench.h"
+#endif
+
+#define WIFI_RECONNECT_GRACE_US 1000000LL
+ESP_EVENT_DEFINE_BASE(RMLINK_WIFI_RECOVERY_EVENT);
 
 typedef struct { uint8_t version; char ssid[33]; char password[64]; } credentials_t;
 static credentials_t s_config = { .version = 1 };
@@ -40,13 +47,81 @@ static bool s_field_set[2];
 static portMUX_TYPE s_config_mux = portMUX_INITIALIZER_UNLOCKED;
 static atomic_uint s_revision;
 static atomic_bool s_up;
-/* A brief down/up transition can fit between TCP task polls. Keep its history
- * so old sockets cannot survive across STA associations or DHCP changes. */
+static atomic_bool s_tcp_network_live;
+/* Only an expired grace period or changed IP invalidates existing sockets. */
 static atomic_uint s_network_generation;
 static atomic_bool s_connecting;
 static TaskHandle_t s_manager;
 static esp_netif_t *s_sta;
+static esp_timer_handle_t s_reconnect_timer;
+/* Lifecycle writes belong to the default event loop. TCP workers read the deadline. */
+static atomic_llong s_reconnect_deadline;
+static uint32_t s_ip_address;
+static uint8_t s_bssid[6];
+static bool s_associated;
 
+void __real_esp_netif_action_disconnected(void *netif, esp_event_base_t base,
+                                        int32_t id, void *data);
+
+static void network_disconnected(void)
+{
+    esp_timer_stop(s_reconnect_timer);
+    s_reconnect_deadline = 0;
+    s_ip_address = 0;
+    atomic_store(&s_up, false);
+    atomic_store(&s_tcp_network_live, false);
+    atomic_fetch_add(&s_network_generation, 1);
+    __real_esp_netif_action_disconnected(s_sta, WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, NULL);
+}
+
+/* The IDF default handler clears the IP and aborts TCP before our Wi-Fi handler
+ * runs. Wrap that one action so the original sockets can survive reassociation.
+ * Actions for other interfaces are forwarded to the IDF handler. */
+void __wrap_esp_netif_action_disconnected(void *netif, esp_event_base_t base,
+                                        int32_t id, void *data)
+{
+    if (netif != s_sta) {
+        __real_esp_netif_action_disconnected(netif, base, id, data);
+        return;
+    }
+    if (atomic_load(&s_tcp_network_live)) {
+        if (!s_reconnect_deadline) {
+            s_reconnect_deadline = esp_timer_get_time() + WIFI_RECONNECT_GRACE_US;
+            if (esp_timer_start_once(s_reconnect_timer, WIFI_RECONNECT_GRACE_US) != ESP_OK) {
+                network_disconnected();
+                return;
+            }
+        }
+        atomic_store(&s_up, false);
+        return;
+    }
+    network_disconnected();
+}
+
+static void reconnect_expired(void *unused)
+{
+    (void)unused;
+    /* Serialize expiry with STA_CONNECTED/GOT_IP, including a queued stale timer. */
+    if (esp_event_post(RMLINK_WIFI_RECOVERY_EVENT, 0, NULL, 0, 0) != ESP_OK)
+        esp_timer_start_once(s_reconnect_timer, 10000);
+}
+
+static bool network_current(unsigned generation)
+{
+    int64_t deadline = atomic_load(&s_reconnect_deadline);
+    return atomic_load(&s_tcp_network_live) && generation == atomic_load(&s_network_generation) &&
+           (!deadline || esp_timer_get_time() <= deadline);
+}
+
+bool rmlink_network_wait_for_link(void)
+{
+    unsigned generation = atomic_load(&s_network_generation);
+    while (network_current(generation) && !atomic_load(&s_up))
+        vTaskDelay(pdMS_TO_TICKS(10));
+    return network_current(generation);
+}
+
+#ifndef RMLINK_NETWORK_HOST_TEST
 void rmlink_vendor_transport_closed(uint8_t transport)
 {
     if (transport != RMLINK_USB) return;
@@ -54,22 +129,66 @@ void rmlink_vendor_transport_closed(uint8_t transport)
     memset(s_total, 0, sizeof(s_total)); memset(s_received, 0, sizeof(s_received));
     memset(s_field_set, 0, sizeof(s_field_set));
 }
+#endif
 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
+    (void)arg;
+    if (base == RMLINK_WIFI_RECOVERY_EVENT) {
+        if (s_reconnect_deadline && esp_timer_get_time() >= s_reconnect_deadline) {
+            network_disconnected();
+            /* A late association needs DHCP again after the retained IP is cleared. */
+            if (s_associated) esp_netif_action_connected(s_sta, WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, NULL);
+            ESP_LOGI("rmlink_wifi", "STA recovery grace expired; TCP sessions invalidated");
+        }
+        return;
+    }
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        s_associated = false;
         atomic_store(&s_up, false);
-        atomic_fetch_add(&s_network_generation, 1);
         atomic_store(&s_connecting, false);
+        if (s_reconnect_deadline && s_manager) xTaskNotifyGive(s_manager);
         ESP_LOGI("rmlink_wifi", "Disconnected; USB and target executor remain active");
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_CONNECTED) {
+        wifi_event_sta_connected_t *connected = data;
+        s_associated = true;
+        if (s_reconnect_deadline) {
+            esp_netif_ip_info_t ip;
+            if (esp_timer_get_time() <= s_reconnect_deadline &&
+                memcmp(s_bssid, connected->bssid, sizeof(s_bssid)) == 0 &&
+                esp_netif_get_ip_info(s_sta, &ip) == ESP_OK && ip.ip.addr == s_ip_address) {
+                esp_timer_stop(s_reconnect_timer);
+                s_reconnect_deadline = 0;
+                /* DHCP and its lease stayed active. Re-publish the retained IP so
+                 * IDF's default GOT_IP handler also restores the Wi-Fi driver. */
+                ip_event_got_ip_t restored = { .esp_netif = s_sta, .ip_info = ip, .ip_changed = false };
+                if (esp_event_post(IP_EVENT, IP_EVENT_STA_GOT_IP, &restored, sizeof(restored), 0) == ESP_OK) {
+                    ESP_LOGI("rmlink_wifi", "STA recovered within grace; TCP sessions preserved");
+                } else {
+                    network_disconnected();
+                    esp_netif_action_connected(s_sta, base, id, data);
+                }
+            } else {
+                network_disconnected();
+                esp_netif_action_connected(s_sta, base, id, data);
+            }
+        }
+        memcpy(s_bssid, connected->bssid, sizeof(s_bssid));
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
-        atomic_fetch_add(&s_network_generation, 1);
+        if (!s_associated) return;
+        ip_event_got_ip_t *ip = data;
+        if (s_ip_address != ip->ip_info.ip.addr) atomic_fetch_add(&s_network_generation, 1);
+        s_ip_address = ip->ip_info.ip.addr;
+        atomic_store(&s_tcp_network_live, true);
         atomic_store(&s_up, true);
         atomic_store(&s_connecting, false);
-        ip_event_got_ip_t *ip = data;
         ESP_LOGI("rmlink_wifi", "STA address " IPSTR, IP2STR(&ip->ip_info.ip));
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_STOP) {
+        s_associated = false;
+        network_disconnected();
     }
 }
+#ifndef RMLINK_NETWORK_HOST_TEST
 static void connection_task(void *arg)
 {
     unsigned current_revision = UINT32_MAX;
@@ -81,8 +200,11 @@ static void connection_task(void *arg)
             config = s_config;
             portEXIT_CRITICAL(&s_config_mux);
             current_revision = revision;
-            esp_wifi_disconnect();
+            /* An explicit credential change always relinquishes the old network. */
+            atomic_store(&s_tcp_network_live, false);
+            atomic_fetch_add(&s_network_generation, 1);
             atomic_store(&s_up, false);
+            esp_wifi_disconnect();
             atomic_store(&s_connecting, false);
             if (config.ssid[0]) {
                 wifi_config_t wifi = {0};
@@ -107,9 +229,10 @@ static void connection_task(void *arg)
 static bool recv_exact(int fd, uint8_t *buf, size_t n)
 {
     while (n) {
+        if (!rmlink_network_wait_for_link()) return false;
         int got = recv(fd, buf, n, 0);
         if (got < 0 && errno == EINTR) continue;
-        if (got <= 0 || !atomic_load(&s_up)) {
+        if (got <= 0 || !atomic_load(&s_tcp_network_live)) {
             ESP_LOGW("rmlink_wifi","recv ended: result=%d errno=%d remaining=%u free_internal=%u min_internal=%u",
                 got,got<0?errno:0,(unsigned)n,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
@@ -123,9 +246,10 @@ static bool recv_exact(int fd, uint8_t *buf, size_t n)
 static bool send_exact(int fd, const uint8_t *buf, size_t n)
 {
     while (n) {
+        if (!rmlink_network_wait_for_link()) return false;
         int sent = send(fd, buf, n, 0);
         if (sent < 0 && errno == EINTR) continue;
-        if (sent <= 0 || !atomic_load(&s_up)) {
+        if (sent <= 0 || !atomic_load(&s_tcp_network_live)) {
             ESP_LOGW("rmlink_wifi","send ended: result=%d errno=%d remaining=%u free_internal=%u min_internal=%u",
                 sent,sent<0?errno:0,(unsigned)n,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
@@ -144,11 +268,6 @@ typedef struct {
     SemaphoreHandle_t stopped;
     atomic_bool closing;
 } tcp_connection_t;
-
-static bool network_current(unsigned generation)
-{
-    return atomic_load(&s_up) && generation == atomic_load(&s_network_generation);
-}
 
 static bool tcp_configure_keepalive(int client)
 {
@@ -171,7 +290,7 @@ static void tcp_reply(void *arg, const uint8_t *data, size_t len)
     if (atomic_load(&c->closing) || !network_current(c->network_generation)) return;
     tcp_reply_t reply = { .len = len };
     memcpy(reply.data, data, len);
-    if (xQueueSend(c->replies, &reply, pdMS_TO_TICKS(100)) != pdTRUE) {
+    if (xQueueSend(c->replies, &reply, pdMS_TO_TICKS(1000)) != pdTRUE) {
         ESP_LOGW("rmlink_wifi", "TCP reply queue timeout, response=%u", (unsigned)len);
         atomic_store(&c->closing, true);
         shutdown(c->fd, SHUT_RDWR); /* Never silently lose a reply and keep the stream alive. */
@@ -221,7 +340,7 @@ static void tcp_task(void *arg)
             if (!network_current(network_generation)) { close(client); break; }
             if (!tcp_configure_keepalive(client)) { close(client); continue; }
             if (++session == 0) ++session;
-            struct timeval timeout = { .tv_sec = 2 };
+            struct timeval timeout = { .tv_sec = 5 };
             setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
             int no_delay = 1;
@@ -408,6 +527,9 @@ esp_err_t rmlink_network_init(void)
     ESP_RETURN_ON_ERROR(esp_event_loop_create_default(), "rmlink_wifi", "event init");
     s_sta = esp_netif_create_default_wifi_sta();
     if (!s_sta) return ESP_ERR_NO_MEM;
+    esp_timer_create_args_t recovery = { .callback = reconnect_expired, .name = "wifi_recover" };
+    ESP_RETURN_ON_ERROR(esp_timer_create(&recovery, &s_reconnect_timer), "rmlink_wifi", "recovery timer");
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(RMLINK_WIFI_RECOVERY_EVENT, 0, wifi_event, NULL), "rmlink_wifi", "recovery events");
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), "rmlink_wifi", "wifi init");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL), "rmlink_wifi", "Wi-Fi events");
@@ -438,7 +560,9 @@ esp_err_t rmlink_network_init(void)
     ESP_LOGI("rmlink_wifi", "STA + TCP ready; configure credentials using USB vendor commands");
     return ESP_OK;
 }
+#endif /* RMLINK_NETWORK_HOST_TEST */
 #else
 #include "rmlink_network.h"
 esp_err_t rmlink_network_init(void) { return ESP_OK; }
+bool rmlink_network_wait_for_link(void) { return false; }
 #endif

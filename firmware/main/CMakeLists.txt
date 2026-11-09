@@ -20,6 +20,11 @@ idf_component_register(SRCS ${bridge_sources}
                        LDFRAGMENTS "noflash.lf"
                        INCLUDE_DIRS "." "public_include")
 
+if(CONFIG_RMLINK_WIFI_ENABLED)
+    # Defer the default netif teardown during a brief STA reassociation.
+    target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_netif_action_disconnected")
+endif()
+
 idf_component_get_property(tusb_lib espressif__tinyusb COMPONENT_LIB)
 target_include_directories(${tusb_lib} PRIVATE public_include)
 

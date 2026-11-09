@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "rmlink_capture.h"
+#include "rmlink_network.h"
 #include "rmlink_stream_codec.h"
 #if CONFIG_RMLINK_STREAM_DIAGNOSTICS
 #include "esp_wifi.h"
@@ -57,6 +58,7 @@ static void batch_ready(void *unused) {
 }
 static bool exact(int fd, uint8_t *p, size_t n, bool sending) {
     while(n) {
+        if(!rmlink_network_wait_for_link())return false;
         int part=sending?send(fd,p,n,0):recv(fd,p,n,0);
         if(part<0 && errno==EINTR)continue;
         if(part<=0) {

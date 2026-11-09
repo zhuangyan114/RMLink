@@ -33,6 +33,16 @@ class RecordingTests(unittest.IsolatedAsyncioTestCase):
         result=await rec.stop();parsed=inspect_recording(rec.path)
         self.assertEqual((result['error'],result['frames'],self.pauses),('sequence_gap',2,1))
         self.assertEqual(parsed['summary']['phase'],'failed');self.assertTrue(result['finalized'])
+    async def test_non_strict_gap_preserves_received_samples_and_counts_the_gap(self):
+        rec=Recording(self.temp.name,'model',self.config,self.pause,strict=False);await rec.start()
+        sequences=(0,1,503,504)
+        for cursor,sequence in enumerate(sequences):rec.offer(cursor,record(sequence))
+        result=await rec.stop();seen=[]
+        parsed=inspect_recording(rec.path,lambda cursor,sample:seen.append(sample['sequence']))
+        self.assertEqual(result['phase'],'complete')
+        self.assertEqual((result['frames'],result['gaps'],self.pauses),(4,1,0))
+        self.assertEqual(seen,list(sequences))
+        self.assertEqual(parsed['summary']['gaps'],1)
     async def test_valid_over_budget_and_invalid_data_are_counted_separately(self):
         rec=Recording(self.temp.name,'model',self.config,self.pause,strict=False);await rec.start()
         for sequence,flags in enumerate((0,2,1,3)):
