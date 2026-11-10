@@ -14,6 +14,9 @@ typedef struct {
     void (*release)(void *memory);
     /* Zero queries the current request, a nonzero value changes it. */
     uint32_t (*swj_clock)(uint32_t clock_hz);
+    /* false classifies the last failure, true clears a recoverable SWD fault.
+     * Only the RAM staging path may replay writes after this succeeds. */
+    bool (*recover_swd)(bool clear);
 } rmlink_flash_io_t;
 enum { RM_FLASH_IDLE,RM_FLASH_UPLOAD,RM_FLASH_READY,RM_FLASH_PREFLIGHT,
        RM_FLASH_LOAD,RM_FLASH_ERASE,RM_FLASH_PROGRAM,RM_FLASH_PAGE_VERIFY,

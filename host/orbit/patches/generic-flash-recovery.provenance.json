@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-11",
+  "repository": "https://github.com/zhuangyan114/Orbit",
+  "base_commit": "992a2d48e0fa5669ce9da28852d41d5574e2cf68",
+  "patch": "generic-flash-recovery.patch",
+  "sha256": "c9047c84e3077369c9cea8fba2633f5d23318fdb55b01246b33019ec8d2a2150",
+  "implementation": [
+    "firmware/components/debug_probe/rmlink_flash.c",
+    "firmware/components/debug_probe/rmlink_flash_port.c",
+    "host/rmlink_connector/flash.py"
+  ],
+  "scope": "RMLink buffered Flash for all registered target profiles; recovery uses profile sector/RAM/page data",
+  "evidence_directory": "artifacts/logs/generic-flash-recovery-2026-11-10T15-54-45-644Z",
+  "user_manual_confirmation": "pending",
+  "hardware_scope": "STM32H723VGT6 over Wi-Fi cc68c7a5995c; other targets covered by models",
+  "ordinary_cmsis_dap_hardware": "pending",
+  "validation": {
+    "host_tests": 228,
+    "orbit_tests": 1270,
+    "orbit_skipped": 1,
+    "firmware_build": true,
+    "typecheck": true,
+    "extension_build": true,
+    "models": [
+      "STM32F103C8",
+      "STM32F407VE",
+      "STM32F407IG",
+      "STM32H723VG",
+      "new profile 42 with 16-byte pages"
+    ],
+    "hardware_trials": 3,
+    "hardware_ram_retries": [
+      3,
+      5,
+      4
+    ],
+    "hardware_sha256": "628a73a687d871117d939bc57c9ec87ebe1fb3c9b275ade4e67a27527eec6183",
+    "hardware_fallback": "pending; model verified"
+  }
+}

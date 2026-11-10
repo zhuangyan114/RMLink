@@ -13,6 +13,9 @@ static bool wrong_capacity,reset_pending,unknown_write;
 static uint32_t demcr,preparation_resets,reset_status_reads;
 static bool active_exception;
 static uint32_t requested_clock=4000000,clock_changes;
+static unsigned ram_failures,recovery_calls,buffer_writes;
+static bool high_clock_fault,recovery_failure,low_clock_fault;
+static uint8_t last_fault;
 static uint32_t u32(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
 static bool read_target(uint32_t a,uint8_t *p,size_t n) {
@@ -35,7 +38,13 @@ static bool read_target(uint32_t a,uint8_t *p,size_t n) {
 }
 static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
     if(a>=base && (uint64_t)a+n<=stack) {
-        if(base==0x24000000 && requested_clock>4000000)return false;
+        if(a>=buffer && a<buffer+page) {
+            buffer_writes++;
+            if(programs>=1 && (ram_failures || (high_clock_fault && requested_clock>4000000) || low_clock_fault)) {
+                if(ram_failures)ram_failures--;
+                memcpy(ram+a-base,p,n/2);last_fault=4;return false;
+            }
+        }
         memcpy(ram+a-base,p,n);return true;
     }
     assert(n==4);uint32_t v=u32(p);
@@ -51,7 +60,7 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
                 assert(registers[0]==last_sector);memset(flash+last_sector-0x08000000,255,sizeof(image));erases++;
             }else if(entry==0x300) {
                 uint32_t at=registers[0]-0x08000000;
-                assert(registers[1]==page && registers[2]==buffer && erases==1);
+                assert(registers[1]==page && registers[2]==buffer && erases>=1);
                 assert(at>=last_sector-0x08000000 && at+page<=capacity*1024);
                 memcpy(flash+at,ram+buffer-base,page);programs++;
                 if(unknown_write)return false;
@@ -76,7 +85,14 @@ static uint32_t swj_clock(uint32_t hz) {
     if(hz) {requested_clock=hz;clock_changes++;}
     return requested_clock;
 }
-static const rmlink_flash_io_t io={read_target,write_target,hash,now,allocate,free,swj_clock};
+static bool recover_swd(bool clear) {
+    if(!clear)return last_fault==4;
+    recovery_calls++;
+    if(recovery_failure)return false;
+    last_fault=0;
+    return true;
+}
+static const rmlink_flash_io_t io={read_target,write_target,hash,now,allocate,free,swj_clock,recover_swd};
 static const rmlink_owner_t owner={.transport=2,.session=7};
 static uint32_t crc(const uint8_t *p,size_t n) {uint32_t c=~0u;while(n--){c^=*p++;for(unsigned i=0;i<8;i++)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}return ~c;}
 static void command(uint8_t *p,size_t n) {
@@ -92,6 +108,8 @@ static void configure(unsigned id) {
     last_sector=id==2?0x08060000:0x080e0000;
     ticks=1;erases=programs=resets=0;wrong_capacity=reset_pending=unknown_write=false;dhcsr=0;
     demcr=0x01000010;preparation_resets=reset_status_reads=0;active_exception=true;
+    ram_failures=recovery_calls=buffer_writes=0;
+    high_clock_fault=recovery_failure=low_clock_fault=false;last_fault=0;
     memset(ram,0,sizeof(ram));memset(registers,0,sizeof(registers));memset(flash,0xa5,sizeof(flash));
     for(unsigned i=0;i<sizeof(image);i++)image[i]=(uint8_t)(i*37+i/17);
 }
@@ -112,7 +130,14 @@ static void job(bool reset_after,unsigned stop) {
         assert(!rmlink_flash_busy() && !rmlink_target_locked());
         return;
     }
-    unsigned turns=0;while(rmlink_flash_run())assert(++turns<2000000);
+    unsigned turns=0;
+    while(rmlink_flash_run()) {
+        assert(++turns<2000000);
+        if(stop>=3 && requested_clock==4000000) {
+            if(stop==4) {rmlink_flash_closed(2,7);return;}
+            request[1]=6;command(request,6);stop=0;
+        }
+    }
     request[1]=5;command(request,6);
 }
 int main(void) {
@@ -124,7 +149,7 @@ int main(void) {
         assert(response[3]==RM_FLASH_COMPLETE && (response[5]&2) && !rmlink_target_locked());
         assert(erases==1 && programs==sizeof(image)/page && resets==1);
         assert(preparation_resets==1 && demcr==0x01000010);
-        assert(requested_clock==clocks[ci] && clock_changes==(id==4 && clocks[ci]>4000000?2u:0u));
+        assert(requested_clock==clocks[ci] && clock_changes==0);
         assert(!memcmp(flash+last_sector-0x08000000,image,sizeof(image)));
         for(unsigned i=0;i<last_sector-0x08000000;i++)assert(flash[i]==0xa5);
         configure(id);wrong_capacity=true;job(true,0);
@@ -139,7 +164,36 @@ int main(void) {
         configure(id);job(false,2);
         assert(!erases && !programs && requested_clock==clocks[ci]);
       }
+      requested_clock=8000000;clock_changes=0;
+      configure(id);ram_failures=1;job(false,0);
+      assert(response[3]==RM_FLASH_COMPLETE && erases==1 && recovery_calls==1 && clock_changes==0);
+      assert(!memcmp(flash+last_sector-0x08000000,image,sizeof(image)));
+      uint8_t metrics[]={0x82,10,123,0,0,0};command(metrics,sizeof(metrics));
+      assert(response[3]==1 && u32(response+15)==1 && response[6]==0);
+      configure(id);ram_failures=2;job(false,0);
+      assert(response[3]==RM_FLASH_COMPLETE && erases==1 && recovery_calls==2);
+      configure(id);high_clock_fault=true;job(false,0);
+      assert(response[3]==RM_FLASH_COMPLETE && erases==2 && clock_changes==2 && requested_clock==8000000);
+      assert(!memcmp(flash+last_sector-0x08000000,image,sizeof(image)));
+      assert(programs==sizeof(image)/page+1);
+      command(metrics,sizeof(metrics));
+      assert(response[6]==1 && u32(response+15)==2 && u32(response+23)==last_sector);
+      assert(u32(response+27)==sizeof(image) && u32(response+31)==2);
+      configure(id);high_clock_fault=low_clock_fault=true;job(false,0);
+      assert(response[3]==RM_FLASH_FAILED && erases==2 && requested_clock==8000000);
+      configure(id);ram_failures=1;recovery_failure=true;job(false,0);
+      assert(response[3]==RM_FLASH_FAILED && erases==1 && requested_clock==8000000);
+      configure(id);high_clock_fault=true;job(false,3);
+      assert(response[3]==RM_FLASH_CANCELLED && erases==1 && requested_clock==8000000);
+      configure(id);high_clock_fault=true;job(false,4);
+      assert(!rmlink_flash_busy() && !rmlink_target_locked() && requested_clock==8000000);
     }
-    puts("Shared target package: F407VE/F407IG/H723 last 128KiB sector, RAM/stack, FPB v2, full verify, identity refusal, sparse halt and no write replay passed");
+    /* A newly registered profile inherits recovery solely from its sector/RAM
+     * description, with no chip-ID branch in the production recovery path. */
+    configure(3);rmlink_target_profile_t future=*rmlink_target_current();future.id=42;future.page=16;page=16;
+    assert(rmlink_target_select(&future));high_clock_fault=true;job(false,0);
+    assert(response[3]==RM_FLASH_COMPLETE && erases==2 && requested_clock==8000000);
+    assert(!memcmp(flash+last_sector-0x08000000,image,sizeof(image)));
+    puts("Shared target package: F407VE/F407IG/H723 and new profile inherit RAM retry, sector recovery, full verify and bounded failure handling");
     return 0;
 }

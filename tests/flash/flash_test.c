@@ -11,6 +11,9 @@ static bool write_protected;
 static uint32_t demcr,preparation_resets,reset_status_reads;
 static bool pending_interrupt,active_exception,reset_not_halted;
 static size_t allocated;
+static uint32_t swj_clock_hz=8000000,program_calls,recovery_calls;
+static unsigned ram_failures;
+static bool high_clock_fault,last_fault;
 static uint32_t get(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
 static uint32_t crc(const uint8_t *p,size_t n) {
@@ -38,7 +41,14 @@ static bool read_target(uint32_t a,uint8_t *p,size_t n) {
 }
 static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
     io_writes++;if(io_failure)return false;
-    if(a>=0x20000000 && a+n<=0x20005000) {memcpy(ram+a-0x20000000,p,n);return true;}
+    if(a>=0x20000000 && a+n<=0x20005000) {
+        if(a>=0x20003c00 && a<0x20004000 && program_calls &&
+           (ram_failures || (high_clock_fault && swj_clock_hz>4000000))) {
+            if(ram_failures)ram_failures--;
+            memcpy(ram+a-0x20000000,p,n/2);last_fault=true;return false;
+        }
+        memcpy(ram+a-0x20000000,p,n);return true;
+    }
     assert(n==4);uint32_t v=get(p);
     if(a==0xe000edf8)dcrdr=v;
     else if(a==0xe000edf4) {if(v&0x10000)regs[v&31]=dcrdr;else dcrdr=regs[v&31];}
@@ -58,7 +68,7 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
             else if(entry==0x200) {assert(offset<65536 && !(offset&1023));memset(flash+offset,255,1024);erase_calls++;}
             else if(entry==0x300 || entry==0x400) {
                 assert(offset+regs[1]<=65536 && regs[1]==1024 && regs[2]==0x20003c00);
-                if(entry==0x300)memcpy(flash+offset,ram+0x3c00,regs[1]);
+                if(entry==0x300) {memcpy(flash+offset,ram+0x3c00,regs[1]);program_calls++;}
                 else assert(!memcmp(flash+offset,ram+0x3c00,regs[1]));
             }else {assert(entry==0 || entry==0x100);if(entry==0x100 && corrupt_verify)flash[3]^=1;}
             regs[0]=bad_return?3:0;regs[15]=bad_pc?0x08001000:0x20000500;dhcsr=0x20000;
@@ -81,7 +91,12 @@ static bool hash(const uint8_t *p,size_t n,uint8_t digest[32]) {
 static uint64_t now(void) {clock_us+=100;return clock_us;}
 static void *allocate(size_t n) {if(no_memory)return NULL;allocated+=n;return malloc(n);}
 static void release(void *p) {assert(p);allocated=0;free(p);}
-static const rmlink_flash_io_t port={read_target,write_target,hash,now,allocate,release,NULL};
+static uint32_t swj_clock(uint32_t hz) {if(hz)swj_clock_hz=hz;return swj_clock_hz;}
+static bool recover_swd(bool clear) {
+    if(!clear)return last_fault;
+    last_fault=false;recovery_calls++;return true;
+}
+static const rmlink_flash_io_t port={read_target,write_target,hash,now,allocate,release,swj_clock,recover_swd};
 static const rmlink_owner_t owner={.transport=2,.session=7};
 static uint8_t command(uint8_t sub,const uint8_t *payload,size_t n) {
     uint8_t request[512]={0x82,sub};memcpy(request+2,payload,n);memset(out,0xcc,sizeof(out));
@@ -95,6 +110,7 @@ static void reset(void) {
     write_protected=false;
     demcr=0x01000010;preparation_resets=reset_status_reads=0;
     pending_interrupt=active_exception=reset_not_halted=false;
+    swj_clock_hz=8000000;program_calls=recovery_calls=ram_failures=0;high_clock_fault=last_fault=false;
     for(unsigned i=0;i<65536;i++)image[i]=(uint8_t)(i*37+i/256);
 }
 static uint32_t id=123;
@@ -157,5 +173,14 @@ int main(void) {
     reset();begin(1024,false);upload(1024);start();while(!erase_calls)assert(rmlink_flash_run());rmlink_flash_closed(2,8);assert(rmlink_flash_busy());
     rmlink_flash_closed(2,7);assert(!rmlink_flash_busy() && !allocated && (dhcsr&0x20000));
     reset();no_memory=true;uint8_t b[44];put(b,id);put(b+4,0x08000000);put(b+8,65536);memset(b+12,0x42,32);assert(command(1,b,sizeof(b))==RM_FLASH_MEMORY && !io_writes);
-    puts("Buffered Flash model: full image, no pre-commit IO, CRC/hash/owner/busy, cancellation, timeout and no replay passed");return 0;
+    reset();begin(4096,false);upload(4096);ram_failures=1;start();run();
+    assert(status()==RM_FLASH_COMPLETE && erase_calls==4 && recovery_calls==1 && swj_clock_hz==8000000);
+    assert(!memcmp(flash,image,4096));
+    reset();begin(4096,false);upload(4096);high_clock_fault=true;start();run();
+    assert(status()==RM_FLASH_COMPLETE && erase_calls==5 && program_calls==4 && swj_clock_hz==8000000);
+    assert(!memcmp(flash,image,4096) && get(out+22)==4);
+    reset();begin(65536,false);upload(65536);high_clock_fault=true;start();run();
+    assert(status()==RM_FLASH_COMPLETE && erase_calls==2 && mass_calls==1 && program_calls==64);
+    assert(get(out+22)==64 && swj_clock_hz==8000000 && !memcmp(flash,image,65536));
+    puts("Buffered Flash model: full image, RAM retry, bounded sector recovery after mass erase, ownership, cancellation and no algorithm replay passed");return 0;
 }

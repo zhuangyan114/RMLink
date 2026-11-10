@@ -18,12 +18,14 @@ class ProbeTarget(AlgorithmTarget):
         self.commit_received=asyncio.Event()
         self.finish_before_cancel=False
         self.out_of_memory=False;self.mass_feature=False
+        self.recovery_feature=False;self.recovery_queries=0;self.bad_recovery=False
     async def submit(self,source,packets,priority):
         assert source==self.source and priority=='control' and 1<=len(packets)<=8
         self.chunk_groups.append(len(packets));return [await self.packet(p) for p in packets]
     async def packet(self,p,priority='control'):
         assert p[0]==0x82;sub=p[1];reply=bytes([0x82,sub,0])
-        if sub==0:return reply+struct.pack('<BBIHHB',1,1,65536,1024,self.packet_size-16,15 if self.mass_feature else 7)
+        if sub==0:return reply+struct.pack('<BBIHHB',1,1,65536,1024,self.packet_size-16,
+            (15 if self.mass_feature else 7)|(32 if self.recovery_feature else 0))
         operation=int.from_bytes(p[2:6],'little')
         if sub==1:
             if self.out_of_memory:return b'\x82\x01\x04'
@@ -55,10 +57,36 @@ class ProbeTarget(AlgorithmTarget):
                 len(self.staged),self.length//1024 if state>=6 else 0,
                 self.length if state>=7 and state not in (11,12) else 0,self.length if state==10 else 0,100000,0)
         if sub==9:return reply+struct.pack('<QQQQQQQ',1000,1000,1000,20000,10000,500,30000)
+        if sub==10:
+            self.recovery_queries+=1
+            return reply+struct.pack('<BBBB7IQ',1,2,2,1,8000000,4000000,2,0x20003c00,
+                self.address+self.length if self.bad_recovery else self.address,self.length,3,1234)
         return reply
 
 
 class BufferedFlashTests(unittest.IsolatedAsyncioTestCase):
+    async def test_optional_recovery_snapshot_retains_one_commit_and_terminal_failure(self):
+        for failed in (False,True):
+            target=ProbeTarget();target.recovery_feature=True;target.swd_failure=failed
+            f=FlashProgrammer(target,b'\0'*0x600);upload(f,b'x'*1024)
+            if failed:
+                with self.assertRaisesRegex(RuntimeError,'error=8'):await f.commit()
+            else:
+                self.assertTrue((await f.commit())['verified'])
+            recovery=f.progress['probe_recovery']
+            self.assertEqual(recovery['ram_retries'],2)
+            self.assertEqual(recovery['erase_operations'],3)
+            self.assertEqual(recovery['fallback_clock_hz'],4000000)
+            self.assertEqual(target.commits,1)
+            self.assertGreater(target.recovery_queries,0)
+
+    async def test_bad_optional_recovery_snapshot_preserves_authoritative_commit(self):
+        target=ProbeTarget();target.recovery_feature=target.bad_recovery=True
+        f=FlashProgrammer(target,b'\0'*0x600);upload(f,b'x'*1024)
+        self.assertTrue((await f.commit())['verified'])
+        self.assertIn('sector outside image',f.progress['probe_recovery_error'])
+        self.assertEqual(target.commits,1)
+
     async def test_native_and_tcp_capacity_upload_batches_and_independent_verify(self):
         for capacity in (64,512):
             with self.subTest(capacity=capacity):

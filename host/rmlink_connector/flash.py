@@ -126,6 +126,19 @@ class FlashProgrammer:
                     write_completion_may_be_unknown=bool(flags&1) and state!=10)
         self.progress.update(result);return result
 
+    async def probe_recovery(self,operation):
+        data=await self.probe_command(10,struct.pack('<I',operation))
+        if len(data)!=40:raise ValueError('Probe Flash recovery status length')
+        version,state,attempt,downgraded,requested,active,retries,address,sector,size,erases,us=struct.unpack('<BBBB7IQ',data)
+        if version!=1 or state>2 or attempt>2 or downgraded>1:
+            raise ValueError('Probe Flash recovery status fields')
+        if size and (sector<self.address or sector+size>self.address+len(self.image)):
+            raise ValueError('Probe Flash recovery sector outside image')
+        self.progress['probe_recovery']=dict(state=state,retry_attempt=attempt,ram_retries=retries,
+            retry_address=address,downgraded=bool(downgraded),requested_clock_hz=requested,
+            active_clock_hz=active,fallback_clock_hz=4000000 if downgraded else 0,
+            sector_address=sector,sector_size=size,erase_operations=erases,elapsed_us=us)
+
     async def commit_probe(self):
         target=self.target;operation=secrets.randbelow(0xffffffff)+1
         self.progress.update(backend='probe',operation_id=operation,verified=False)
@@ -137,6 +150,7 @@ class FlashProgrammer:
             chunk=int.from_bytes(caps[8:10],'little')
             if not 1<=chunk<=target.broker.packet_size-16:raise ValueError('Probe upload chunk capacity')
             if not self.reset_after and not caps[10]&16:raise ValueError('Probe firmware upgrade required for sparse Flash jobs')
+            recovery_supported=bool(caps[10]&32)
             self.progress['erase_strategy']='mass' if caps[10]&8 and self.address==self.profile['flashBase'] and len(self.image)==self.profile['flashSize'] else 'page' if self.profile['profileId']==1 else 'sector'
             options=[await target.read_word(a) for a in self.option_registers()]
             begin=await target.packet(b'\x82\x01'+struct.pack('<III',operation,self.address,len(self.image))+bytes.fromhex(self.digest)+(bytes([0xa5,int(self.reset_after)]) if caps[10]&16 else b''))
@@ -164,6 +178,10 @@ class FlashProgrammer:
             target.breakpoints.clear();deadline=asyncio.get_running_loop().time()+(150 if self.profile['profileId']==1 else 630);cancel_sent=False
             while True:
                 status=await self.probe_status(operation)
+                if recovery_supported:
+                    try:await self.probe_recovery(operation)
+                    except (ValueError,ConnectionError) as error:
+                        self.progress['probe_recovery_error']=str(error);recovery_supported=False
                 if status['probe_state'] in (10,11,12):terminal=True;break
                 if self.cancelled and not cancel_sent:
                     reply=await target.packet(b'\x82\x06'+struct.pack('<I',operation))

@@ -15,16 +15,22 @@
 #define DCRDR 0xe000edf8u
 #define DEMCR 0xe000edfcu
 #define AIRCR 0xe000ed0cu
+#define RAM_WRITE_RETRIES 2u
+#define RECOVERY_CLOCK_HZ 4000000u
 
 static rmlink_flash_io_t io;
 static struct {
     uint8_t state,error,flags,transport,step,call_step,reg_index,reg_count;
     uint32_t session,id,address,length,received,erased,programmed,verified,error_address;
     uint32_t offset,code_offset,buffer_offset,options[4],fp_count,call_entry,call_args[3];
-    uint32_t sector_end,saved_clock_hz;
+    uint32_t sector_start,sector_end,saved_clock_hz,requested_clock_hz;
+    uint32_t ram_retries,retry_address,erase_operations,recovery_address,recovery_size;
+    uint64_t recovery_us,sector_recovery_start;
+    uint8_t recovery_state,retry_attempt;
     uint32_t reg_ids[9],reg_values[9],call_pc,demcr;
     uint8_t digest[32],*image;
     bool cancel,call_done,touched,reset_after,restore_demcr;
+    bool downgraded,recovery_erase,mass_erased,erasing_mass;
     uint64_t phase_start,start,end,call_deadline,reset_at,timings[7];
 } s;
 static uint32_t u32(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
@@ -48,8 +54,76 @@ static bool rd(uint32_t a,uint32_t *v) {
     uint8_t b[4];s.error_address=a;if(!io.read(a,b,4))return false;*v=u32(b);return true;
 }
 static bool wr(uint32_t a,uint32_t v) {uint8_t b[4];w32(b,v);s.error_address=a;return io.write(a,b,4);}
+static bool select_sector(void) {
+    uint32_t address=s.address+s.offset;
+    for(unsigned i=0;i<P->sector_count;i++) {
+        const rmlink_memory_region_t *sector=&P->sectors[i];
+        if(address>=sector->address && address-sector->address<sector->size) {
+            if(sector->address<s.address || sector->size>s.length-(sector->address-s.address))return false;
+            s.sector_start=sector->address-s.address;
+            s.sector_end=s.sector_start+sector->size;
+            return true;
+        }
+    }
+    return false;
+}
+enum ram_write_result { RAM_WRITE_FAILED,RAM_WRITE_DONE,RAM_WRITE_RESTART };
+static enum ram_write_result write_ram(uint32_t address,const uint8_t *data,size_t length) {
+    s.error_address=address;
+    if(io.write(address,data,length))return RAM_WRITE_DONE;
+    if(s.downgraded || !io.recover_swd || !io.recover_swd(false))return RAM_WRITE_FAILED;
+    uint64_t started=io.now();
+    uint8_t actual[32];
+    enum ram_write_result result=RAM_WRITE_FAILED;
+    s.retry_address=address;s.recovery_state=1;
+    for(unsigned attempt=1;attempt<=RAM_WRITE_RETRIES;attempt++) {
+        if(s.cancel)goto done;
+        s.retry_attempt=attempt;s.ram_retries++;
+        if(!io.recover_swd(true))continue;
+        if(!io.write(address,data,length)) {
+            if(!io.recover_swd(false))goto done;
+            continue;
+        }
+        if(!io.read(address,actual,length)) {
+            if(!io.recover_swd(false))goto done;
+            continue;
+        }
+        if(!memcmp(actual,data,length)) {result=RAM_WRITE_DONE;goto done;}
+    }
+    if(s.cancel || !io.swj_clock)goto done;
+    uint32_t clock=io.swj_clock(0);
+    if(clock<=RECOVERY_CLOCK_HZ)goto done;
+    s.saved_clock_hz=clock;
+    if(io.swj_clock(RECOVERY_CLOCK_HZ)!=RECOVERY_CLOCK_HZ)goto done;
+    s.downgraded=true;s.recovery_state=2;
+    if(!io.recover_swd(true))goto done;
+    /* A buffer upload follows a confirmed algorithm return-to-BKPT. Recheck
+     * halt before recovery. No algorithm/control-register write is replayed. */
+    uint32_t dhcsr;
+    if(!rd(DHCSR,&dhcsr) || !(dhcsr&0x20000))goto done;
+    if(s.state==RM_FLASH_PROGRAM) {
+        if(!select_sector())goto done;
+        s.recovery_address=s.address+s.sector_start;
+        s.recovery_size=s.sector_end-s.sector_start;
+        s.offset=s.sector_start;s.programmed=s.sector_start;
+        s.buffer_offset=0;s.recovery_erase=true;
+        s.sector_recovery_start=io.now();
+        phase(RM_FLASH_ERASE);
+    }else {
+        /* Loader staging precedes Init and all target Flash modifications. */
+        s.code_offset=0;
+    }
+    result=RAM_WRITE_RESTART;
+done:
+    s.error_address=address;
+    s.recovery_us+=(s.sector_recovery_start?s.sector_recovery_start:io.now())-started;
+    return result;
+}
 static void finish(uint8_t state,uint8_t error) {
     uint32_t fault_address=s.error_address;
+    if(s.sector_recovery_start) {
+        s.recovery_us+=io.now()-s.sector_recovery_start;s.sector_recovery_start=0;
+    }
     if(state!=RM_FLASH_COMPLETE && s.touched) {
         uint32_t dhcsr;
         if(wr(DHCSR,0xa05f0003) && rd(DHCSR,&dhcsr) && (dhcsr&0x20000))s.flags|=4;
@@ -176,29 +250,39 @@ bool rmlink_flash_run(void) {
         if(s.code_offset<P->code_size) {
             n=P->code_size-s.code_offset;if(n>32)n=32;
             s.error_address=BASE+s.code_offset;
-            if(!io.write(s.error_address,P->code+s.code_offset,n))goto swd;
+            enum ram_write_result result=write_ram(s.error_address,P->code+s.code_offset,n);
+            if(result==RAM_WRITE_FAILED)goto swd;
+            if(result==RAM_WRITE_RESTART)break;
             s.code_offset+=n;
         }else if(!s.step) {call_begin(P->init,s.address,8000000,2,3);s.step=1;}
         else if(s.call_done)phase(RM_FLASH_ERASE);
         break;
     case RM_FLASH_ERASE:
         if(!s.step) {
+            if(!select_sector())goto target;
             s.flags|=1;
-            if(whole_image()) {s.sector_end=s.length;call_begin(P->erase_chip,s.address,s.length,0x524d4c4b,3);}
+            s.erasing_mass=whole_image() && !s.mass_erased && !s.recovery_erase;
+            if(s.erasing_mass) {call_begin(P->erase_chip,s.address,s.length,0x524d4c4b,3);}
             else {
-                uint32_t size=rmlink_target_sector_size(s.address+s.offset);
-                if(!size || size>s.length-s.offset)goto target;
-                s.sector_end=s.offset+size;call_begin(P->erase,s.address+s.offset,0,0,1);
+                call_begin(P->erase,s.address+s.offset,0,0,1);
             }
             s.step=1;
         }
-        else if(s.call_done) {s.erased=whole_image()?s.length/PAGE:s.erased+1;s.buffer_offset=0;phase(RM_FLASH_PROGRAM);}
+        else if(s.call_done) {
+            s.erase_operations++;
+            if(s.erasing_mass) {s.erased=P->sector_count;s.mass_erased=true;}
+            else if(!s.recovery_erase)s.erased++;
+            s.recovery_erase=false;s.buffer_offset=0;phase(RM_FLASH_PROGRAM);
+        }
         break;
     case RM_FLASH_PROGRAM:
         if(s.buffer_offset<PAGE) {
+            n=PAGE-s.buffer_offset;if(n>32)n=32;
             s.error_address=BUFFER+s.buffer_offset;
-            if(!io.write(s.error_address,s.image+s.offset+s.buffer_offset,32))goto swd;
-            s.buffer_offset+=32;
+            enum ram_write_result result=write_ram(s.error_address,s.image+s.offset+s.buffer_offset,n);
+            if(result==RAM_WRITE_FAILED)goto swd;
+            if(result==RAM_WRITE_RESTART)break;
+            s.buffer_offset+=n;
         }else if(!s.step) {call_begin(P->program,s.address+s.offset,PAGE,BUFFER,3);s.step=1;}
         else if(s.call_done) {s.programmed+=PAGE;phase(RM_FLASH_PAGE_VERIFY);}
         break;
@@ -206,16 +290,20 @@ bool rmlink_flash_run(void) {
         /* ProgramPage status is checked above. Full-image probe readback
          * remains mandatory for every target, independent of page size. */
         s.offset+=PAGE;s.buffer_offset=0;
-        phase(s.offset<s.length?((whole_image() || s.offset<s.sector_end)?RM_FLASH_PROGRAM:RM_FLASH_ERASE):RM_FLASH_VERIFY);
+        if(s.sector_recovery_start && s.offset>=s.sector_end) {
+            s.recovery_us+=io.now()-s.sector_recovery_start;s.sector_recovery_start=0;
+        }
+        phase(s.offset<s.length?((s.mass_erased || s.offset<s.sector_end)?RM_FLASH_PROGRAM:RM_FLASH_ERASE):RM_FLASH_VERIFY);
         break;
     case RM_FLASH_VERIFY:
         if(!s.step) {call_begin(P->uninit,2,0,0,1);s.step=1;}
         else if(s.step==1) {if(s.call_done)s.step=2;}
         else if(s.verified<s.length) {
+            n=s.length-s.verified;if(n>32)n=32;
             s.error_address=s.address+s.verified;
-            if(!io.read(s.error_address,data,32))goto swd;
-            if(memcmp(data,s.image+s.verified,32)) {finish(RM_FLASH_FAILED,RM_FLASH_MISMATCH);return true;}
-            s.verified+=32;
+            if(!io.read(s.error_address,data,n))goto swd;
+            if(memcmp(data,s.image+s.verified,n)) {finish(RM_FLASH_FAILED,RM_FLASH_MISMATCH);return true;}
+            s.verified+=n;
         }else {s.flags|=2;phase(RM_FLASH_RESET);}
         break;
     case RM_FLASH_RESET:
@@ -232,7 +320,7 @@ bool rmlink_flash_run(void) {
     default:finish(RM_FLASH_FAILED,RM_FLASH_STATE);break;
     }
     return true;
-swd:finish(RM_FLASH_FAILED,RM_FLASH_SWD);return true;
+swd:finish(s.cancel?RM_FLASH_CANCELLED:RM_FLASH_FAILED,s.cancel?RM_FLASH_CANCEL:RM_FLASH_SWD);return true;
 target:finish(RM_FLASH_FAILED,RM_FLASH_TARGET);return true;
 timeout:finish(RM_FLASH_FAILED,RM_FLASH_TIMEOUT);return true;
 }
@@ -242,7 +330,7 @@ size_t rmlink_flash_command(uint8_t transport,uint32_t session,const uint8_t *r,
     if(len<2 || capacity<64 || capacity>RMLINK_PACKET_SIZE || len>capacity)return 3;
     if(!r[1]) {
         out[2]=0;out[3]=P->id==1?1:2;out[4]=P->id;w32(out+5,P->flash_size);out[9]=(uint8_t)PAGE;out[10]=(uint8_t)(PAGE>>8);
-        out[11]=(uint8_t)(capacity-16);out[12]=(capacity-16)>>8;out[13]=(P->erase_chip!=UINT32_MAX?15:7)|16;return 14;
+        out[11]=(uint8_t)(capacity-16);out[12]=(capacity-16)>>8;out[13]=(P->erase_chip!=UINT32_MAX?15:7)|16|32;return 14;
     }
     if(!rmlink_owner_matches(owner,transport,session) ||
        (s.session && (s.session!=session || s.transport!=transport))) {out[2]=RM_FLASH_OWNER;return 3;}
@@ -253,6 +341,10 @@ size_t rmlink_flash_command(uint8_t transport,uint32_t session,const uint8_t *r,
         if(len<46)return 3;
         uint32_t address=u32(r+6),size=u32(r+10);
         if(!rmlink_target_flash_range(address,size))return 3;
+        if(!PAGE || (PAGE&3) || (address-P->flash_base)%PAGE || size%PAGE)return 3;
+        for(unsigned i=0;i<P->sector_count;i++) {
+            if(P->sectors[i].address>=address && P->sectors[i].address-address<size && P->sectors[i].size%PAGE)return 3;
+        }
         if(s.id==id && s.state) {out[2]=RM_FLASH_STATE;return 3;}
         if(s.image)io.release(s.image);
         memset(&s,0,sizeof(s));rmlink_target_lock(false);s.image=io.allocate(size);
@@ -275,6 +367,15 @@ size_t rmlink_flash_command(uint8_t transport,uint32_t session,const uint8_t *r,
         out[2]=0;int index=timing_index(s.state);
         for(unsigned i=0;i<7;i++)w64(out+3+i*8,s.timings[i]+((int)i==index?io.now()-s.phase_start:0));
         return 59;
+    }
+    if(r[1]==10) {
+        out[2]=0;out[3]=1;out[4]=s.recovery_state;out[5]=s.retry_attempt;out[6]=s.downgraded;
+        w32(out+7,s.requested_clock_hz);w32(out+11,io.swj_clock?io.swj_clock(0):0);
+        w32(out+15,s.ram_retries);w32(out+19,s.retry_address);
+        w32(out+23,s.recovery_address);w32(out+27,s.recovery_size);
+        w32(out+31,s.erase_operations);
+        w64(out+35,s.recovery_us+(s.sector_recovery_start?io.now()-s.sector_recovery_start:0));
+        return 43;
     }
     if(r[1]==6) {
         if(rmlink_flash_busy())s.cancel=true;
@@ -301,16 +402,7 @@ size_t rmlink_flash_command(uint8_t transport,uint32_t session,const uint8_t *r,
     if(r[1]==4) {
         if(s.state!=RM_FLASH_READY) {out[2]=RM_FLASH_STATE;return 3;}
         if(!may_start) {out[2]=RM_FLASH_BUSY;return 3;}
-        /* H723 AXI SRAM buffer writes return SWD FAULT at 8 MHz on hardware.
-         * Bound this whole job before its first access, without replaying any
-         * failed write. Restore the requested debug clock on every exit. */
-        if(P->id==4 && io.swj_clock) {
-            uint32_t requested=io.swj_clock(0);
-            if(requested>4000000) {
-                s.saved_clock_hz=requested;
-                io.swj_clock(4000000);
-            }
-        }
+        s.requested_clock_hz=io.swj_clock?io.swj_clock(0):0;
         s.start=io.now();phase(RM_FLASH_PREFLIGHT);out[2]=0;return 3;
     }
     return 3;
