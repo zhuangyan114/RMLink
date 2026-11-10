@@ -21,6 +21,10 @@ void rmlink_capture_closed(uint8_t transport, uint32_t session);
 void rmlink_capture_invalidate_ap(void);
 /* Executor snapshot, 24 LE bytes; persists across owner close for diagnostics. */
 void rmlink_capture_failure_stats(uint8_t output[24]);
+/* Shared executor diagnostics, including buffered Flash DAP transfers. */
+void rmlink_capture_record_io_failure(size_t response_bytes, uint8_t requested,
+    uint8_t completed, uint8_t status, uint8_t abort_reason, bool target_write,
+    uint32_t elapsed_us);
 /* 60-byte cumulative probe-only performance snapshot, version at byte zero. */
 void rmlink_capture_performance_stats(uint8_t output[60]);
 void rmlink_capture_read_recovery_stats(uint8_t output[21]);

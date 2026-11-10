@@ -116,6 +116,15 @@ static bool memory(uint32_t a, size_t n, bool write) {
     return n<=65536 && rmlink_target_memory(a,n,write);
 }
 void rmlink_capture_failure_stats(uint8_t output[24]) {memcpy(output,s_failure,24);}
+void rmlink_capture_record_io_failure(size_t response_bytes, uint8_t requested,
+    uint8_t completed, uint8_t status, uint8_t abort_reason, bool target_write,
+    uint32_t elapsed_us) {
+    s_memap_configured=false;
+    w32(s_failure,u32(s_failure)+1);w64(s_failure+4,esp_timer_get_time());
+    w32(s_failure+12,elapsed_us);w16(s_failure+16,response_bytes);
+    s_failure[18]=requested;s_failure[19]=completed;s_failure[20]=status;
+    s_failure[21]=abort_reason;s_failure[22]=target_write;s_failure[23]=0;
+}
 void rmlink_capture_profile_enable(bool enabled) {
 #ifndef RMLINK_HOST_TEST
     SWD_ProfileEnable(enabled);
@@ -154,11 +163,8 @@ static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count,bool ta
     bool ok=n>=3 && out[0]==5 && out[1]==count && out[2]==1;
     s_memap_configured=ok; /* any partial/failed response makes state unknown */
     if(!ok) {
-        uint64_t now=esp_timer_get_time(),elapsed=now-started;
-        w32(s_failure,u32(s_failure)+1);w64(s_failure+4,now);
-        w32(s_failure+12,elapsed>UINT32_MAX?UINT32_MAX:(uint32_t)elapsed);w16(s_failure+16,n);
-        s_failure[18]=count;s_failure[19]=n>=3?out[1]:0;s_failure[20]=n>=3?out[2]:0;
-        s_failure[21]=DAP_GetTransferAbortReason();s_failure[22]=target_write;s_failure[23]=0;
+        rmlink_capture_record_io_failure(n,count,n>=3?out[1]:0,n>=3?out[2]:0,
+            DAP_GetTransferAbortReason(),target_write,duration);
     }
 #ifndef RMLINK_HOST_TEST
     /* Subscriptions stop on failure. Preserve the DAP reason without logging

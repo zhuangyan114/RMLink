@@ -12,6 +12,7 @@ static uint32_t base,buffer,stack,device,capacity,cpuid,id_address,size_address,
 static bool wrong_capacity,reset_pending,unknown_write;
 static uint32_t demcr,preparation_resets,reset_status_reads;
 static bool active_exception;
+static uint32_t requested_clock=4000000,clock_changes;
 static uint32_t u32(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
 static bool read_target(uint32_t a,uint8_t *p,size_t n) {
@@ -33,7 +34,10 @@ static bool read_target(uint32_t a,uint8_t *p,size_t n) {
     put(p,v);return true;
 }
 static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
-    if(a>=base && (uint64_t)a+n<=stack) {memcpy(ram+a-base,p,n);return true;}
+    if(a>=base && (uint64_t)a+n<=stack) {
+        if(base==0x24000000 && requested_clock>4000000)return false;
+        memcpy(ram+a-base,p,n);return true;
+    }
     assert(n==4);uint32_t v=u32(p);
     if(a==0xe000edf8u)dcrdr=v;
     else if(a==0xe000edf4u) {if(v&0x10000)registers[v&31]=dcrdr;else dcrdr=registers[v&31];}
@@ -68,7 +72,11 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
 static bool hash(const uint8_t *p,size_t n,uint8_t out[32]) {assert(n==sizeof(image) && !memcmp(p,image,n));memset(out,0x42,32);return true;}
 static uint64_t now(void) {return ticks+=10;}
 static void *allocate(size_t n) {return malloc(n);}
-static const rmlink_flash_io_t io={read_target,write_target,hash,now,allocate,free};
+static uint32_t swj_clock(uint32_t hz) {
+    if(hz) {requested_clock=hz;clock_changes++;}
+    return requested_clock;
+}
+static const rmlink_flash_io_t io={read_target,write_target,hash,now,allocate,free,swj_clock};
 static const rmlink_owner_t owner={.transport=2,.session=7};
 static uint32_t crc(const uint8_t *p,size_t n) {uint32_t c=~0u;while(n--){c^=*p++;for(unsigned i=0;i<8;i++)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}return ~c;}
 static void command(uint8_t *p,size_t n) {
@@ -87,7 +95,7 @@ static void configure(unsigned id) {
     memset(ram,0,sizeof(ram));memset(registers,0,sizeof(registers));memset(flash,0xa5,sizeof(flash));
     for(unsigned i=0;i<sizeof(image);i++)image[i]=(uint8_t)(i*37+i/17);
 }
-static void job(bool reset_after) {
+static void job(bool reset_after,unsigned stop) {
     uint8_t request[512]={0x82,1};put(request+2,123);put(request+6,last_sector);put(request+10,sizeof(image));memset(request+14,0x42,32);
     request[46]=0xa5;request[47]=reset_after;command(request,48);
     assert(rmlink_target_locked() && !rmlink_target_select(rmlink_target_find(1)));
@@ -98,23 +106,39 @@ static void job(bool reset_after) {
     }
     request[1]=3;command(request,6);assert(!erases && !programs);
     request[1]=4;command(request,6);
+    if(stop==1) {request[1]=6;command(request,6);}
+    if(stop==2) {
+        rmlink_flash_closed(2,7);
+        assert(!rmlink_flash_busy() && !rmlink_target_locked());
+        return;
+    }
     unsigned turns=0;while(rmlink_flash_run())assert(++turns<2000000);
     request[1]=5;command(request,6);
 }
 int main(void) {
+    const uint32_t clocks[]={1000,2000000,4000000,8000000,10000000};
     for(unsigned id=2;id<=4;id++) {
-        configure(id);job(true);
+      for(unsigned ci=0;ci<sizeof(clocks)/sizeof(clocks[0]);ci++) {
+        requested_clock=clocks[ci];clock_changes=0;
+        configure(id);job(true,0);
         assert(response[3]==RM_FLASH_COMPLETE && (response[5]&2) && !rmlink_target_locked());
         assert(erases==1 && programs==sizeof(image)/page && resets==1);
         assert(preparation_resets==1 && demcr==0x01000010);
+        assert(requested_clock==clocks[ci] && clock_changes==(id==4 && clocks[ci]>4000000?2u:0u));
         assert(!memcmp(flash+last_sector-0x08000000,image,sizeof(image)));
         for(unsigned i=0;i<last_sector-0x08000000;i++)assert(flash[i]==0xa5);
-        configure(id);wrong_capacity=true;job(true);
+        configure(id);wrong_capacity=true;job(true,0);
         assert(response[3]==RM_FLASH_FAILED && response[4]==RM_FLASH_TARGET && !erases && !programs && !resets && !preparation_resets);
-        configure(id);job(false);
+        configure(id);job(false,0);
         assert(response[3]==RM_FLASH_COMPLETE && !resets && (dhcsr&0x20000));
-        configure(id);unknown_write=true;job(true);
+        configure(id);unknown_write=true;job(true,0);
         assert(response[3]==RM_FLASH_FAILED && response[4]==RM_FLASH_SWD && programs==1 && !resets);
+        assert(requested_clock==clocks[ci]);
+        configure(id);job(false,1);
+        assert(response[3]==RM_FLASH_CANCELLED && !erases && !programs && requested_clock==clocks[ci]);
+        configure(id);job(false,2);
+        assert(!erases && !programs && requested_clock==clocks[ci]);
+      }
     }
     puts("Shared target package: F407VE/F407IG/H723 last 128KiB sector, RAM/stack, FPB v2, full verify, identity refusal, sparse halt and no write replay passed");
     return 0;

@@ -81,7 +81,7 @@ static bool hash(const uint8_t *p,size_t n,uint8_t digest[32]) {
 static uint64_t now(void) {clock_us+=100;return clock_us;}
 static void *allocate(size_t n) {if(no_memory)return NULL;allocated+=n;return malloc(n);}
 static void release(void *p) {assert(p);allocated=0;free(p);}
-static const rmlink_flash_io_t port={read_target,write_target,hash,now,allocate,release};
+static const rmlink_flash_io_t port={read_target,write_target,hash,now,allocate,release,NULL};
 static const rmlink_owner_t owner={.transport=2,.session=7};
 static uint8_t command(uint8_t sub,const uint8_t *payload,size_t n) {
     uint8_t request[512]={0x82,sub};memcpy(request+2,payload,n);memset(out,0xcc,sizeof(out));

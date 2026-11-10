@@ -21,7 +21,7 @@ static struct {
     uint8_t state,error,flags,transport,step,call_step,reg_index,reg_count;
     uint32_t session,id,address,length,received,erased,programmed,verified,error_address;
     uint32_t offset,code_offset,buffer_offset,options[4],fp_count,call_entry,call_args[3];
-    uint32_t sector_end;
+    uint32_t sector_end,saved_clock_hz;
     uint32_t reg_ids[9],reg_values[9],call_pc,demcr;
     uint8_t digest[32],*image;
     bool cancel,call_done,touched,reset_after,restore_demcr;
@@ -58,11 +58,16 @@ static void finish(uint8_t state,uint8_t error) {
         (void)wr(DEMCR,s.demcr);
         s.restore_demcr=false;
     }
+    if(s.saved_clock_hz) {
+        io.swj_clock(s.saved_clock_hz);
+        s.saved_clock_hz=0;
+    }
     phase(state);s.error=error;s.error_address=error?fault_address:0;s.end=io.now();
     if(s.image) {io.release(s.image);s.image=NULL;}
     rmlink_target_lock(false);
 }
 void rmlink_flash_init(const rmlink_flash_io_t *port) {
+    if(s.saved_clock_hz && io.swj_clock)io.swj_clock(s.saved_clock_hz);
     if(s.image && io.release)io.release(s.image);
     memset(&s,0,sizeof(s));io=*port;
     rmlink_target_lock(false);
@@ -296,6 +301,16 @@ size_t rmlink_flash_command(uint8_t transport,uint32_t session,const uint8_t *r,
     if(r[1]==4) {
         if(s.state!=RM_FLASH_READY) {out[2]=RM_FLASH_STATE;return 3;}
         if(!may_start) {out[2]=RM_FLASH_BUSY;return 3;}
+        /* H723 AXI SRAM buffer writes return SWD FAULT at 8 MHz on hardware.
+         * Bound this whole job before its first access, without replaying any
+         * failed write. Restore the requested debug clock on every exit. */
+        if(P->id==4 && io.swj_clock) {
+            uint32_t requested=io.swj_clock(0);
+            if(requested>4000000) {
+                s.saved_clock_hz=requested;
+                io.swj_clock(4000000);
+            }
+        }
         s.start=io.now();phase(RM_FLASH_PREFLIGHT);out[2]=0;return 3;
     }
     return 3;

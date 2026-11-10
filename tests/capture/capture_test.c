@@ -540,6 +540,12 @@ int main(void) {
         rmlink_capture_closed(2,7);
     }
     rmlink_target_reset();
+    uint8_t raw_failure[24];
+    rmlink_capture_record_io_failure(3,11,10,4,0,true,76);
+    rmlink_capture_failure_stats(raw_failure);
+    assert(raw_failure[16]==3 && raw_failure[18]==11 && raw_failure[19]==10);
+    assert(raw_failure[20]==4 && raw_failure[21]==0 && raw_failure[22]==1);
+    uint32_t failure_elapsed;memcpy(&failure_elapsed,raw_failure+12,4);assert(failure_elapsed==76);
     printf("Capture state machine: subscriptions, pointers, RTT, recovery, ownership and shared F407/H723 identity/RAM boundaries passed\n");
     return 0;
 }
