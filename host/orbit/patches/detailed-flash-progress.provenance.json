@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-10",
+  "repository": "https://github.com/zhuangyan114/Orbit",
+  "base_commit": "3f8dd32b95ac1b0974eaf21bf3eaa20994f16d9b",
+  "patch": "detailed-flash-progress.patch",
+  "sha256": "fb2a1d8204c42be22bc49bdecefb89016eeb2c4300a843060308a7619e341805",
+  "sdk_source": "host/sdk/rmlink-client.mjs and host/sdk/rmlink-client.d.ts in RMLink",
+  "application": "Apply to the existing RMLink-integrated Orbit source, then run npm run typecheck and npm run build.",
+  "validation": {
+    "sdk_tests_passed": 10,
+    "orbit_tests_passed": 1269,
+    "orbit_tests_skipped": 1,
+    "typecheck": true,
+    "build": true,
+    "hardware": {
+      "device": "STM32F407IG",
+      "probe": "cc68c7a5995c",
+      "transport": "wifi",
+      "swd_request_hz": 4000000,
+      "programmed_bytes": 131072,
+      "probe_full_compare": true,
+      "independent_readback_sha256": "262b6e3214ecc223c353c8bcd1ba907c31e5c750eedfcfe5dc673aec35759c87",
+      "console_output_verified": true,
+      "evidence_directory": "artifacts/logs/detailed-flash-logging-2026-11-10T13-52-16-801Z"
+    },
+    "user_manual_confirmation": {
+      "date": "2026-11-10",
+      "rmlink": "confirmed",
+      "cmsis_dap": "pending",
+      "statement": "dap暂未验收，rmlink已验收，不过还是先写入fig-log和提交git"
+    },
+    "native_cmsis_dap_mock": true,
+    "flash_algorithm_validation": true,
+    "jlink_mock_regression": true,
+    "cmsis_dap_hardware": "pending"
+  },
+  "evidence_directory": "artifacts/logs/detailed-dap-logging-2026-11-10T14-15-12-543Z",
+  "scope": [
+    "RMLink service path",
+    "CMSIS-DAP native helper over HID and WinUSB"
+  ]
+}

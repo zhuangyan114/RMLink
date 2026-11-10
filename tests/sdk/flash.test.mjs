@@ -78,3 +78,52 @@ test('cancel transport failure is retained without replay or unhandled rejection
     error.message==='Commit connection lost' && error.cancelRequestError.message==='Cancel connection lost');
   assert.equal(c.calls.filter(x=>x.action==='commit').length,1);
 });
+
+test('reports staging and cached service progress while keeping one commit',async()=>{
+  const updates=[];let finish,readStatus;
+  const statusRead=new Promise(resolve=>{readStatus=resolve;});
+  const c=client(body=>{
+    if(body?.action==='commit')return new Promise(resolve=>{finish=resolve;});
+    if(!body){readStatus();return {phase:'erase',erased_pages:0};}
+    return {};
+  });
+  const pending=c.flashImage(Buffer.alloc(1024),undefined,undefined,{onProgress:p=>updates.push(p)});
+  await statusRead;
+  finish({phase:'complete',verified:true});await pending;
+  assert.deepEqual(updates.map(p=>p.phase),['staging','staged','erase','complete']);
+  assert.equal(c.calls.filter(x=>x.action==='commit').length,1);
+  assert(updates.every(p=>p.host_elapsed_ms>=0));
+});
+
+test('late progress and observer errors cannot change completion or reach a later job',async()=>{
+  let finish,finishStatus,readStatus;
+  const updates=[],statusRead=new Promise(resolve=>{readStatus=resolve;});
+  const c=client(body=>{
+    if(body?.action==='commit')return new Promise(resolve=>{finish=resolve;});
+    if(!body)return new Promise(resolve=>{finishStatus=resolve;readStatus();});
+    return {};
+  });
+  const pending=c.flashImage(Buffer.alloc(1024),undefined,undefined,{onProgress:p=>{updates.push(p.phase);throw new Error('observer');}});
+  await statusRead;finish({phase:'complete',verified:true});
+  assert.equal((await pending).verified,true);
+  finishStatus({phase:'erase'});await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(updates,['staging','staged','complete']);
+  assert.equal(c.flashPending,false);
+});
+
+test('progress query failures preserve the single authoritative commit result',async()=>{
+  const updates=[];let finish,readStatus;
+  const statusRead=new Promise(resolve=>{readStatus=resolve;});
+  const c=client(body=>{
+    if(body?.action==='commit')return new Promise(resolve=>{finish=resolve;});
+    if(!body){readStatus();throw new Error('Status unavailable');}
+    return {};
+  });
+  const pending=c.flashImage(Buffer.alloc(1024),undefined,undefined,{onProgress:p=>updates.push(p.phase)});
+  await statusRead;await new Promise(resolve=>setImmediate(resolve));
+  finish({phase:'complete',verified:true});
+  assert.equal((await pending).verified,true);
+  assert.deepEqual(updates,['staging','staged','progress_unavailable','complete']);
+  assert.equal(c.calls.filter(x=>x.action==='commit').length,1);
+  assert.equal(c.calls.filter(x=>x.action==='cancel').length,0);
+});

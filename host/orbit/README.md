@@ -1,5 +1,7 @@
 # Orbit 实验适配补丁
 
+2026-11-10 新增 `patches/detailed-flash-progress.patch`，为 RMLink 和普通 CMSIS-DAP（HID/WinUSB）链路补充详细烧录日志。RMLink 显示缓存上传、当前擦除扇区、写入进度和阶段耗时汇总，普通 CMSIS-DAP 逐次记录扇区擦除、分页写入、校验的开始与完成、地址范围及耗时。补丁同时包含公开 SDK 的可选 `onProgress` 回调，SDK 的维护入口为 `host/sdk/`。在已有 RMLink 集成的 Orbit 源码中执行 `git apply <补丁绝对路径>`，随后运行 `npm run typecheck` 和 `npm run build`。来源、补丁摘要及分层验证结果保存在同名 provenance 文件中。
+
 新增或扩展芯片时遵守[新增芯片适配规范](../../docs/adding-targets.md)，以[适配记录模板](../../docs/templates/target-adaptation.md)交付资料、增量补丁、自动化与分层验收结果。
 
 2026-10-19：新增 `patches/unified-target-pack.patch` 与 `tests/shared-target-pack.test.ts`，将普通 CMSIS-DAP 与 RMLink 的芯片描述/算法统一。构建算法后运行 `scripts/sync_orbit_target_pack.py <Orbit工作树>`，在现有 RMLink 集成工作树上应用增量并同步源码、产物和 SDK。脚本检查补丁上下文，不覆盖不同上下文的既有修改。完整设计、四组目标范围、构建和本轮验证见 [统一目标算法包](../../docs/shared-target-package.md)。下文为此前集成记录。
