@@ -8,6 +8,8 @@ static uint8_t ram[20480],flash[65536],image[65536],out[520];
 static uint32_t regs[32],dcrdr,dhcsr,clock_us,io_writes,loader_calls,erase_calls,mass_calls,reset_calls;
 static bool mismatch,no_memory,io_failure,bad_return,bad_pc,not_ready,reset_pending,corrupt_verify,corrupt_options;
 static bool write_protected;
+static uint32_t demcr,preparation_resets,reset_status_reads;
+static bool pending_interrupt,active_exception,reset_not_halted;
 static size_t allocated;
 static uint32_t get(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
@@ -24,7 +26,11 @@ static bool read_target(uint32_t a,uint8_t *p,size_t n) {
     else if(a==0x1ffff7e0)v=64;
     else if(a==0x40022020)v=write_protected?0xffff0000:0xffffffff;
     else if(a>=0x1ffff800 && a<0x1ffff810)v=corrupt_options && erase_calls?0xfffffffe:0xffffffff;
-    else if(a==0xe000edf0)v=dhcsr|(not_ready?0:0x10000);
+    else if(a==0xe000edf0) {
+        v=dhcsr|(not_ready?0:0x10000);
+        if(reset_status_reads) {v|=0x02000000;reset_status_reads--;}
+    }
+    else if(a==0xe000edfc)v=demcr;
     else if(a==0xe000edf8)v=dcrdr;
     else if(a==0xe0002000)v=0x63;
     else assert(false);
@@ -39,6 +45,10 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
     else if(a==0xe000edf0) {
         dhcsr=v&2?0x20000:0;
         if(!(v&2) && !reset_pending && regs[15]>=0x20000000 && regs[15]<0x20000700 && (regs[15]&~1u)!=0x20000500) {
+            /* An unmasked IRQ can consume the synthetic PC/SP context before
+             * the first CPSID instruction. An active exception also requires
+             * reset before its context can be replaced by a RAM call. */
+            if((pending_interrupt && !(regs[20]&1)) || active_exception)return true;
             loader_calls++;uint32_t entry=(regs[15]&~1u)-0x20000000;
             uint32_t offset=regs[0]-0x08000000;
             if(entry==0x600) {
@@ -54,7 +64,14 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
             regs[0]=bad_return?3:0;regs[15]=bad_pc?0x08001000:0x20000500;dhcsr=0x20000;
         }
         if(reset_pending) {reset_pending=false;regs[15]=0x08000001;}
-    }else if(a==0xe000ed0c) {reset_calls++;reset_pending=true;}
+    }else if(a==0xe000edfc)demcr=v;
+    else if(a==0xe000ed0c) {
+        if(demcr&1) {
+            preparation_resets++;reset_status_reads=1;active_exception=false;
+            memset(regs,0,sizeof(regs));regs[15]=0x08000001;
+            dhcsr=reset_not_halted?0:0x20000;
+        }else {reset_calls++;reset_pending=true;}
+    }
     else assert(a==0xe000ed30 || (a>=0xe0002008 && a<0xe0002088));
     return true;
 }
@@ -76,6 +93,8 @@ static void reset(void) {
     io_writes=loader_calls=erase_calls=mass_calls=reset_calls=0;dhcsr=0;clock_us=1;
     mismatch=no_memory=io_failure=bad_return=bad_pc=not_ready=reset_pending=corrupt_verify=corrupt_options=false;
     write_protected=false;
+    demcr=0x01000010;preparation_resets=reset_status_reads=0;
+    pending_interrupt=active_exception=reset_not_halted=false;
     for(unsigned i=0;i<65536;i++)image[i]=(uint8_t)(i*37+i/256);
 }
 static uint32_t id=123;
@@ -100,6 +119,10 @@ static void start(void) {uint8_t p[4];id_bytes(p);assert(!command(3,p,4));assert
 static void run(void) {unsigned turns=0;while(rmlink_flash_run())assert(++turns<1000000);}
 int main(void) {
     rmlink_flash_init(&port);reset();uint8_t p[4];id_bytes(p);
+    begin(1024,false);upload(1024);pending_interrupt=active_exception=true;start();run();
+    assert(status()==RM_FLASH_COMPLETE && !memcmp(flash,image,1024));
+    assert(preparation_resets==1 && demcr==0x01000010 && (regs[20]&1));
+    reset();
     begin(65536,false);upload(65536);assert(!io_writes && !loader_calls);start();run();
     assert(status()==RM_FLASH_COMPLETE && !memcmp(flash,image,65536) && erase_calls==1 && mass_calls==1 && reset_calls==1 && !allocated);
     assert((out[5]&3)==3 && get(out+26)==65536 && get(out+30)==65536);
@@ -125,6 +148,12 @@ int main(void) {
     reset();begin(1024,false);upload(1024);corrupt_verify=true;start();run();assert(status()==RM_FLASH_FAILED && out[4]==RM_FLASH_MISMATCH && !reset_calls);
     reset();begin(1024,false);upload(1024);corrupt_options=true;start();run();assert(status()==RM_FLASH_FAILED && out[4]==RM_FLASH_OPTIONS && !reset_calls);
     reset();begin(1024,false);upload(1024);start();io_failure=true;run();assert(status()==RM_FLASH_FAILED && out[4]==RM_FLASH_SWD && !erase_calls);
+    reset();begin(1024,false);upload(1024);reset_not_halted=true;start();run();
+    assert(status()==RM_FLASH_FAILED && out[4]==RM_FLASH_TIMEOUT && !erase_calls && demcr==0x01000010);
+    reset();begin(1024,false);upload(1024);start();
+    while(!(demcr&1))assert(rmlink_flash_run());
+    assert(!command(6,p,4));run();
+    assert(status()==RM_FLASH_CANCELLED && !erase_calls && !preparation_resets && demcr==0x01000010);
     reset();begin(1024,false);upload(1024);start();while(!erase_calls)assert(rmlink_flash_run());rmlink_flash_closed(2,8);assert(rmlink_flash_busy());
     rmlink_flash_closed(2,7);assert(!rmlink_flash_busy() && !allocated && (dhcsr&0x20000));
     reset();no_memory=true;uint8_t b[44];put(b,id);put(b+4,0x08000000);put(b+8,65536);memset(b+12,0x42,32);assert(command(1,b,sizeof(b))==RM_FLASH_MEMORY && !io_writes);

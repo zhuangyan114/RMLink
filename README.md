@@ -45,6 +45,7 @@ Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共�
 - [最初方向记录（2026-10-12）](docs/RMLink项目方向记录.md)：保留讨论历史，后续实施以新的源码核对与开发记录为准。
 - [当前源码核对](docs/source-audit.md)
 - [开发与验证进度](docs/development-status.md)
+- [用户确认后的修复与功能记录](docs/fix-log/README.md)
 - [STM32 烧录 / 调试验收](docs/stm32-acceptance.md)
 - [当前项目方向](docs/current-direction.md)
 - [Watch / Timeline / RTT 订阅完整方案](docs/subscription-design.md)

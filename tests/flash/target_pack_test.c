@@ -10,6 +10,8 @@ static uint8_t ram[320*1024],flash[1024*1024],image[128*1024],response[512];
 static uint32_t registers[32],dcrdr,dhcsr,ticks,erases,programs,resets;
 static uint32_t base,buffer,stack,device,capacity,cpuid,id_address,size_address,page,last_sector;
 static bool wrong_capacity,reset_pending,unknown_write;
+static uint32_t demcr,preparation_resets,reset_status_reads;
+static bool active_exception;
 static uint32_t u32(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
 static bool read_target(uint32_t a,uint8_t *p,size_t n) {
@@ -19,7 +21,11 @@ static bool read_target(uint32_t a,uint8_t *p,size_t n) {
     if(a==0xe000ed00u)v=cpuid;
     else if(a==id_address)v=device;
     else if(a==(size_address&~3u))v=(wrong_capacity?64:capacity)<<((size_address&3)*8);
-    else if(a==0xe000edf0u)v=dhcsr|0x10000u;
+    else if(a==0xe000edf0u) {
+        v=dhcsr|0x10000u;
+        if(reset_status_reads) {v|=0x02000000;reset_status_reads--;}
+    }
+    else if(a==0xe000edfcu)v=demcr;
     else if(a==0xe000edf8u)v=dcrdr;
     else if(a==0xe0002000u)v=base==0x24000000?0x10000063:0x63;
     else if(a==0x40023c14u || a==0x5200201cu || a==0x52002038u)v=0x12345678;
@@ -34,6 +40,7 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
     else if(a==0xe000edf0u) {
         dhcsr=v&2?0x20000:0;
         if(!(v&2) && !reset_pending && registers[15]>=base && registers[15]<base+0x700) {
+            if(active_exception || !(registers[20]&1))return true;
             uint32_t entry=(registers[15]&~1u)-base;
             assert(registers[13]==stack && registers[14]==base+0x501 && registers[9]==base);
             if(entry==0x200) {
@@ -48,7 +55,13 @@ static bool write_target(uint32_t a,const uint8_t *p,size_t n) {
             registers[0]=0;registers[15]=base+0x500;dhcsr=0x20000;
         }
         if(reset_pending) {reset_pending=false;registers[15]=0x08000001;}
-    }else if(a==0xe000ed0cu) {resets++;reset_pending=true;}
+    }else if(a==0xe000edfcu)demcr=v;
+    else if(a==0xe000ed0cu) {
+        if(demcr&1) {
+            preparation_resets++;reset_status_reads=1;active_exception=false;
+            memset(registers,0,sizeof(registers));registers[15]=0x08000001;dhcsr=0x20000;
+        }else {resets++;reset_pending=true;}
+    }
     else assert(a==0xe000ed30u || (a>=0xe0002008u && a<0xe0002088u));
     return true;
 }
@@ -70,6 +83,7 @@ static void configure(unsigned id) {
     size_address=id==4?0x1ff1e880:0x1fff7a22;page=id==4?65536:16384;
     last_sector=id==2?0x08060000:0x080e0000;
     ticks=1;erases=programs=resets=0;wrong_capacity=reset_pending=unknown_write=false;dhcsr=0;
+    demcr=0x01000010;preparation_resets=reset_status_reads=0;active_exception=true;
     memset(ram,0,sizeof(ram));memset(registers,0,sizeof(registers));memset(flash,0xa5,sizeof(flash));
     for(unsigned i=0;i<sizeof(image);i++)image[i]=(uint8_t)(i*37+i/17);
 }
@@ -92,10 +106,11 @@ int main(void) {
         configure(id);job(true);
         assert(response[3]==RM_FLASH_COMPLETE && (response[5]&2) && !rmlink_target_locked());
         assert(erases==1 && programs==sizeof(image)/page && resets==1);
+        assert(preparation_resets==1 && demcr==0x01000010);
         assert(!memcmp(flash+last_sector-0x08000000,image,sizeof(image)));
         for(unsigned i=0;i<last_sector-0x08000000;i++)assert(flash[i]==0xa5);
         configure(id);wrong_capacity=true;job(true);
-        assert(response[3]==RM_FLASH_FAILED && response[4]==RM_FLASH_TARGET && !erases && !programs && !resets);
+        assert(response[3]==RM_FLASH_FAILED && response[4]==RM_FLASH_TARGET && !erases && !programs && !resets && !preparation_resets);
         configure(id);job(false);
         assert(response[3]==RM_FLASH_COMPLETE && !resets && (dhcsr&0x20000));
         configure(id);unknown_write=true;job(true);

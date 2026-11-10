@@ -13,6 +13,8 @@
 #define DHCSR 0xe000edf0u
 #define DCRSR 0xe000edf4u
 #define DCRDR 0xe000edf8u
+#define DEMCR 0xe000edfcu
+#define AIRCR 0xe000ed0cu
 
 static rmlink_flash_io_t io;
 static struct {
@@ -20,9 +22,9 @@ static struct {
     uint32_t session,id,address,length,received,erased,programmed,verified,error_address;
     uint32_t offset,code_offset,buffer_offset,options[4],fp_count,call_entry,call_args[3];
     uint32_t sector_end;
-    uint32_t reg_ids[8],reg_values[8],call_pc;
+    uint32_t reg_ids[9],reg_values[9],call_pc,demcr;
     uint8_t digest[32],*image;
-    bool cancel,call_done,touched,reset_after;
+    bool cancel,call_done,touched,reset_after,restore_demcr;
     uint64_t phase_start,start,end,call_deadline,reset_at,timings[7];
 } s;
 static uint32_t u32(const uint8_t *p) {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
@@ -52,6 +54,10 @@ static void finish(uint8_t state,uint8_t error) {
         uint32_t dhcsr;
         if(wr(DHCSR,0xa05f0003) && rd(DHCSR,&dhcsr) && (dhcsr&0x20000))s.flags|=4;
     }
+    if(s.restore_demcr) {
+        (void)wr(DEMCR,s.demcr);
+        s.restore_demcr=false;
+    }
     phase(state);s.error=error;s.error_address=error?fault_address:0;s.end=io.now();
     if(s.image) {io.release(s.image);s.image=NULL;}
     rmlink_target_lock(false);
@@ -72,9 +78,11 @@ static void call_begin(uint32_t entry,uint32_t a,uint32_t b,uint32_t c,unsigned 
     s.call_entry=entry;s.call_done=false;s.call_step=1;s.reg_index=0;s.reg_count=argc;
     s.call_args[0]=a;s.call_args[1]=b;s.call_args[2]=c;
     for(unsigned i=0;i<argc;i++) {s.reg_ids[i]=i;s.reg_values[i]=s.call_args[i];}
-    const uint32_t ids[]={9,13,14,15,16};
-    const uint32_t values[]={P->static_base?P->static_base:BASE,STACK,BASE+P->bkpt+1,BASE+entry+1,0x01000000};
-    for(unsigned i=0;i<5;i++) {s.reg_ids[s.reg_count]=ids[i];s.reg_values[s.reg_count++]=values[i];}
+    /* DCRSR 20 writes CONTROL/FAULTMASK/BASEPRI/PRIMASK. Select privileged
+     * MSP and mask IRQs before replacing SP/PC, including the first Init. */
+    const uint32_t ids[]={20,9,13,14,15,16};
+    const uint32_t values[]={1,P->static_base?P->static_base:BASE,STACK,BASE+P->bkpt+1,BASE+entry+1,0x01000000};
+    for(unsigned i=0;i<6;i++) {s.reg_ids[s.reg_count]=ids[i];s.reg_values[s.reg_count++]=values[i];}
     uint32_t timeout=entry==P->erase || entry==P->erase_chip?P->erase_timeout_ms:P->program_timeout_ms;
     s.call_deadline=io.now()+(uint64_t)timeout*1000;
 }
@@ -130,11 +138,33 @@ bool rmlink_flash_run(void) {
             s.touched=true;if(!wr(DHCSR,0xa05f0003))goto swd;s.call_deadline=io.now()+1000000;s.step++;
         }
         else if(s.step==8) {if(!rd(DHCSR,&v))goto swd;if(v&0x20000)s.step++;else if(io.now()>=s.call_deadline)goto timeout;}
-        else if(s.step==9) {
+        /* Clear the application's active exceptions and PSP/FPU context
+         * before loading the RAM algorithm. Vector catch prevents its IRQs
+         * from running between SYSRESETREQ and the halted reset state. */
+        else if(s.step==9) {if(!rd(DEMCR,&s.demcr))goto swd;s.step++;}
+        else if(s.step==10) {
+            s.restore_demcr=true;
+            if(!wr(DEMCR,s.demcr|1))goto swd;
+            s.step++;
+        }
+        else if(s.step==11) {
+            if(!wr(AIRCR,0x05fa0004))goto swd;
+            s.call_deadline=io.now()+1000000;s.step++;
+        }
+        else if(s.step==12) {
+            if(!rd(DHCSR,&v))goto swd;
+            if((v&0x02020000)==0x20000)s.step++;
+            else if(io.now()>=s.call_deadline)goto timeout;
+        }
+        else if(s.step==13) {
+            if(!wr(DEMCR,s.demcr))goto swd;
+            s.restore_demcr=false;s.step++;
+        }
+        else if(s.step==14) {
             if(!rd(0xe0002000,&v))goto swd;
             if((v>>28)>1)goto target;
             s.fp_count=((v>>4)&15)|((v>>8)&0x70);if(s.fp_count>32)goto target;s.step++;
-        }else if(s.step<10+s.fp_count) {if(!wr(0xe0002008+4*(s.step-10),0))goto swd;s.step++;}
+        }else if(s.step<15+s.fp_count) {if(!wr(0xe0002008+4*(s.step-15),0))goto swd;s.step++;}
         else phase(RM_FLASH_LOAD);
         break;
     case RM_FLASH_LOAD:
