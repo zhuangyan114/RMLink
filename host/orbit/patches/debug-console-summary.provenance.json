@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-11",
+  "repository": "https://github.com/zhuangyan114/Orbit",
+  "base_commit": "19a109de4b4119e90911a5d6c4f885a7133f2316",
+  "patch": "debug-console-summary.patch",
+  "sha256": "fd043922287f8fd3a4d3400f11be3a7da0a25982ef16feae1e996483a5639d2a",
+  "application": "Apply to the matching RMLink-integrated Orbit source with git apply, then run npm run typecheck and npm run build.",
+  "scope": [
+    "Remove the service description from the RMLink debug-path summary, preserving owner and device ID",
+    "Append one total Flash duration to the J-Link launch Flash success output; preserve existing target operations"
+  ],
+  "evidence_directory": "artifacts/logs/orbit-console-timing-20261111",
+  "validation": {
+    "typecheck": true,
+    "extension_build": true,
+    "orbit_test_files": 94,
+    "orbit_tests_passed": 1270,
+    "orbit_tests_skipped": 1,
+    "test_command": "npm test -- --maxWorkers=2 --minWorkers=1",
+    "initial_test_run": "One Vitest worker exited unexpectedly; bounded-concurrency rerun completed successfully. Both logs retained.",
+    "patch_forward_check_against_index": true,
+    "patch_reverse_check_against_worktree": true,
+    "hardware": "not performed",
+    "user_manual_confirmation": "pending"
+  }
+}

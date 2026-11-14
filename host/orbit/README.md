@@ -2,6 +2,8 @@
 
 2026-11-14 新增 `patches/capture-stream-restart.patch`，修复采样数据流结束后 Orbit 保留已完成的收帧任务，导致重新勾选 Timeline 仍为 0 Hz 的问题。数据任务结束时清理本地状态，下一次明确订阅可在同一控制 owner 中重新打开数据流；控制连接是否失效仍由控制和心跳请求确认。完整 1308 项测试、类型检查和构建通过；用户于同日确认遮挡后可恢复、连续采样 50 分钟正常。来源和摘要见同名 provenance 文件，分层验收见 [正式修复记录](../../docs/fix-log/2026-11-14-timeline-zero-retry.md)。
 
+2026-11-11 新增 `patches/debug-console-summary.patch`，删除 RMLink 调试路径中的“ / 连接服务（板端订阅、缓存烧录）”，并在 J-Link 烧录成功输出末尾追加烧录总用时，保留其他输出和流程。补丁基于已合入详细烧录日志的 Orbit 主仓库，构建产物已更新；来源、摘要、自动化验证及待确认项见同名 provenance 文件。
+
 2026-11-11 新增 patches/generic-flash-recovery.patch，显示板端通用恢复策略的 RAM 重试、降频、扇区重擦、进度回退和实际恢复耗时。策略维护于公共固件状态机，芯片差异由目标描述提供。连接服务须同步更新以读取恢复快照，旧固件沿用原协议字段。协议、边界及验证范围见 [统一目标算法包](../../docs/shared-target-package.md) 的通用板端烧录恢复策略一节。
 
 2026-11-10 新增 `patches/detailed-flash-progress.patch`，为 RMLink 和普通 CMSIS-DAP（HID/WinUSB）链路补充详细烧录日志。RMLink 显示缓存上传、当前擦除扇区、写入进度和阶段耗时汇总，普通 CMSIS-DAP 逐次记录扇区擦除、分页写入、校验的开始与完成、地址范围及耗时。补丁同时包含公开 SDK 的可选 `onProgress` 回调，SDK 的维护入口为 `host/sdk/`。在已有 RMLink 集成的 Orbit 源码中执行 `git apply <补丁绝对路径>`，随后运行 `npm run typecheck` 和 `npm run build`。来源、补丁摘要及分层验证结果保存在同名 provenance 文件中。
