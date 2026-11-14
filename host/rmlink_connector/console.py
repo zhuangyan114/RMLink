@@ -338,7 +338,15 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
         lines += [('  尚未选择设备', 'strong'), ('  按 1 发现并配对，或按 2 通过 USB 配置 Wi-Fi', 'muted'), ('', None)]
     traffic = (metrics or {}).get('traffic') or {}
     rates = rates or {}
-    lines += [(f'  接收  {rate(rates.get("rx_bps"))}    发送  {rate(rates.get("tx_bps"))}', 'accent'),
+    rssi = (metrics or {}).get('rssi_dbm')
+    signal = f'{rssi} dBm' if rssi is not None else '--'
+    traffic_line = f'  接收  {rate(rates.get("rx_bps"))}    发送  {rate(rates.get("tx_bps"))}'
+    signal_line = f'信号  {signal}'
+    if cell_width(traffic_line + '    ' + signal_line) <= width:
+        lines.append((traffic_line + '    ' + signal_line, 'accent'))
+    else:
+        lines += [(traffic_line, 'accent'), ('  ' + signal_line, 'accent')]
+    lines += [
               (f'  连接  {duration(traffic.get("elapsed_s")) if traffic else "--"}    应用层流量 · 每秒刷新', 'muted'),
               ('  ' + '─' * (width - 2), 'muted')]
     if monitor:

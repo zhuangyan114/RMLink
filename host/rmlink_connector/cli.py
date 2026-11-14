@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 
@@ -94,6 +95,51 @@ def parser():
     recording.add_argument('file')
     recording.add_argument('--anomalies', action='store_true')
     return root
+
+
+class SignalReader:
+    """Read Wi-Fi RSSI without blocking terminal input or the traffic display."""
+
+    def __init__(self, controller):
+        self.controller = controller
+        self.lock = threading.Lock()
+        self.device_id = None
+        self.generation = 0
+        self.pending = False
+        self.started = 0
+        self.value = None
+        self.observed = 0
+
+    def sample(self, device):
+        key = (device['device_id'] if device and device.get('connected')
+               and device.get('transport', 'wifi') == 'wifi' else None)
+        now = time.monotonic()
+        with self.lock:
+            if key != self.device_id:
+                self.device_id = key
+                self.generation += 1
+                self.value = None
+                self.observed = 0
+            if key and not self.pending and now - self.started >= 1:
+                self.pending = True
+                self.started = now
+                threading.Thread(target=self._read, args=(key, self.generation), daemon=True).start()
+            return self.value if key and now - self.observed <= 3 else None
+
+    def _read(self, key, generation):
+        try:
+            result = self.controller.call('GET', f'/v1/devices/{key}/wifi')
+            value = result.get('rssi_dbm') if result.get('connected') else None
+            # Firmware uses zero when it cannot read the AP information.
+            if not isinstance(value, int) or not -127 <= value < 0:
+                value = None
+        except (ClientError, RMLinkError, OSError, ValueError):
+            value = None
+        with self.lock:
+            if generation == self.generation:
+                self.value = value
+                self.observed = time.monotonic()
+            self.pending = False
 
 
 class Controller:
@@ -421,6 +467,7 @@ def ui_action(index, controller, terminal):
 def shell(controller, terminal):
     controller.runtime.start()
     selected = 0
+    signal = SignalReader(controller)
     with terminal.screen():
         while True:
             status = controller.runtime.status()
@@ -432,6 +479,9 @@ def shell(controller, terminal):
                     metrics = controller.metrics(device)
             except (ClientError, RMLinkError, urllib.error.URLError) as error:
                 message = str(error)
+            rssi = signal.sample(device)
+            if metrics is not None:
+                metrics['rssi_dbm'] = rssi
             terminal.draw(dashboard(status, device, metrics, (metrics or {}).get('rates'), selected,
                                     terminal.size().columns, message, height=terminal.size().lines))
             key = terminal.key()
@@ -476,10 +526,12 @@ def monitor(controller, terminal, interval=1, count=0, as_json=False):
             if count == 0 or i < count:
                 time.sleep(interval)
         return
+    signal = SignalReader(controller)
     while True:
         status = controller.runtime.status()
         device = controller.select(status)
         metrics = controller.metrics(device)
+        metrics['rssi_dbm'] = signal.sample(device)
         terminal.draw(dashboard(status, device, metrics, metrics['rates'], width=terminal.size().columns,
                                 monitor=True, height=terminal.size().lines))
         if terminal.key(interval) in ('q', 'enter', '\x1b'):

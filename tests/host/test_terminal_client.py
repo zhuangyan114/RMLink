@@ -5,16 +5,70 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 from ota_fixture import application_image
 
-from rmlink_connector.cli import main, parser, Controller, shell, ui_action
+from rmlink_connector.cli import main, parser, Controller, SignalReader, shell, ui_action
 from rmlink_connector.console import MENU, dashboard, cell_width, fit, safe_text, Terminal
 from rmlink_connector.local_service import ClientError, LocalService, inspect_firmware
 
 
 class TerminalClientTests(unittest.TestCase):
+    def test_signal_reader_refreshes_without_blocking_and_clears_old_devices(self):
+        started, release = threading.Event(), threading.Event()
+        controller = MagicMock()
+
+        def read(*args):
+            started.set()
+            release.wait(2)
+            return dict(connected=True, rssi_dbm=-65)
+
+        controller.call.side_effect = read
+        signal = SignalReader(controller)
+        wifi = dict(device_id='a', connected=True, transport='wifi')
+        self.assertIsNone(signal.sample(wifi))
+        self.assertTrue(started.wait(1))
+        self.assertIsNone(signal.sample(wifi))  # A slow query does not block rendering.
+        signal.sample(dict(device_id='a', connected=False, transport='wifi'))
+        release.set()
+        deadline = time.monotonic() + 2
+        while signal.pending and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertIsNone(signal.value)  # The late reply belongs to the old connection.
+        self.assertIsNone(signal.sample(dict(device_id='b', connected=True, transport='usb')))
+        controller.call.assert_called_once_with('GET', '/v1/devices/a/wifi')
+
+    def test_dashboard_displays_rssi_and_wraps_on_narrow_terminals(self):
+        device = dict(device_id='a', connected=True, transport='wifi')
+        metrics = dict(rssi_dbm=-65)
+        for width in (32, 100):
+            rows = dashboard(dict(version='1'), device, metrics, width=width)
+            texts = [row[0] for row in rows if isinstance(row, tuple)]
+            self.assertTrue(any('信号  -65 dBm' in row for row in texts))
+            if width == 100:
+                self.assertTrue(any('接收' in row and '发送' in row and '信号' in row for row in texts))
+        rows = dashboard(dict(version='1'), device, {}, width=100)
+        self.assertTrue(any('信号  --' in row[0] for row in rows if isinstance(row, tuple)))
+
+    def test_signal_reader_uses_fresh_valid_readings_only(self):
+        controller = MagicMock()
+        signal = SignalReader(controller)
+        signal.device_id = 'a'
+        signal.generation = 1
+        wifi = dict(device_id='a', connected=True, transport='wifi')
+        for reading, expected in ((-65, -65), (0, None), (None, None)):
+            controller.call.return_value = dict(connected=True, rssi_dbm=reading)
+            signal._read('a', 1)
+            with patch('rmlink_connector.cli.threading.Thread'):
+                self.assertEqual(signal.sample(wifi), expected)
+            signal.pending = False
+        signal.value, signal.observed = -65, time.monotonic() - 4
+        with patch('rmlink_connector.cli.threading.Thread'):
+            self.assertIsNone(signal.sample(wifi))
+
     def test_removed_commands_are_rejected_before_starting_the_service(self):
         for command in (['mount'], ['unmount'], ['driver', 'status'], ['--usbip-port', '3240', 'status']):
             with self.subTest(command=command), contextlib.redirect_stderr(io.StringIO()), patch(
