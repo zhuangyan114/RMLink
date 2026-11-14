@@ -41,8 +41,12 @@ class TargetModel:
                     elif flags==1:self.csw=value
                     elif flags==5:address=value
                     elif flags==13:
+                        previous=self.memory.get(address,0)
                         self.memory[address]=value
                         if address==0xe000edf0:self.memory[address]=0x30000 if value&2 or value&4 else 0x10000
+                        if address==0xe000ed30:self.memory[address]=previous&~value
+                        if address==0xe000edf0 and value==0xa05f0001 and getattr(self,'halt_on_run',False):
+                            self.memory[address]=0x30000;self.memory[0xe000ed30]=2
                         if address==0xe000edf4:
                             if value&0x10000:self.regs[value&31]=self.memory[0xe000edf8]
                             else:self.memory[0xe000edf8]=self.regs.get(value,0x08000100+value*4)
@@ -51,6 +55,18 @@ class TargetModel:
         return out
 
 class TargetEngineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_run_reports_an_immediate_breakpoint_halt_without_timing_out(self):
+        model=TargetModel(512);model.halt_on_run=True
+        model.memory[0xe000ed30]=1
+        broker=Broker(model,'model');await broker.start()
+        engine=TargetEngine(broker,'owner')
+        try:
+            await engine.connect()
+            result=await engine.execute('run',{})
+            self.assertEqual(result['state'],'Halted')
+            self.assertEqual(model.memory[0xe000ed30],2)
+            self.assertEqual(model.requests[-1],b'\x81\x09')
+        finally:await broker.close()
     async def test_busy_connect_does_not_change_or_disconnect_the_existing_owner(self):
         model=TargetModel(512);broker=Broker(model,'model');await broker.start()
         owner=TargetEngine(broker,'existing');contender=TargetEngine(broker,'contender')

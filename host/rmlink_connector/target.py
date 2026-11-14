@@ -346,8 +346,16 @@ class TargetEngine:
             if command in ('halt','run','step'):
                 if command=='step':
                     await self.write_word(0xe000edf0,0xa05f000b)
+                if command=='run':
+                    await self.write_word(0xe000ed30,0x1f)
                 await self.write_word(0xe000edf0,{'halt':0xa05f0003,'run':0xa05f0001,'step':0xa05f000d}[command])
-                value=await self.poll_word(0xe000edf0,0x20000,0 if command=='run' else 0x20000)
+                if command=='run':
+                    value=await self.read_word(0xe000edf0)
+                    # A nearby breakpoint can halt before the first status read.
+                    if value&0x20000 and not (await self.read_word(0xe000ed30))&0x1f:
+                        value=await self.poll_word(0xe000edf0,0x20000,0)
+                else:
+                    value=await self.poll_word(0xe000edf0,0x20000,0x20000)
                 return {'command':command,'dhcsr':value,'state':'Halted' if value&0x20000 else 'Running'}
             if command in ('read_register','write_register'):
                 index=body.get('index')
