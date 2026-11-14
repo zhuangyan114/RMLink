@@ -1,5 +1,7 @@
 # Orbit 实验适配补丁
 
+2026-11-14 新增 `patches/capture-stream-auto-recovery.patch`：针对数据流已经关闭、Timeline 仍保持启用但一直等待的情况，在原控制 owner 上自动重建 Timeline 订阅，失败时以 500–5000 ms 间隔重试。取消采样会撤销重试并清理已在执行的重建；保留旧 capture 过滤与时间轴断流空白。该增量补丁基于 Orbit `8f669f8`，与前一份手动重采修复配合使用。全量 1317 项测试、类型检查和构建通过；开发插件构建已更新，须下次启动调试加载，实机验收待完成。来源、摘要及覆盖范围见同名 provenance 文件，现场证据见 `artifacts/diagnostics/timeline-stall-20261114/`。
+
 2026-11-14 新增 `patches/capture-stream-restart.patch`，修复采样数据流结束后 Orbit 保留已完成的收帧任务，导致重新勾选 Timeline 仍为 0 Hz 的问题。数据任务结束时清理本地状态，下一次明确订阅可在同一控制 owner 中重新打开数据流；控制连接是否失效仍由控制和心跳请求确认。完整 1308 项测试、类型检查和构建通过；用户于同日确认遮挡后可恢复、连续采样 50 分钟正常。来源和摘要见同名 provenance 文件，分层验收见 [正式修复记录](../../docs/fix-log/2026-11-14-timeline-zero-retry.md)。
 
 2026-11-11 新增 `patches/debug-console-summary.patch`，删除 RMLink 调试路径中的“ / 连接服务（板端订阅、缓存烧录）”，并在 J-Link 烧录成功输出末尾追加烧录总用时，保留其他输出和流程。补丁基于已合入详细烧录日志的 Orbit 主仓库，构建产物已更新；来源、摘要、自动化验证及待确认项见同名 provenance 文件。

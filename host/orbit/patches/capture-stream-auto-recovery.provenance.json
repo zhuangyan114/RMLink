@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-14",
+  "captured_at": "2026-11-14T15:37:28.743036+08:00",
+  "source_repository": "C:\\Users\\22690\\Desktop\\AI\\Orbit",
+  "base_commit": "8f669f8deca82c1050e969831ca01279d5b77b01",
+  "files": [
+    "src/ozone-backend/commander.ts",
+    "src/ozone-backend/rmlink-target-channel.ts",
+    "src/ozone-backend/session-target-channel.ts",
+    "src/ozone-backend/commander-rmlink-recovery.test.ts"
+  ],
+  "source_sha256": {
+    "src/ozone-backend/commander.ts": "3fdd6e76381fbe9ac094b26d5af6b0320e97bfeee0ecfc5850d5e7bda663f5d5",
+    "src/ozone-backend/rmlink-target-channel.ts": "42ab56285d0b1d72dbcb27ab9ecbe2029a51f5f1255177c74c2706b5b5a2306c",
+    "src/ozone-backend/session-target-channel.ts": "5dae786b0a3b6523d0e077f914c1371d557df8838a4c53d42660bd9508ca8020",
+    "src/ozone-backend/commander-rmlink-recovery.test.ts": "cf55789a1654975596105a05d6e424ac665405f15f62163f592833875f0a385e"
+  },
+  "patch_sha256": "91b3a7d6f850a7367b533ad744ccd1073e22f8faad9e00637f40a9ba115739c4",
+  "debugadapter_sha256": "06ab8653ce9d87e88631104d1ee2eeae0be18f53d4c3a64e54ecab9dcd7e4ce7",
+  "automated_validation": {
+    "baseline_new_tests_failed": 2,
+    "focused_passed": 26,
+    "all_passed": 1317,
+    "all_skipped": 1,
+    "typecheck": "passed",
+    "build": "passed",
+    "patch_reverse_check": "passed",
+    "diff_check": "passed"
+  },
+  "hardware_validation": "仅保存现有会话日志并读取后台状态和探针健康；未断开、重启、复位、烧录或修改目标。自动恢复尚待用户在新调试会话中验收。",
+  "user_report": "刚刚又出现了几分钟没有数据，我手动点了取消，启动采样才恢复",
+  "user_acceptance": "pending",
+  "commit_performed": false,
+  "push_performed": false,
+  "deployment": "当前开发插件 dist 已通过正式构建更新；当前运行中的 DAP 适配器仍为旧进程，下次启动调试加载。RMLink 后台和固件未替换。",
+  "evidence": "artifacts/diagnostics/timeline-stall-20261114"
+}
