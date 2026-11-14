@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-14",
+  "source_repository": "C:\\Users\\22690\\Desktop\\AI\\Orbit",
+  "base_commit": "e5ab619422903c74a9d5577d2a512c28d87e5fba",
+  "files": [
+    "src/ozone-backend/rmlink-target-channel.ts",
+    "src/ozone-backend/rmlink-target-channel.test.ts"
+  ],
+  "patch_sha256": "13a972bcb0f97aa6cc889249fc71036140c06cb17b1d35c121714d4186e06d34",
+  "debugadapter_sha256": "6ea68de1096ab535aab7793add6f7b95fa3a9b8da44a881e5b32437b03140e0b",
+  "automated_validation": {
+    "baseline_new_tests_failed": 2,
+    "focused_passed": 60,
+    "all_passed": 1308,
+    "all_skipped": 1,
+    "typecheck": "passed",
+    "build": "passed",
+    "diff_check": "passed"
+  },
+  "hardware_validation": "用户于 2026-11-14 确认遮挡后恢复及连续采样 50 分钟正常；agent 的部署检查、自动化结果与用户手动验收分别记录。",
+  "user_acceptance": {
+    "date": "2026-11-14",
+    "source": "用户在当前对话中明确确认",
+    "quote": "现在很稳定了，遮挡后也能恢复，连续采样50min没有问题，写入并提交",
+    "continuous_sampling_minutes": 50,
+    "obstruction_recovery": "用户确认能够恢复",
+    "authorization": "写入修复记录并本地提交",
+    "scope": "RMLink 后台重采与 Orbit 收帧任务恢复配合后的现场使用结果",
+    "independent_agent_50_minute_capture": false
+  },
+  "evidence": "artifacts/diagnostics/timeline-zero-retry-20261114",
+  "source_commit": "0cd6ac68541198a50703aafc56ee433fed8070af",
+  "connector_staged_validation": {
+    "tests_run": 209,
+    "skipped": 1,
+    "result": "passed",
+    "evidence": "artifacts/diagnostics/timeline-recovery-acceptance-20261114/staged-host-tests-final.log"
+  }
+}

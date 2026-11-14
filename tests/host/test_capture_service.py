@@ -16,7 +16,9 @@ from test_capture import record
 class ProbeModel:
     packet_size=512
     host='127.0.0.1'
-    def __init__(self): self.started=asyncio.Event(); self.requests=[]
+    def __init__(self):
+        self.started=asyncio.Event();self.requests=[]
+        self.capture_ids={};self.next_capture_id=6
     async def connect(self): pass
     async def close(self): pass
     async def abort(self): pass
@@ -34,9 +36,11 @@ class ProbeModel:
                     chunk=data[offset:offset+52]
                     out.append(b'\x81\x10\x00'+struct.pack('<IHHB',fid,len(data),offset,len(chunk))+chunk)
                 elif p[1]==11: out.append(b'\x81\x0b\x00'+b'X'*16)
-                elif p[1]==7: out.append(bytes([0x81,7,0])+struct.pack('<BBBIIQQQQIB',2,1,2,7,5,5,0,0,0,0,0))
+                elif p[1]==7: out.append(bytes([0x81,7,0])+struct.pack('<BBBIIQQQQIB',2,1,2,self.capture_ids.get(p[2],7),5,5,0,0,0,0,0))
                 else:
-                    if p[1]==3:self.started.set()
+                    if p[1]==3:
+                        self.next_capture_id+=1;self.capture_ids[p[2]]=self.next_capture_id
+                        self.started.set()
                     out.append(bytes([0x81,p[1],0]))
             elif p[0]==5:
                 pos=3; reads=[];address=0
@@ -72,6 +76,7 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.tmp=tempfile.TemporaryDirectory();self.connector=Connector(State(self.tmp.name))
         self.probe=ProbeModel();self.broker=Broker(self.probe,'model');await self.broker.start()
         self.connector.brokers['model']=self.broker
+        self.peers=[];self.reject_binding=False
         self.server=await asyncio.start_server(self.peer,'127.0.0.1',3244)
         self.api=await self.connector.start(0)
         # Avoid discovery/mounting real devices during a host-only test.
@@ -81,9 +86,17 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         await self.connector.close();self.server.close();await self.server.wait_closed();self.tmp.cleanup()
     async def peer(self,reader,writer):
         try:
+            self.peers.append(writer)
+            previous_capture=self.probe.capture_ids.get(1)
             self.assertEqual(await reader.readexactly(20),b'RMS1'+b'X'*16)
+            if self.reject_binding:
+                writer.write(b'NOPE');await writer.drain();await reader.read();return
             writer.write(b'OKAY');await writer.drain();await self.probe.started.wait()
-            data=b''.join(record(i) for i in range(5))
+            # A replacement stream starts a fresh decoder, even if the old
+            # stream ended halfway through a frame with another capture ID.
+            while self.probe.capture_ids.get(1)==previous_capture:await asyncio.sleep(.001)
+            data=bytearray(b''.join(record(i) for i in range(5)))
+            for offset in range(0,len(data),64):struct.pack_into('<I',data,offset+8,self.probe.capture_ids[1])
             for i in range(0,len(data),7):writer.write(data[i:i+7]);await writer.drain()
             await reader.read()
         finally:writer.close();await writer.wait_closed()
@@ -95,6 +108,89 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         length=int(next(line.split(b':')[1] for line in header.split(b'\r\n') if line.lower().startswith(b'content-length:')))
         result=json.loads(await reader.readexactly(length));writer.close();await writer.wait_closed()
         return int(header.split()[1]),result
+
+    async def fail_stream(self,captures):
+        self.peers[-1].write(record(99)[:17]);await self.peers[-1].drain()
+        self.peers[-1].close();await self.peers[-1].wait_closed()
+        await asyncio.wait_for(asyncio.shield(captures.task),1)
+        self.assertIn('Probe capture stream closed',captures.error)
+
+    async def test_new_capture_recovers_data_stream_without_replacing_owner_or_replaying_rtt(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        _,initial=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]})
+        _,events=await self.http('POST',root+'/events',{'wait_ms':1000})
+        self.assertEqual(len(events['records']),5)
+        await self.http('POST',root+'/subscriptions',{'kind':'rtt_stream','control_block_address':0x20000400})
+        await self.http('POST',root+'/recordings',{'strict':False})
+        owned=self.connector.sessions[session['session_id']];captures=owned['captures'];target=owned['target']
+        captures.accept_frames([record(5)])
+        await self.fail_stream(captures)
+        sealed=await captures.recording.stop();sealed_hash=sealed['sha256']
+        self.assertEqual((sealed['phase'],sealed['error']),('failed','capture_stream_failed'))
+        self.assertEqual((await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000]}))[0],400)
+        self.assertEqual(len(self.peers),1) # An invalid duplicate cannot reconnect.
+        await self.http('DELETE',root+'/subscriptions/1')
+        before=len(self.probe.requests);cursor=captures.next_sequence-1
+        code,replacement=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000008,0x2000000c]})
+        self.assertEqual(code,200)
+        self.assertNotEqual(replacement['capture_id'],initial['capture_id'])
+        _,events=await self.http('POST',root+'/events',{'after':cursor,'wait_ms':1000})
+        self.assertEqual(len(events['records']),5);self.assertIsNone(events['error'])
+        self.assertTrue(all(int.from_bytes(bytes.fromhex(row['frame'])[8:12],'little')==replacement['capture_id'] for row in events['records']))
+        self.assertEqual(events['records'][0]['cursor'],cursor+1)
+        self.assertIs(owned['target'],target);self.assertIs(owned['captures'],captures)
+        self.assertEqual(self.broker.owner,session['session_id']);self.assertEqual(len(self.peers),2)
+        self.assertFalse(any(p[:2]==b'\x81\x06' or p[:3]==b'\x81\x03\x03' for p in self.probe.requests[before:]))
+        self.assertEqual((captures.recording.status()['phase'],captures.recording.status()['sha256']),('failed',sealed_hash))
+        from rmlink_connector.recording_reader import inspect_recording
+        self.assertEqual(inspect_recording(sealed['path'])['sha256'],sealed_hash)
+
+    async def test_rejected_recovery_closes_socket_and_allows_another_explicit_start(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]})
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        await self.fail_stream(captures);error=captures.error
+        await self.http('DELETE',root+'/subscriptions/1')
+        self.reject_binding=True
+        code,result=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000]})
+        self.assertEqual((code,result['error']),(503,'Stream binding rejected'))
+        self.assertIsNone(captures.writer);self.assertIsNone(captures.reader);self.assertIsNone(captures.task)
+        self.assertEqual(captures.error,error)
+        self.reject_binding=False
+        self.assertEqual((await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000]}))[0],200)
+        self.assertIsNone(captures.error)
+
+    async def test_bulk_usb_failure_can_restart_without_reopening_control_transport(self):
+        from unittest.mock import AsyncMock
+        self.probe.native_usb=True
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        captures.target.capture_features|=1024
+        pieces=asyncio.Queue()
+        async def read_stream():
+            item=await pieces.get()
+            if isinstance(item,Exception):raise item
+            return item
+        self.probe.open_capture_stream=AsyncMock();self.probe.close_capture_stream=AsyncMock()
+        self.probe.read_capture_stream=read_stream
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]})
+        await pieces.put(ConnectionError('USB stream lost'))
+        await asyncio.wait_for(asyncio.shield(captures.task),1)
+        self.assertIn('USB stream lost',captures.error)
+        await self.http('DELETE',root+'/subscriptions/1')
+        self.assertEqual((await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004]}))[0],200)
+        await pieces.put(record(0))
+        _,events=await self.http('POST',root+'/events',{'wait_ms':1000})
+        self.assertEqual(len(events['records']),1);self.assertIsNone(events['error'])
+        self.assertEqual(self.probe.open_capture_stream.await_count,2)
+        self.assertEqual(self.probe.close_capture_stream.await_count,1)
+        self.assertFalse(self.peers);self.assertEqual(self.broker.owner,session['session_id'])
     async def test_full_public_subscription_path(self):
         code,r=await self.http('POST','/v1/sessions',{'device_id':'model'});self.assertEqual(code,200)
         root='/v1/sessions/'+r['session_id']

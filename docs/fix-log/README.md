@@ -13,6 +13,10 @@
 
 ## 修改记录
 
+- 2026-11-14 · Bug · [Orbit 断流后重新勾选 Timeline 仍为 0 Hz](2026-11-14-timeline-zero-retry.md)
+
+- 2026-11-14 · Bug · [采样数据流断开后允许同一控制会话重采](2026-11-14-capture-stream-retry.md)
+
 - 2026-11-10 · 功能 · [详细烧录日志与阶段耗时（RMLink 已验收、DAP 待验收）](2026-11-10-detailed-flash-progress.md)
 
 - 2026-11-10 · Bug · [RMLink 与 F407 一起上电后首次烧录超时，返回 error=10](2026-11-10-f407-first-flash-timeout.md)

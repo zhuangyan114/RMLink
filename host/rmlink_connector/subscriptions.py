@@ -148,36 +148,44 @@ class Subscriptions:
             async with self.condition:self.condition.notify_all()
 
     async def ensure_stream(self):
-        if self.task and not self.task.done(): return
-        if self.error:raise ConnectionError('Capture stream failed; close the owner session before reconnecting')
-        if getattr(self.target.broker.transport,'native_usb',False):
-            if self.target.capture_features&1024:
-                ticket=await self.target.vendor(11)
-                if len(ticket)!=16:raise ValueError('Stream ticket size')
-                await self.target.broker.transport.open_capture_stream(ticket)
-                self.usb_bulk_stream=True
-            self.error=None;self.task=asyncio.create_task(self._usb_stream());return
-        ticket=await self.target.vendor(11)
-        if len(ticket)!=16: raise ValueError('Stream ticket size')
-        host=self.target.broker.transport.host
-        self.reader,self.writer=await asyncio.wait_for(asyncio.open_connection(host,3244),3)
-        configure_probe_tcp(self.writer.get_extra_info('socket'))
-        self.delta_stream=bool(self.target.capture_features&512)
-        self.compact_stream=self.delta_stream or bool(self.target.capture_features&256)
-        self.writer.write((b'RMS3' if self.delta_stream else b'RMS2' if self.compact_stream else b'RMS1')+ticket); await self.writer.drain()
-        traffic=getattr(self.target.broker.transport,'traffic',None)
-        if traffic:traffic.tx_bytes+=4+len(ticket)
-        if await asyncio.wait_for(self.reader.readexactly(4),3)!=b'OKAY': raise ConnectionError('Stream binding rejected')
-        if traffic:traffic.rx_bytes+=4
-        self.error=None; self.task=asyncio.create_task(self._stream())
+        if self.task and not self.task.done() and not self.error:return
+        # A failed data socket does not invalidate the control owner. A new
+        # subscription explicitly retries the data connection with a fresh
+        # ticket/decoder; it never replays the other stopped subscriptions.
+        await self._close_stream()
+        if self.error:self.paused_for_control.clear()
+        try:
+            if getattr(self.target.broker.transport,'native_usb',False):
+                if self.target.capture_features&1024:
+                    ticket=await self.target.vendor(11)
+                    if len(ticket)!=16:raise ValueError('Stream ticket size')
+                    self.usb_bulk_stream=True
+                    await self.target.broker.transport.open_capture_stream(ticket)
+                self.error=None;self.task=asyncio.create_task(self._usb_stream());return
+            ticket=await self.target.vendor(11)
+            if len(ticket)!=16: raise ValueError('Stream ticket size')
+            host=self.target.broker.transport.host
+            self.reader,self.writer=await asyncio.wait_for(asyncio.open_connection(host,3244),3)
+            configure_probe_tcp(self.writer.get_extra_info('socket'))
+            self.delta_stream=bool(self.target.capture_features&512)
+            self.compact_stream=self.delta_stream or bool(self.target.capture_features&256)
+            self.writer.write((b'RMS3' if self.delta_stream else b'RMS2' if self.compact_stream else b'RMS1')+ticket); await self.writer.drain()
+            traffic=getattr(self.target.broker.transport,'traffic',None)
+            if traffic:traffic.tx_bytes+=4+len(ticket)
+            if await asyncio.wait_for(self.reader.readexactly(4),3)!=b'OKAY': raise ConnectionError('Stream binding rejected')
+            if traffic:traffic.rx_bytes+=4
+            self.error=None;self.task=asyncio.create_task(self._stream())
+        except BaseException:
+            await self._close_stream()
+            raise
 
     async def create(self,body):
         config=compile_config(body,getattr(self.target,'profile',None))
         if not self.target.connected: await self.target.connect()
         async with self.target.lock:
-            await self.ensure_stream()
             sid=config['subscription_id']
             if sid in self.configs: raise ValueError('Subscription slot already exists; stop/dispose it first')
+            await self.ensure_stream()
             await self.target.vendor(1,struct.pack('<BBBIIIB',sid,KINDS[config['kind']],len(config['addresses']),
                 config['period_us'],config['sample_limit'],config['channel'],int(config['strict_deadlines'])))
             chunk=(self.target.broker.packet_size-5)//4
@@ -204,7 +212,7 @@ class Subscriptions:
         if sid not in self.configs: raise ValueError('Unknown subscription')
         commands={'stop':4,'pause':5,'resume':6,'status':7}
         if action not in commands: raise ValueError('Unsupported subscription action')
-        if action=='resume' and self.error:raise ConnectionError('Capture stream failed; create a new owner session')
+        if action=='resume' and self.error:raise ConnectionError('Capture stream failed; stop/dispose and recreate the subscription')
         async with self.target.lock: data=await self.target.vendor(commands[action],bytes([sid]))
         if action=='status':
             state,kind,count,capture,seq,frames,missed,dropped,failures,overrun,reason=struct.unpack('<BBBIIQQQQIB',data)
@@ -258,6 +266,19 @@ class Subscriptions:
         if self.configs:
             async with self.target.lock: await self.target.vendor(12)
 
+    async def _close_stream(self):
+        if self.task:
+            self.task.cancel();await asyncio.gather(self.task,return_exceptions=True)
+            self.task=None
+        if self.usb_bulk_stream:
+            await self.target.broker.transport.close_capture_stream()
+            self.usb_bulk_stream=False
+        if self.writer:
+            writer=self.writer;self.reader=self.writer=None
+            writer.close()
+            try:await writer.wait_closed()
+            except OSError:pass
+
     async def close(self):
         if self.recording:
             if self.recording.accepting:self.recording.fail('session_closed')
@@ -265,12 +286,5 @@ class Subscriptions:
         for sid in list(self.configs):
             try: await self.action(sid,'stop')
             except Exception: pass
-        if self.task: self.task.cancel(); await asyncio.gather(self.task,return_exceptions=True)
-        if self.usb_bulk_stream:
-            await self.target.broker.transport.close_capture_stream()
-            self.usb_bulk_stream=False
-        if self.writer:
-            self.writer.close()
-            try: await self.writer.wait_closed()
-            except OSError: pass
+        await self._close_stream()
         self.configs.clear()
