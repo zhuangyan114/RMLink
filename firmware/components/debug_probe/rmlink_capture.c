@@ -156,7 +156,10 @@ void rmlink_capture_performance_stats(uint8_t out[60]) {
 static bool transfer(const uint8_t *request, uint8_t *out, uint8_t count,bool target_write) {
     /* Bound bad-address WAIT handling, keep asynchronous Abort effective. */
     int64_t started=esp_timer_get_time();
-    DAP_TransferDeadline(2000);
+    /* Include wire time so valid low-clock blocks retain the WAIT allowance. */
+    uint32_t clock=DAP_GetSWJClock();
+    uint32_t wire_us=clock?((uint64_t)(count+1)*64*1000000+clock-1)/clock:0;
+    DAP_TransferDeadline(2000+wire_us);
     size_t n=DAP_ProcessCommand(request,out)&0xffff;
     uint32_t duration=(uint32_t)(esp_timer_get_time()-started);
     s_io_commands++;s_io_us+=duration;if(duration>s_io_max_us)s_io_max_us=duration;
@@ -314,6 +317,13 @@ static void timer_refresh(void) {
     s_timer_due=due;
     esp_timer_start_once(s_timer,delay<20?20:delay);
 }
+static uint32_t s_record_capacity[SLOTS];
+void rmlink_capture_buffer_stats(uint8_t output[32]) {
+    for(unsigned i=0;i<SLOTS;i++) {
+        w32(output+8*i,s_record_capacity[i]);
+        w32(output+8*i+4,s_records[i]?xRingbufferGetCurFreeSize(s_records[i]):0);
+    }
+}
 esp_err_t rmlink_capture_init(void (*wake)(void)) {
     rmlink_capture_invalidate_ap();
     s_wake=wake;
@@ -336,7 +346,7 @@ esp_err_t rmlink_capture_init(void (*wake)(void)) {
 #endif
         if(!s_records[i])s_records[i]=xRingbufferCreate(i==0?48*1024:sizes[i],RINGBUF_TYPE_NOSPLIT);
         if(!s_records[i]) return ESP_ERR_NO_MEM;
-        s_record_bytes+=allocated;
+        s_record_capacity[i]=allocated;s_record_bytes+=allocated;
     }
     esp_timer_create_args_t args={.callback=timer_cb,.name="rmlink_capture",.skip_unhandled_events=true};
     return esp_timer_create(&args,&s_timer);

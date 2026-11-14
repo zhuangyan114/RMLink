@@ -23,8 +23,8 @@ def denied(command):
 
 def informational(p):
     return p[0] in (0, 1) or (len(p) >= 2 and (
-        (p[0] == 0x80 and p[1] in (0, 4, 6, 7, 9, 10, 11, 12, 13, 14)) or (p[0] == 0x81 and p[1] in (0,13)) or
-        (p[0] == 0x82 and p[1] == 0) or (p[0] == 0x83 and p[1] == 0)))
+        (p[0] == 0x80 and p[1] in (0, 4, 6, 7, 9, 10, 11, 12, 13, 14, 15)) or (p[0] == 0x81 and p[1] in (0,13)) or
+        (p[0] == 0x82 and p[1] == 0) or (p[0] == 0x83 and p[1] in (0, 6))))
 
 
 def provisioning(job, packet, transport, owner):
@@ -109,7 +109,7 @@ class Broker:
                         job.future.set_exception(ConnectionError('Client closed during batch'))
                         break
                     p = job.packets[i]
-                    ota = p[0] == 0x83 and len(p) >= 2 and p[1] != 0
+                    ota = p[0] == 0x83 and len(p) >= 2 and p[1] not in (0, 6)
                     maintenance = ota and job.source == self.maintenance and self.owner is None
                     if ((self.maintenance and job.source != self.maintenance and not informational(p)) or
                         (ota and not maintenance)):
@@ -132,7 +132,7 @@ class Broker:
                     group = [p]; i += 1
                     while i < len(job.packets):
                         n = job.packets[i]
-                        ota = n[0] == 0x83 and len(n) >= 2 and n[1] != 0
+                        ota = n[0] == 0x83 and len(n) >= 2 and n[1] not in (0, 6)
                         maintenance = ota and job.source == self.maintenance and self.owner is None
                         if (self.maintenance and job.source != self.maintenance and not informational(n)) or (ota and not maintenance): break
                         if n[0] in (2, 3, 0x11) or (not informational(n) and not maintenance and not provisioning(job,n,self.transport,self.owner) and self.owner != job.source): break

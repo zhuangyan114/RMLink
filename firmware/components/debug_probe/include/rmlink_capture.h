@@ -31,6 +31,8 @@ void rmlink_capture_read_recovery_stats(uint8_t output[21]);
 /* Separate from deadline retries: bounded, read-only SWD WDATAERR recovery. */
 void rmlink_capture_fault_recovery_stats(uint8_t output[29]);
 void rmlink_capture_profile_enable(bool enabled);
+/* Executor-only: four capacity/free byte pairs, without consuming records. */
+void rmlink_capture_buffer_stats(uint8_t output[32]);
 /* These only move completed records. They never touch the target. */
 bool rmlink_capture_bind(const uint8_t ticket[16], uint32_t *generation);
 bool rmlink_capture_stream_live(uint32_t generation);

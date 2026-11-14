@@ -5,6 +5,7 @@
 #include "rmlink_target.h"
 uint64_t host_clock=1000000;
 uint8_t host_abort_reason;
+uint32_t host_swj_clock=4000000,host_deadline_us;
 static unsigned deadline_failures;
 static unsigned fault_failures,fault_clear_writes;
 static uint32_t fault_ctrl,fault_mask=0x80;
@@ -216,6 +217,10 @@ static void snapshot_read_test(void) {
     request[2]=0;request[3]=0;request[6]=128;
     if(RMLINK_PACKET_SIZE>=256)assert(command(request,8)==131 && out[2]==0);
     else assert(command(request,8)==3 && out[2]==1);
+    request[6]=32;host_swj_clock=100000;
+    assert(command(request,8)==35 && out[2]==0);
+    assert(host_deadline_us>=2000+12*640);
+    host_swj_clock=4000000;
     rmlink_capture_closed(2,7);owner.transport=1;request[6]=61;
     assert(usb_command(request,8)==64 && out[2]==0);
     uint8_t padded[64]={0};memcpy(padded,request,sizeof(request));
@@ -282,8 +287,23 @@ static void read_fault_recovery_test(void) {
     rmlink_capture_closed(2,7);host_abort_reason=0;
 }
 
+static void buffer_snapshot_test(void) {
+    uint8_t before[32],during[32],after[32],frame[384];
+    rmlink_capture_buffer_stats(before);
+    prepare(1,1,1);address(1,0,0x20000000);action(3,1);
+    assert(rmlink_capture_run());
+    rmlink_capture_buffer_stats(during);
+    uint32_t capacity,free_before,free_during,free_after;
+    memcpy(&capacity,before,4);memcpy(&free_before,before+4,4);memcpy(&free_during,during+4,4);
+    assert(capacity==48*1024 && free_during<free_before);
+    rmlink_capture_buffer_stats(after);assert(!memcmp(during,after,32)); /* no dequeue */
+    assert(rmlink_capture_take(frame,sizeof(frame),0)==60);
+    rmlink_capture_buffer_stats(after);memcpy(&free_after,after+4,4);
+    assert(free_after==free_before);
+    rmlink_capture_closed(2,7);
+}
 int main(void) {
-    assert(rmlink_capture_init(NULL)==0);memap_cache_test();bounded_read_recovery_test();read_fault_recovery_test();independent_pointer_prefetch_test();
+    assert(rmlink_capture_init(NULL)==0);buffer_snapshot_test();memap_cache_test();bounded_read_recovery_test();read_fault_recovery_test();independent_pointer_prefetch_test();
     snapshot_read_test();
     memset(ram,0,sizeof(ram));reads=0;writes=0;commands=0;
     uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};

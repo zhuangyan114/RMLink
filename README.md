@@ -6,6 +6,8 @@
 
 2026-10-19：[统一目标算法包](docs/shared-target-package.md)已接入 Orbit 普通 CMSIS-DAP 与 RMLink 增强路径，源码范围对齐 F103C8、F407VE、F407IG、H723VG 四组目标；新增目标的 RMLink 实板验收仍待完成。
 
+2026-10-28：新增 [Windows 正式安装器构建流程](docs/windows-installer.md)，用户态客户端／连接组件版本为 **0.3.4**，固件版本独立管理。支持当前用户安装、开始菜单、可选 PATH／登录自启、升级与卸载；未配置发布者证书时，产物明确标为 `unsigned`。新电脑首次连接与硬件验收仍需单独完成。
+
 当前测试候选为 **固件／客户端／连接服务 0.3.2**，SDK 为 0.2.8。[RMLink 终端控制台](docs/terminal-client.md)安装后输入 `rmlink`，统一管理设备、USB 配网、连接／虚拟 USB 挂载、实时速率、驱动检测和诊断；支持本地应用导入、GitHub 正式／测试通道与 RMLink 自身 OTA，保留明确的 Enter 安装确认及上传、校验和重连进度。[OTA](docs/ota-upgrade.md)采用 Espressif 官方双升级分区和回滚 bootloader；最新测试条件、实板故障注入和未覆盖项见 [0.3.2 测试版验收](docs/test-release-0.3.2.md)。下面的实板性能检查点保留各历史版本条件。
 
 此前实板性能检查点为 **固件0.2.40／连接服务0.2.14／SDK 0.2.8**，包含采样流无损压缩、传输诊断、复位保留订阅及运行到入口能力。真实 Orbit 的烧录、main 入口和十变量采样记录见 [Timeline 与复位验收](docs/timeline-stability-20261016.md)；数据到达长尾及前端卡顿仍有剩余限制。默认请求 SWD 4 MHz；[8 MHz 实板试验](docs/swd-8mhz-trial-20261016.md)未通过烧录和持续采样，已回退4 MHz。

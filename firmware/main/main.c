@@ -26,8 +26,18 @@
 #include "rmlink_network.h"
 #include "rmlink_ota.h"
 #include "rmlink_usb_stream.h"
+#include "rmlink_ui.h"
 
 static const char *TAG = "bridge_main";
+
+#if CONFIG_RMLINK_UI_ENABLED
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+    (void)remote_wakeup_en;
+    rmlink_ui_usb_connected(false);
+}
+void tud_resume_cb(void) { rmlink_ui_usb_connected(tud_mounted()); }
+#endif
 
 #if RMLINK_USB_STREAM_AVAILABLE
 #define RMLINK_USB_ALT_DESC_LEN 30
@@ -161,6 +171,7 @@ static void debug_activity_callback(bool active)
 void tud_mount_cb(void)
 {
     ESP_LOGI(TAG, "Mounted");
+    rmlink_ui_usb_connected(true);
 
     eub_vendord_start();
 #if CONFIG_RMLINK_LEDS_ENABLED
@@ -170,6 +181,7 @@ void tud_mount_cb(void)
 
 void tud_umount_cb(void)
 {
+    rmlink_ui_usb_connected(false);
     rmlink_transport_closed(RMLINK_USB, 0);
 }
 
@@ -302,4 +314,6 @@ void app_main(void)
 #endif
     rmlink_ota_confirm_boot(healthy);
     ESP_ERROR_CHECK(usb_ready ? ESP_OK : ESP_ERR_NO_MEM);
+    esp_err_t ui_result = rmlink_ui_init();
+    if (ui_result != ESP_OK) ESP_LOGW(TAG, "User interface unavailable: %s", esp_err_to_name(ui_result));
 }

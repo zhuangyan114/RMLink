@@ -1,15 +1,13 @@
 """Shared service subscriptions: one probe stream, bounded independent consumers."""
 import asyncio
 import struct
-import os
-import sys
 import time
-import socket
 from collections import deque
 from .capture_protocol import FrameDecoder, CompactFrameDecoder, KINDS, decode_record
 from .usb_capture import UsbCaptureReader
 from .recording import Recording
-from .tcp_options import configure_probe_tcp, probe_tcp_info
+from .tcp_options import configure_probe_tcp
+from .stream_diagnostics import CaptureStreamDiagnostics
 from .target_pack import resolve_target,contains
 
 
@@ -65,6 +63,7 @@ class Subscriptions:
         self.observed={}
         self.last_status={}
         self.usb_bulk_stream=False
+        self.stream_diagnostics=None
 
     def accept_frames(self,frames):
         for frame in frames:
@@ -98,36 +97,30 @@ class Subscriptions:
 
     async def _stream(self):
         decoder=CompactFrameDecoder(delta=self.delta_stream) if self.compact_stream else FrameDecoder()
-        diagnostics=os.environ.get('RMLINK_STREAM_DIAGNOSTICS')=='1'
-        window=time.perf_counter() if diagnostics else 0; wire=received=max_wait=max_decode=0
-        if diagnostics:
-            sock=self.writer.get_extra_info('socket')
-            print(f'RMLink capture reader rcvbuf={sock.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)} compact={self.compact_stream}',file=sys.stderr,flush=True)
+        diagnostics=self.stream_diagnostics=CaptureStreamDiagnostics(getattr(self.target.broker,'device_id','unknown'))
+        reporter=asyncio.create_task(diagnostics.report(self)) if diagnostics.enabled else None
         try:
             while True:
-                before=time.perf_counter() if diagnostics else 0
                 data=await self.reader.read(4096)
                 if not data: raise ConnectionError('Probe capture stream closed')
                 traffic=getattr(self.target.broker.transport,'traffic',None)
                 if traffic:traffic.rx_bytes+=len(data)
-                read_at=time.perf_counter() if diagnostics else 0
+                read_at=time.perf_counter()
                 frames=decoder.feed(data)
-                decoded_at=time.perf_counter() if diagnostics else 0
+                decoded_at=time.perf_counter()
                 async with self.condition:
                     self.accept_frames(frames)
                     self.condition.notify_all()
-                if diagnostics:
-                    wire+=len(data);received+=len(frames)
-                    max_wait=max(max_wait,read_at-before);max_decode=max(max_decode,decoded_at-read_at)
-                    if decoded_at-window>=10:
-                        counters=probe_tcp_info(self.writer.get_extra_info('socket'))
-                        print(f'RMLink capture reader seconds={decoded_at-window:.3f} bytes={wire} frames={received} max_read_wait_ms={max_wait*1000:.3f} max_decode_ms={max_decode*1000:.3f} tcp={counters}',file=sys.stderr,flush=True)
-                        window=decoded_at;wire=received=max_wait=max_decode=0
+                diagnostics.received(len(data),frames,decoded_at-read_at,time.perf_counter()-decoded_at,len(decoder.pending))
         except asyncio.CancelledError: pass
         except Exception as exc:
             self.error=f'{type(exc).__name__}: {exc}'
             if self.recording and self.recording.accepting:self.recording.fail('capture_stream_failed')
             async with self.condition: self.condition.notify_all()
+        finally:
+            if reporter:
+                reporter.cancel();await asyncio.gather(reporter,return_exceptions=True)
+                diagnostics.emit(self,'closed')
 
     async def _usb_stream(self):
         reader=UsbCaptureReader();decoder=FrameDecoder()
@@ -220,6 +213,7 @@ class Subscriptions:
                 completed=frames,deadline_missed=missed,ring_dropped=dropped,failures=failures,
                 stop_reason={0:None,1:'paused',2:'stopped',3:'swd_failure',4:'lease_expired',5:'stream_lost',6:'budget_overrun',7:'sample_limit'}.get(reason,'unknown'),
                 budget_overrun=overrun,host_history_evicted=self.host_dropped,
+                host_stream=self.stream_diagnostics.snapshot() if self.stream_diagnostics else None,
                 host_dropped=self.host_dropped,stream_error=self.error)
             self.last_status[sid]=dict(result,observed_at=time.monotonic())
             return result

@@ -115,6 +115,8 @@ class OtaTransport:
     packet_size=64
     def __init__(self,profile):
         self.profile=profile;self.requests=[];self.data=bytearray();self.closed=False;self.bad_ack=False
+        self.migration_profile=None
+        self.migration_reply=None
     async def connect(self):pass
     async def close(self):self.closed=True
     async def abort(self):pass
@@ -122,7 +124,13 @@ class OtaTransport:
         replies=[]
         for packet in packets:
             self.requests.append(packet)
-            if packet==b'\x83\x00':replies.append(device_info(self.profile));continue
+            if packet==b'\x83\x00':
+                info=bytearray(device_info(self.profile))
+                if self.migration_profile:info[4]|=4
+                replies.append(bytes(info));continue
+            if packet==b'\x83\x06':
+                replies.append(self.migration_reply if self.migration_reply is not None else
+                               b'\x83\x06\0'+bytes.fromhex(self.migration_profile));continue
             command=packet[1]
             if command==1:
                 self.size=int.from_bytes(packet[2:6],'little');self.digest=packet[6:38]
@@ -194,6 +202,24 @@ class UpdateTests(unittest.IsolatedAsyncioTestCase):
     async def test_profile_mismatch_never_begins_a_flash_write(self):
         with self.assertRaises(FirmwareError):await self.begin(profile='0000000000000000')
         self.assertEqual(self.transport.requests,[b'\x83\x00'])
+    async def test_migration_accepts_only_the_profile_announced_by_the_probe(self):
+        migration='0123456789abcdef'
+        self.transport.migration_profile=migration
+        info=await self.connector.management.firmware.info(ID)
+        self.assertEqual(info['migration_profile'],migration)
+        self.assertIsNone(self.broker.owner)
+        with self.assertRaises(FirmwareError):await self.begin(profile='fedcba9876543210')
+        self.assertNotIn(b'\x83\x01',[packet[:2] for packet in self.transport.requests])
+        upload=await self.begin(profile=migration)
+        await self.connector.route('POST',self.path,dict(action='abort',upload_id=upload['upload_id']))
+        upload=await self.begin()
+        await self.connector.route('POST',self.path,dict(action='abort',upload_id=upload['upload_id']))
+    async def test_invalid_migration_reply_cannot_start_an_update(self):
+        self.transport.migration_profile='0123456789abcdef'
+        for reply in (b'\x83\x06\x02', b'\x83\x06\0'+bytes(7), b'\x83\x06\0'+bytes(9)):
+            self.transport.migration_reply=reply
+            with self.assertRaises(FirmwareError):await self.begin(profile=self.transport.migration_profile)
+        self.assertNotIn(b'\x83\x01',[packet[:2] for packet in self.transport.requests])
     async def test_invalid_offset_and_bad_ack_are_not_retried_or_committed(self):
         upload=await self.begin()
         with self.assertRaises(FirmwareError):await self.write(upload,1,self.data[:128])

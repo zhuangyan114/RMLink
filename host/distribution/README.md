@@ -4,6 +4,8 @@
 
 本包为开发验证用途。服务、SDK及ESP32应用镜像均有SHA256清单；不携带用户热点凭据或配对状态。标准无线 CMSIS-DAP 通过 TCP 提供给 OpenOCD；增强服务可选择 Wi-Fi 或原生 USB 作为内部承载。
 
+0.3.4 起另提供双击运行的 Windows x64 EXE 安装器，包含开始菜单入口、可选 PATH／登录自启、升级及卸载。安装器与本开发 ZIP 分开构建；用法、签名和验证范围见[Windows 安装器](../../docs/windows-installer.md)。下面的 PowerShell 安装步骤适用于开发 ZIP。
+
 安装后在新终端输入 `rmlink` 进入设备控制台。`rmlink --help` 查看子命令，`rmlink doctor` 检查服务、发现与连接。交互界面退出后后台服务继续运行，完整说明见 docs/terminal-client.md。当前客户端不再提供虚拟 USB 驱动维护入口。0.3.3 增加独立 USB 连续采集通道，保留本地固件导入与 GitHub 正式／测试通道；测试固件需显式选择菜单或 `--prerelease`。旧设备需先通过 USB 迁移官方 OTA 引导程序和分区表，见 docs/ota-upgrade.md；本轮条件及限制见 docs/test-release-0.3.3.md、docs/usb-throughput.md。
 
 先运行 `Install.ps1` 检查文件身份，追加 `-Install` 安装到当前用户 `%USERPROFILE%\.rmlink\app`，避免 AppData 被打包应用重定向到私有缓存。需要登录启动时追加 `-StartAtLogon`。也可在解压目录运行 `Start.ps1`；后台窗口隐藏，`-Foreground`可查看前台日志。检查状态：`bin\RMLinkConnector.exe status`。关闭：`bin\RMLinkConnector.exe stop`。

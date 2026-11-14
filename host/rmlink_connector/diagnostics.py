@@ -3,6 +3,39 @@ import statistics
 import struct
 
 
+def decode_stream_diagnostics(replies):
+    if len(replies)!=4:raise ValueError('Stream diagnostic page count')
+    if len(replies[0])>=3 and replies[0][:2]==b'\x80\x0f' and replies[0][2]:
+        return {'supported':False}
+    for page,reply in enumerate(replies):
+        if len(reply)!=63 or reply[:5]!=b'\x80\x0f\0\x01'+bytes([page]) or reply[5]&~15 or reply[6]:
+            raise ValueError('Malformed stream diagnostic page')
+    generation,batches,calls,partial,errors,last_errno,at,dequeued,sent,wire=struct.unpack_from('<6I4Q',replies[0],7)
+    timings=struct.unpack_from('<10I2Q',replies[1],7)
+    tcp=struct.unpack_from('<12IQ',replies[2],7)
+    ring=struct.unpack_from('<14I',replies[3],7)
+    flags=replies[0][5]
+    if tcp[1]>1 or ring[12]>1:raise ValueError('Malformed stream diagnostic flags')
+    result=dict(supported=True,stream_id=generation,active=bool(flags&1),
+        tcp_diagnostics_enabled=bool(flags&2),send_in_progress=bool(flags&4),network_wait_in_progress=bool(flags&8),
+        batches=batches,send_calls=calls,partial_sends=partial,send_errors=errors,last_errno=last_errno,
+        snapshot_uptime_us=at,last_dequeued_uptime_us=dequeued,last_send_completed_uptime_us=sent,wire_bytes=wire)
+    result.update(zip(('last_send_us','max_send_us','blocked_send_us','send_stalls_over_50ms',
+        'network_wait_us','max_network_wait_us','last_encode_us','max_encode_us','max_wake_us','last_batch_bytes',
+        'raw_bytes','tcp_request_uptime_us'),timings))
+    result['tcp']=dict(zip(('stream_id','available','rto_ms','retries','duplicate_acks','cwnd_bytes','window_bytes',
+        'send_buffer_free_bytes','unacked_segments','unsent_segments','inflight_bytes','queued_bytes','snapshot_uptime_us'),tcp))
+    result['tcp']['available']=bool(tcp[1]) and tcp[0]==generation
+    result['tcp']['same_stream']=tcp[0]==generation
+    # NOSPLIT's GetCurFreeSize reports the largest admissible item (at most
+    # half a ring), not total free storage. Do not mislabel an empty ring as half full.
+    result['buffers']=[dict(subscription_id=i+1,capacity_bytes=ring[2*i],max_item_bytes=ring[2*i+1]) for i in range(4)]
+    result.update(internal_free_bytes=ring[8],internal_minimum_free_bytes=ring[9],
+        rssi_dbm=ring[10] if ring[10]<2**31 else ring[10]-2**32,channel=ring[11],
+        network_up=bool(ring[12]),tcp_callback_wait_us=ring[13])
+    return result
+
+
 def decode_fault_recovery(reply):
     if len(reply)>=3 and reply[:2]==b'\x80\x0d' and reply[2]:return {'supported':False}
     if len(reply)!=32 or reply[:4]!=b'\x80\x0d\0\x01':raise ValueError('Malformed read fault recovery snapshot')

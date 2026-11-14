@@ -27,4 +27,6 @@
 #endif
 
 void eub_vendord_start(void);
+/* Call on the TinyUSB task to detach and relinquish its transport session. */
+void eub_vendord_disconnect(void);
 int eub_vendord_send_item(const void *buf, const size_t size);

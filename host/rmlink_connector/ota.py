@@ -31,6 +31,7 @@ def decode_info(reply):
                 max_bytes=capacity, received=received, bytes=size, version='.'.join(map(str,reply[18:21])),
                 elf_sha256=reply[21:53].hex(), profile=reply[53:61].hex(),
                 boot_state=reply[61], slot=reply[62],
+                profile_migration=bool(reply[4] & 4),
                 message='' if (reply[4] & 3) == 3 else '请通过 USB 首次迁移 OTA 引导程序与分区表')
 
 
@@ -52,6 +53,11 @@ class FirmwareUpdates:
             return dict(device_id=key, version=version, supported=False, methods=[], state='migration_required',
                         message='当前固件不支持 OTA，请先通过 USB 安装 0.3.0 的引导程序、分区表和应用')
         info = decode_info((await broker.submit('ota-status', [b'\x83\x00'], 'background'))[0])
+        if info['profile_migration']:
+            migration = reply_ok((await broker.submit('ota-status', [b'\x83\x06'], 'background'))[0], 6)
+            if len(migration) != 8:
+                raise FirmwareError('设备返回的迁移配置指纹长度无效')
+            info['migration_profile'] = migration.hex()
         expected = self.last.get(key, {}).get('expected_elf_sha256')
         if expected and info['elf_sha256'] == expected and info['boot_state'] == 2:
             self.last[key]['state'] = 'boot_confirmed'
@@ -95,7 +101,7 @@ class FirmwareUpdates:
                     raise FirmwareError('应用固件大小超过备用分区')
                 if not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{64}',digest) or not isinstance(elf,str) or not re.fullmatch('[0-9a-f]{64}',elf):
                     raise FirmwareError('请提供有效的固件和 ELF SHA256')
-                if profile != info['profile']:
+                if profile not in (info['profile'], info.get('migration_profile', info['profile'])):
                     raise FirmwareError('固件硬件配置与当前设备不一致，未写入 Flash')
                 broker = c.brokers[key]
                 self.idle(key)  # Re-check after INFO: another API session may now own the target.

@@ -12,7 +12,7 @@ import urllib.error
 
 from . import __version__
 from .client import RMLinkError
-from .console import MENU, Terminal, dashboard, safe_text, rate
+from .console import MENU, Control, Terminal, dashboard, safe_text, rate
 from .local_service import ClientError, LocalService, inspect_firmware, run_powershell_script
 from .telemetry import Rates
 from .firmware import DEFAULT_REPOSITORY, FirmwareError, image_info, inspect_image, latest_release, download_release, repository_name
@@ -206,14 +206,14 @@ def view(terminal, title, result, confirm=False):
     offset = 0
     while True:
         height = max(1, terminal.size().lines - (7 if confirm else 5))
-        footer = ([('', None), ('  Enter 确认安装并重启 RMLink', 'selected'),
-                   ('  q / Esc 取消    ↑↓ 查看固件信息', 'muted')] if confirm else
-                  [('', None), ('  ↑↓ 滚动    q / Enter 返回', 'muted')])
+        footer = ([('', None), Control('  Enter 确认安装并重启 RMLink', 'selected', 'enter'),
+                   [Control('  q / Esc 取消', 'muted', '\x1b'), ('    ↑↓ / 滚轮 查看固件信息', 'muted')]] if confirm else
+                  [('', None), [('  ↑↓ / 滚轮 滚动    ', 'muted'), Control('q / Enter 返回', 'muted', 'enter')]])
         terminal.draw([(f'  {title}', 'accent'), ('', None)] + [('  ' + r, None) for r in rows[offset:offset + height]] +
                       footer)
         key = terminal.key()
-        while not key:
-            key = terminal.key()
+        if not key:
+            continue
         if key in ('q', 'enter', '\x1b'):
             return key == 'enter' if confirm else None
         if key == 'down':
@@ -242,7 +242,8 @@ def upgrade_firmware(controller, terminal, file=None, latest=False, repository=N
         image = download_release(release, status['profile'], controller.runtime.directory / 'firmware')
         image['发布类型'] = ('测试版（Pre-release）' if release['prerelease'] else
                             '测试通道（发布类型未确认）' if release['prerelease'] is None else '正式版')
-    if image['profile'] != status['profile'] or image['bytes'] > status['max_bytes']:
+    compatible_profiles = (status['profile'], status.get('migration_profile', status['profile']))
+    if image['profile'] not in compatible_profiles or image['bytes'] > status['max_bytes']:
         raise ClientError('固件硬件配置或分区大小与设备不匹配，未执行升级', 2)
     if image['elf_sha256'] == status['elf_sha256']:
         return dict(state='up_to_date',version=status['version'],message='设备已运行该固件')
@@ -419,11 +420,12 @@ def ui_action(index, controller, terminal):
 
 def shell(controller, terminal):
     controller.runtime.start()
-    selected, message = 0, ''
+    selected = 0
     with terminal.screen():
         while True:
             status = controller.runtime.status()
             device = metrics = None
+            message = ''
             try:
                 if status:
                     device = controller.select(status)

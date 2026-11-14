@@ -2,6 +2,14 @@ menu "RMLink Configuration"
     config RMLINK_TARGET_PINS_CONFIRMED
         bool "Enable target GPIO after checking board wiring"
         default n
+    config RMLINK_OTA_BOARD_V1_MIGRATION
+        bool "Offer legacy safe to RMLink V1 board OTA migration"
+        depends on !RMLINK_TARGET_PINS_CONFIRMED && !SPIRAM
+        default n
+        help
+            Transitional image only. Accept the exact RMLink V1 N16R8
+            SWDIO17/SWCLK18/NRST6, target-enabled, PSRAM-enabled profile.
+            Install only after verifying that physical board and wiring.
     config RMLINK_NRST_GPIO
         int "Target NRST GPIO (-1 = not connected)"
         range -1 48
@@ -9,6 +17,29 @@ menu "RMLink Configuration"
     config RMLINK_LEDS_ENABLED
         bool "Enable board activity LEDs"
         default n
+    config RMLINK_UI_ENABLED
+        bool "Enable WS2812 connection status and user key"
+        default n
+        help
+            Hold the active-low key for 2 seconds to enter mode selection.
+            A short press then switches between Wi-Fi and USB until connected.
+            Selection lasts until reboot. Startup detects either connection,
+            with USB taking display priority when both are connected.
+    config RMLINK_UI_LED_GPIO
+        int "WS2812 data GPIO"
+        depends on RMLINK_UI_ENABLED
+        range 0 48
+        default 1
+    config RMLINK_UI_KEY_GPIO
+        int "Active-low user key GPIO"
+        depends on RMLINK_UI_ENABLED
+        range 0 48
+        default 2
+    config RMLINK_UI_BRIGHTNESS
+        int "Status LED channel brightness"
+        depends on RMLINK_UI_ENABLED
+        range 1 255
+        default 32
     config RMLINK_TARGET_UART_ENABLED
         bool "Enable target UART bridge (requires separate GPIO verification)"
         default n
@@ -38,8 +69,9 @@ config RMLINK_STREAM_DIAGNOSTICS
         depends on RMLINK_WIFI_ENABLED
         default n
         help
-            Inspect sender state on the lwIP thread, at most once per second
-            during a blocked capture send. This is an opt-in diagnostic build.
+            Snapshot sender state on the lwIP thread once per second and log
+            blocked sends. Snapshots are also readable through probe health.
+            This is an opt-in diagnostic build; basic send counters are always available.
 endmenu
 
 menu "Bridge Configuration"

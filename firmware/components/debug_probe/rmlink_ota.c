@@ -41,6 +41,17 @@ const __attribute__((section(".rodata_custom_desc"), used)) ota_metadata_t rmlin
     .swdio = CONFIG_DEBUG_PROBE_GPIO_TMS, .swclk = CONFIG_DEBUG_PROBE_GPIO_TCK,
     .nrst = CONFIG_RMLINK_NRST_GPIO,
 };
+#if CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION
+/* Only the legacy safe image can offer this exact, schematic-verified move. */
+_Static_assert(!CONFIG_RMLINK_TARGET_PINS_CONFIRMED && !CONFIG_SPIRAM &&
+    !CONFIG_RMLINK_TARGET_UART_ENABLED && !CONFIG_RMLINK_MSC_ENABLED &&
+    CONFIG_DEBUG_PROBE_GPIO_TMS == 4 && CONFIG_DEBUG_PROBE_GPIO_TCK == 5 &&
+    CONFIG_RMLINK_NRST_GPIO == 6, "Board migration requires the legacy safe profile");
+static const ota_metadata_t migration_metadata = {
+    .magic = "RMLKOTA1", .schema = 1, .layout = 1, .flags = 3,
+    .swdio = 17, .swclk = 18, .nrst = 6,
+};
+#endif
 enum { IDLE, RECEIVING, READY, COMMITTED };
 enum { OTA_OK, ARGUMENT, UNSUPPORTED, OTA_BUSY, SEQUENCE, IMAGE, FLASH, PROFILE };
 #define PREFIX_SIZE (sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t) + sizeof(ota_metadata_t))
@@ -94,10 +105,15 @@ static bool prefix_valid(void)
 {
     const esp_image_header_t *header = (const void *)s.prefix;
     const esp_app_desc_t *app = (const void *)(s.prefix + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t));
+    const uint8_t *metadata = s.prefix + PREFIX_SIZE - sizeof(rmlink_ota_metadata);
+    bool profile_matches = !memcmp(metadata, &rmlink_ota_metadata, sizeof(rmlink_ota_metadata));
+#if CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION
+    profile_matches = profile_matches || !memcmp(metadata, &migration_metadata, sizeof(migration_metadata));
+#endif
     return header->magic == ESP_IMAGE_HEADER_MAGIC && header->chip_id == ESP_CHIP_ID_ESP32S3 &&
         app->magic_word == ESP_APP_DESC_MAGIC_WORD &&
         !memcmp(app->project_name, esp_app_get_description()->project_name, sizeof(app->project_name)) &&
-        !memcmp(s.prefix + PREFIX_SIZE - sizeof(rmlink_ota_metadata), &rmlink_ota_metadata, sizeof(rmlink_ota_metadata));
+        profile_matches;
 }
 size_t rmlink_ota_command(uint8_t transport, uint32_t session, const uint8_t *r,
     size_t len, uint8_t *out, const rmlink_owner_t *owner, bool target_idle)
@@ -115,6 +131,9 @@ size_t rmlink_ota_command(uint8_t transport, uint32_t session, const uint8_t *r,
 #if CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
         out[4]|=2;
 #endif
+#if CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION
+        out[4]|=4;
+#endif
         out[5]=s.state;
         put32(out+6,next?next->size:0); put32(out+10,s.received); put32(out+14,s.size);
         out[18]=RMLINK_VERSION_MAJOR; out[19]=RMLINK_VERSION_MINOR; out[20]=RMLINK_VERSION_PATCH;
@@ -122,6 +141,17 @@ size_t rmlink_ota_command(uint8_t transport, uint32_t session, const uint8_t *r,
         out[61]=esp_ota_get_state_partition(running,&app_state)==ESP_OK?(uint8_t)app_state:255;
         out[62]=running?running->subtype:255;
         return 63;
+    }
+    if (r[1]==6) {
+        out[2]=UNSUPPORTED;
+#if CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION
+        uint8_t hash[32];
+        if (mbedtls_sha256((const void *)&migration_metadata,sizeof(migration_metadata),hash,0)) {out[2]=FLASH;return 3;}
+        out[2]=OTA_OK;
+        memcpy(out+3,hash,8);
+        return 11;
+#endif
+        return 3;
     }
     if (r[1]==1) {
         if (len<38 || !session) return 3;

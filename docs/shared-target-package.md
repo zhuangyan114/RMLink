@@ -12,7 +12,7 @@
 | STM32F103C8T6 | STM32F103C8T6、STM32F103C8 | 64 KiB | 历史实板证据保留；本轮新固件待回归 |
 | STM32F407VET6 | STM32F407VET6、STM32F407VE | 512 KiB | 源码、主机模型与构建验证；待实板 |
 | STM32F407IG | STM32F407IG、STM32F407IGT6/IGT7/IGH6/IGH7 | 1 MiB | 源码、主机模型与构建验证；待实板 |
-| STM32H723VGT6 | STM32H723VGT6、STM32H723VG | 1 MiB | 源码、主机模型与构建验证；待实板 |
+| STM32H723VGT6 | STM32H723VGT6、STM32H723VG | 1 MiB | 2026-11-09 V1 板 Wi-Fi 调试、两种烧录后端及标准 OpenOCD TCP 通过，见 [实板记录](rmlink-v1-bringup.md) |
 
 同家族其他型号、容量和其他 H7 不自动归入这些配置。家族 ID 不能识别精确封装，完整型号仍由板卡/工程提供。
 已有的 RMLink source step-over/step-out 限制独立保留；本轮对齐芯片范围，不宣称两条路径全部调试功能等同。

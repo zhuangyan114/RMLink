@@ -6,6 +6,9 @@ import shutil
 import sys
 import time
 import unicodedata
+from typing import NamedTuple
+
+from .console_input import MouseClick, WindowsInput
 
 WORDMARK = (
     '████████    ██      ██  ██          ██████  ██      ██  ██      ██',
@@ -20,6 +23,14 @@ COMPACT_WORDMARK = 'R M L I N K'
 MENU = ('设备管理', 'Wi-Fi 配置', '连接管理', '实时监控',
         '固件升级', '诊断与日志', '设置')
 ESCAPE = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
+MOUSE_ON = '\x1b[?1000h\x1b[?1006h'
+MOUSE_OFF = '\x1b[?1000l\x1b[?1006l'
+
+
+class Control(NamedTuple):
+    text: str
+    role: str | None
+    key: str
 
 
 def safe_text(value):
@@ -71,6 +82,11 @@ class Terminal:
         self.tty = self.stream.isatty()
         self.vt = self.tty and os.environ.get('TERM') != 'dumb'
         self.original_mode = None
+        self.input = None
+        self.mouse_vt = False
+        self.posix_mode = None
+        self.targets = []
+        self.draw_size = None
         if self.vt and os.name == 'nt':
             import ctypes
             from ctypes import wintypes
@@ -95,33 +111,57 @@ class Terminal:
 
     @contextlib.contextmanager
     def screen(self):
-        original = None
-        if self.tty and os.name != 'nt':
-            import termios
-            import tty
-            original = termios.tcgetattr(sys.stdin)
-            tty.setcbreak(sys.stdin.fileno())
-        if self.vt:
-            self.stream.write('\x1b[?1049h\x1b[?25l'); self.stream.flush()
         try:
+            if self.tty and sys.stdin.isatty():
+                if os.name == 'nt' and self.vt:
+                    try:
+                        self.input = WindowsInput()
+                        self.input.enable()
+                    except OSError:
+                        if self.input is not None:
+                            self.input.restore()
+                        self.input = None  # Keep the existing keyboard fallback.
+                elif os.name != 'nt':
+                    import termios
+                    import tty
+                    self.posix_mode = termios.tcgetattr(sys.stdin)
+                    tty.setcbreak(sys.stdin.fileno())
+                    self.mouse_vt = self.vt
+            if self.vt:
+                self.stream.write('\x1b[?1049h\x1b[?25l' + (MOUSE_ON if self.mouse_vt else ''))
+                self.stream.flush()
             yield
         finally:
-            if original is not None:
-                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original)
+            if self.input is not None:
+                self.input.restore()
+                self.input = None
+            if self.posix_mode is not None:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.posix_mode)
+                self.posix_mode = None
             if self.vt:
-                self.stream.write('\x1b[0m\x1b[?25h\x1b[?1049l'); self.stream.flush()
+                self.stream.write((MOUSE_OFF if self.mouse_vt else '') + '\x1b[0m\x1b[?25h\x1b[?1049l')
+                self.stream.flush()
+            self.mouse_vt = False
+            self.targets = []
             if self.original_mode is not None:
                 self.kernel.SetConsoleMode(self.handle, self.original_mode)
 
     def draw(self, lines):
         width, height = self.size()
+        self.draw_size = (width, height)
+        self.targets = []
         rows = []
         for line in lines[:max(1, height - 1)]:
             # A row can contain independently styled spans, such as menu columns.
             spans = line if isinstance(line, list) else [line]
             remaining, parts = max(1, width - 2), []
-            for text, role in spans:
+            for span in spans:
+                text, role = span[:2]
                 text = fit(text, remaining)
+                start = max(1, width - 2) - remaining
+                if isinstance(span, Control) and text.strip():
+                    self.targets.append((start + cell_width(text) - cell_width(text.lstrip()),
+                                         start + cell_width(text.rstrip()), len(rows), span.key))
                 parts.append(self.paint(text, role))
                 remaining -= cell_width(text)
                 if remaining <= 0:
@@ -135,6 +175,19 @@ class Terminal:
         self.stream.flush()
 
     def key(self, timeout=1):
+        key = self._read_key(timeout)
+        if isinstance(key, MouseClick):
+            # A resize invalidates the old geometry until the next draw.
+            if tuple(self.size()) != self.draw_size:
+                return ''
+            return next((keycode for left, right, row, keycode in self.targets
+                         if key.y == row and left <= key.x < right), '')
+        return key
+
+    def _read_key(self, timeout):
+        if self.input is not None:
+            key = self.input.read(timeout)
+            return self._escape_key(self.input.read) if key == '\x1b' else key
         if os.name == 'nt':
             import msvcrt
             deadline = time.monotonic() + timeout
@@ -158,27 +211,70 @@ class Terminal:
             return ''
         import select
         if select.select([sys.stdin], [], [], timeout)[0]:
-            ch = sys.stdin.read(1)
-            if ch == '\x1b' and select.select([sys.stdin], [], [], .03)[0]:
-                return {'[A': 'up', '[B': 'down', '[D': 'left', '[C': 'right',
-                        'OA': 'up', 'OB': 'down', 'OD': 'left', 'OC': 'right'}.get(sys.stdin.read(2), '')
+            ch = os.read(sys.stdin.fileno(), 1).decode('utf-8', errors='ignore')
+            if ch == '\x1b':
+                return self._escape_key(lambda wait: os.read(sys.stdin.fileno(), 1).decode('ascii', errors='ignore')
+                                        if select.select([sys.stdin], [], [], wait)[0] else '')
             return 'enter' if ch in ('\n', '\r') else ch.lower()
         return ''
+
+    def _escape_key(self, read):
+        sequence = read(.03)
+        if not sequence:
+            return '\x1b'
+        if sequence not in ('[', 'O'):
+            return ''
+        # Read a whole CSI/SS3 event, including split SGR mouse reports. Never
+        # leave mouse coordinates behind to become numeric menu shortcuts.
+        for _ in range(64):
+            ch = read(.03)
+            if not ch or len(ch) != 1:
+                return ''
+            sequence += ch
+            if '@' <= ch <= '~':
+                break
+        else:
+            return ''
+        if sequence.startswith('[<'):
+            match = re.fullmatch(r'\[<(\d+);(\d+);(\d+)([Mm])', sequence)
+            if not match or match[4] == 'm':
+                return ''
+            button, x, y = map(int, match.group(1, 2, 3))
+            if button & 32:  # Motion/drag reports do not activate anything.
+                return ''
+            if button & 64:
+                return {64: 'up', 65: 'down'}.get(button & ~28, '')
+            if button & 128:
+                return ''
+            return MouseClick(x - 1, y - 1) if button & 3 == 0 else '\x1b' if button & 3 == 2 else ''
+        return {'[A': 'up', '[B': 'down', '[D': 'left', '[C': 'right',
+                'OA': 'up', 'OB': 'down', 'OD': 'left', 'OC': 'right'}.get(sequence, '')
 
     def prompt(self, label, secret=False, hint=None):
         if hint:
             self.stream.write('\n' + self.paint('  ' + fit(hint, max(1, self.size().columns - 4)), 'muted') + '\n')
             self.stream.flush()
-        if self.vt:
-            self.stream.write('\x1b[?25h'); self.stream.flush()
         try:
+            self.targets = []
+            if self.input is not None:
+                self.input.restore()
+            if self.posix_mode is not None:
+                import termios
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.posix_mode)
+            if self.vt:
+                self.stream.write((MOUSE_OFF if self.mouse_vt else '') + '\x1b[?25h'); self.stream.flush()
             if secret:
                 import getpass
                 return getpass.getpass(label)
             return input(label)
         finally:
+            if self.input is not None:
+                self.input.enable()
+            if self.posix_mode is not None:
+                import tty
+                tty.setcbreak(sys.stdin.fileno())
             if self.vt:
-                self.stream.write('\x1b[?25l'); self.stream.flush()
+                self.stream.write('\x1b[?25l' + (MOUSE_ON if self.mouse_vt else '')); self.stream.flush()
 
     def menu(self, title, options, selected=0, description=''):
         options = [*options, (None, '返回上一级')]
@@ -186,8 +282,8 @@ class Terminal:
         while True:
             self.draw(menu_rows(title, options, selected, self.size(), description))
             key = self.key()
-            while not key:
-                key = self.key()
+            if not key:
+                continue
             if key in ('q', '\x1b'):
                 return None
             if key in ('up', 'left'):
@@ -215,10 +311,14 @@ def menu_rows(title, options, selected, size, description=''):
     offset = max(0, min(selected - visible + 1, len(options) - visible))
     for index in range(offset, min(len(options), offset + visible)):
         label = options[index][1]
-        lines.append((f'  {"›" if index == selected else " "} {label}', 'selected' if index == selected else None))
+        lines.append(Control(f'  {"›" if index == selected else " "} {label}',
+                             'selected' if index == selected else None,
+                             options[index][0] if options[index][0] is not None else '\x1b'))
     if len(options) > visible:
         lines.append((f'  {selected + 1} / {len(options)}', 'muted'))
-    lines += [('', None), ('  ↑↓ 选择    Enter 打开    q / Esc 返回', 'muted')]
+    lines += [[('  ↑↓选择 Enter打开  ' if size.columns < 48 else '  ↑↓ 选择  Enter 打开  ', 'muted'),
+               Control('q 返回' if size.columns < 48 else 'q / Esc 返回', 'muted', '\x1b')],
+              ('  左键打开  滚轮选择  右键返回', 'muted')]
     return lines
 
 
@@ -257,18 +357,22 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
         lines.append((f'  板端丢弃 {dropped}  ·  复用调试会话最近一次状态快照', 'muted'))
         if not (metrics or {}).get('subscriptions'):
             lines += [('  暂无活动订阅。调试软件开始采样后自动显示。', 'muted')]
-        lines += [('', None), ('  q 返回    r 刷新    统计不申请目标控制权', 'muted')]
+        lines += [('', None), [Control('  q 返回', 'muted', 'q'),
+                              ('    r 刷新    统计不申请目标控制权', 'muted')]]
     else:
         if width >= 68:
             for i in range(4):
                 left = ('›' if selected == i else ' ') + f' {i + 1}  {MENU[i]}'
                 right = (('›' if selected == i + 4 else ' ') + f' {i + 5}  {MENU[i + 4]}') if i + 4 < len(MENU) else ''
-                lines.append([('  ' + pad(left, 32), 'selected' if selected == i else None),
-                              (right, 'selected' if selected == i + 4 else None)])
+                lines.append([Control('  ' + pad(left, 32), 'selected' if selected == i else None, str(i + 1)),
+                              Control(right, 'selected' if selected == i + 4 else None, str(i + 5))])
         else:
             for i, label in enumerate(MENU):
-                lines.append((f'  {"›" if selected == i else " "} {i + 1}  {label}', 'selected' if selected == i else None))
-        lines += [('', None), ('  ↑↓←→ 选择  Enter 打开  数字快捷键  q 退出', 'muted')]
+                lines.append(Control(f'  {"›" if selected == i else " "} {i + 1}  {label}',
+                                     'selected' if selected == i else None, str(i + 1)))
+        lines += [[('  ↑↓←→选择 Enter打开  ' if width < 48 else '  ↑↓←→ 选择  Enter 打开  数字快捷键  ', 'muted'),
+                   Control('q 退出', 'muted', 'q')],
+                  ('  左键打开  滚轮选择  右键返回', 'muted')]
     if message:
         lines.append(('  ' + message, 'warning'))
     return wordmark_rows(width, height - 1 - len(lines)) + lines

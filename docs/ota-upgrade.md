@@ -2,6 +2,8 @@
 
 客户端、连接服务和固件从 0.3.0 开始支持 RMLink 自身升级。升级操作不使用 STM32 的 Flash 算法，也不获取 SWD 控制权。
 
+2026-11-09，RMLink V1 自制板已通过两阶段 Wi-Fi OTA 完成安全配置到新引脚配置的迁移，全程无需操作 BOOT。过渡构建只额外接受预先核对的 V1 完整配置，正常构建继续校验当前配置。引脚表、构建参数和实板结果见 [V1 接线与验收记录](rmlink-v1-bringup.md)。
+
 ## 引导系统来源
 
 复用 GitHub [espressif/esp-idf v5.1.2](https://github.com/espressif/esp-idf/tree/v5.1.2) 的官方二级 bootloader、`app_update` 和 OTA 状态机，参考 [native_ota_example](https://github.com/espressif/esp-idf/tree/v5.1.2/examples/system/ota/native_ota_example)。SDK 提交为 `482a8fb2d78e3b58eb21b26da8a5bedf90623213`；本机 SDK 中 bootloader、app_update、bootloader_support 与该提交无差异。SDK 代码按上游 Apache-2.0 分发，示例为 CC0。没有另写一套 Flash 引导器。

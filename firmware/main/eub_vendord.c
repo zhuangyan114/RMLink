@@ -144,6 +144,12 @@ static void eub_vendord_reset(uint8_t rhport)
     /* do not reset the FreeRTOS handlers */
 }
 
+void eub_vendord_disconnect(void)
+{
+    tud_disconnect();
+    eub_vendord_reset(s_rhport);
+}
+
 static uint16_t eub_vendord_open(uint8_t rhport, tusb_desc_interface_t const *desc_intf, uint16_t max_len)
 {
     ESP_LOGD(TAG, "%s", __func__);

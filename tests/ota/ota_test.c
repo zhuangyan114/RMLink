@@ -63,7 +63,12 @@ int main(void)
     _Static_assert(sizeof(esp_app_desc_t)==256,"descriptor");
     image[0]=0xe9;image[12]=9;uint32_t magic=ESP_APP_DESC_MAGIC_WORD;memcpy(image+32,&magic,4);
     memcpy(image+80,"rmlink",7);memcpy(image+288,rmlink_ota_metadata,64);
-    assert(simple(0)==0 && out[4]==3);
+    assert(simple(0)==0 && (out[4]&3)==3);
+#if CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION
+    assert(out[4]&4);
+#else
+    assert(!(out[4]&4) && simple(6)==2);
+#endif
     layout=false;assert(begin(false)==2);layout=true;
     owner.session=9;assert(begin(false)==3);owner.session=0;
     assert(begin(false)==0);uint8_t bad_offset[9]={0x83,2,1,0,0,0,1,0,0};
@@ -77,6 +82,23 @@ int main(void)
     assert(begin(false)==0);now+=121000000;assert(!rmlink_ota_busy());
     boot_state=ESP_OTA_IMG_PENDING_VERIFY;rmlink_ota_confirm_boot(true);rmlink_ota_confirm_boot(false);
     assert(validations==1 && rollbacks==1);
+#if CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION
+    uint8_t original_metadata[64],migration_hash[32];
+    memcpy(original_metadata,image+288,64);
+    uint32_t flags=3,swdio=17,swclk=18;
+    memcpy(image+304,&flags,4);memcpy(image+308,&swdio,4);memcpy(image+312,&swclk,4);
+    mbedtls_sha256(image+288,64,migration_hash,0);
+    assert(simple(6)==0 && !memcmp(out+3,migration_hash,8));
+    unsigned before_begins=begins;
+    for(unsigned i=0;i<64;i++) {
+        image[288+i]^=1;
+        assert(begin(false)==0 && upload()==7 && begins==before_begins);
+        image[288+i]^=1;
+    }
+    assert(begin(false)==0 && upload()==0 && simple(3)==0 && commits==0);
+    assert(simple(5)==0);
+    memcpy(image+288,original_metadata,64);
+#endif
     assert(begin(false)==0 && upload_chunked(504)==0 && simple(3)==0 && commits==0);
     assert(simple(4)==0 && commits==1 && restart_delay==1000000);
     assert(simple(4)==4 && commits==1);rmlink_ota_closed(2,123);assert(rmlink_ota_busy());

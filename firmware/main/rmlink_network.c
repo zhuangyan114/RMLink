@@ -33,6 +33,7 @@
 #include "rmlink_capture.h"
 #include "rmlink_network.h"
 #include "rmlink_transport_bench.h"
+#include "rmlink_stream.h"
 #endif
 
 #define WIFI_RECONNECT_GRACE_US 1000000LL
@@ -47,6 +48,7 @@ static bool s_field_set[2];
 static portMUX_TYPE s_config_mux = portMUX_INITIALIZER_UNLOCKED;
 static atomic_uint s_revision;
 static atomic_bool s_up;
+static atomic_bool s_enabled = true;
 static atomic_bool s_tcp_network_live;
 /* Only an expired grace period or changed IP invalidates existing sockets. */
 static atomic_uint s_network_generation;
@@ -84,7 +86,7 @@ void __wrap_esp_netif_action_disconnected(void *netif, esp_event_base_t base,
         __real_esp_netif_action_disconnected(netif, base, id, data);
         return;
     }
-    if (atomic_load(&s_tcp_network_live)) {
+    if (atomic_load(&s_enabled) && atomic_load(&s_tcp_network_live)) {
         if (!s_reconnect_deadline) {
             s_reconnect_deadline = esp_timer_get_time() + WIFI_RECONNECT_GRACE_US;
             if (esp_timer_start_once(s_reconnect_timer, WIFI_RECONNECT_GRACE_US) != ESP_OK) {
@@ -109,8 +111,24 @@ static void reconnect_expired(void *unused)
 static bool network_current(unsigned generation)
 {
     int64_t deadline = atomic_load(&s_reconnect_deadline);
-    return atomic_load(&s_tcp_network_live) && generation == atomic_load(&s_network_generation) &&
+    return atomic_load(&s_enabled) && atomic_load(&s_tcp_network_live) && generation == atomic_load(&s_network_generation) &&
            (!deadline || esp_timer_get_time() <= deadline);
+}
+
+bool rmlink_network_is_connected(void)
+{
+    return atomic_load(&s_enabled) && atomic_load(&s_up);
+}
+
+void rmlink_network_set_enabled(bool enabled)
+{
+    if (atomic_exchange(&s_enabled, enabled) == enabled) return;
+    /* Invalidate the previous connection before the manager handles its wakeup. */
+    atomic_store(&s_up, false);
+    atomic_store(&s_tcp_network_live, false);
+    atomic_fetch_add(&s_network_generation, 1);
+    atomic_fetch_add(&s_revision, 1);
+    if (s_manager) xTaskNotifyGive(s_manager);
 }
 
 bool rmlink_network_wait_for_link(void)
@@ -175,7 +193,7 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         }
         memcpy(s_bssid, connected->bssid, sizeof(s_bssid));
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
-        if (!s_associated) return;
+        if (!s_associated || !atomic_load(&s_enabled)) return;
         ip_event_got_ip_t *ip = data;
         if (s_ip_address != ip->ip_info.ip.addr) atomic_fetch_add(&s_network_generation, 1);
         s_ip_address = ip->ip_info.ip.addr;
@@ -218,7 +236,7 @@ static void connection_task(void *arg)
                 }
             }
         }
-        if (config.ssid[0] && !atomic_load(&s_up) && !atomic_load(&s_connecting)) {
+        if (atomic_load(&s_enabled) && config.ssid[0] && !atomic_load(&s_up) && !atomic_load(&s_connecting)) {
             atomic_store(&s_connecting, true);
             if (esp_wifi_connect() != ESP_OK) atomic_store(&s_connecting, false);
         }
@@ -320,7 +338,7 @@ static void tcp_task(void *arg)
 {
     uint32_t session = 1;
     for (;;) {
-        while (!atomic_load(&s_up)) vTaskDelay(pdMS_TO_TICKS(250));
+        while (!rmlink_network_is_connected()) vTaskDelay(pdMS_TO_TICKS(250));
         unsigned network_generation = atomic_load(&s_network_generation);
         int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (listener < 0) { vTaskDelay(pdMS_TO_TICKS(1000)); continue; }
@@ -448,6 +466,10 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         out[2]=2;return 3;
 #endif
     }
+    if (r[1] == 15) { /* Probe-only stream snapshots, including during a blocked send. */
+        if(len<3 || !rmlink_stream_diagnostics(r[2],out+3)) {out[2]=2;return 3;}
+        out[2]=0;return 63;
+    }
     if (r[1] == 14) { /* Probe-only diagnostic switch; default off. */
 #if CONFIG_DEBUG_PROBE_IFACE_SWD
         if(len==3 && r[2]<=1) {rmlink_capture_profile_enable(r[2]);out[2]=0;}
@@ -564,5 +586,7 @@ esp_err_t rmlink_network_init(void)
 #else
 #include "rmlink_network.h"
 esp_err_t rmlink_network_init(void) { return ESP_OK; }
+bool rmlink_network_is_connected(void) { return false; }
+void rmlink_network_set_enabled(bool enabled) { (void)enabled; }
 bool rmlink_network_wait_for_link(void) { return false; }
 #endif

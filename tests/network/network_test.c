@@ -33,6 +33,7 @@ static unsigned online(void)
     s_reconnect_deadline = 0;
     s_ip_address = 0;
     s_associated = false;
+    atomic_store(&s_enabled, true);
     atomic_store(&s_up, false);
     atomic_store(&s_tcp_network_live, false);
     host_time = 1000000;
@@ -156,6 +157,27 @@ int main(void)
     esp_netif_t other = {0};
     __wrap_esp_netif_action_disconnected(&other, WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, NULL);
     assert(other.down == 1 && station.down == 0 && network_current(generation));
-    puts("Wi-Fi recovery tests passed (500 ms reassociation, expiry, identity, event races)");
+    generation = online();
+    assert(rmlink_network_is_connected());
+    rmlink_network_set_enabled(false);
+    assert(!rmlink_network_is_connected() && !network_current(generation));
+    unsigned disabled_generation = atomic_load(&s_network_generation);
+    rmlink_network_set_enabled(false);
+    assert(atomic_load(&s_network_generation) == disabled_generation);
+    ip_event_got_ip_t late_ip = { .esp_netif = &station, .ip_info = station.ip };
+    wifi_event(NULL, IP_EVENT, IP_EVENT_STA_GOT_IP, &late_ip);
+    assert(!atomic_load(&s_up) && !atomic_load(&s_tcp_network_live));
+    /* A GOT_IP callback already past its enable check cannot revive USB mode. */
+    atomic_store(&s_up, true);
+    atomic_store(&s_tcp_network_live, true);
+    assert(!rmlink_network_is_connected() && !network_current(disabled_generation));
+    disconnect();
+    assert(!timer.active); /* Manual USB selection bypasses reassociation grace. */
+    rmlink_network_set_enabled(true);
+    assert(!rmlink_network_is_connected());
+    reassociate(&access_point);
+    wifi_event(NULL, IP_EVENT, IP_EVENT_STA_GOT_IP, &late_ip);
+    assert(rmlink_network_is_connected());
+    puts("Wi-Fi recovery tests passed (reassociation, expiry, event races, manual mode selection)");
     return 0;
 }

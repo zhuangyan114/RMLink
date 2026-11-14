@@ -8,10 +8,17 @@ param(
     [switch]$ImageCachePsram,
     [switch]$StreamDiagnostics,
     [ValidateSet(0,160)][int]$StreamIpTos = 0,
-    [ValidatePattern('^$|^[a-z0-9-]+$')][string]$BuildTag = ''
+    [ValidatePattern('^$|^[a-z0-9-]+$')][string]$BuildTag = '',
+    [ValidateSet('development','rmlink-v1')][string]$BoardProfile = 'development',
+    [switch]$BoardMigration
 )
+if ($BoardMigration -and ($TargetProfile -or $ImageCachePsram -or $BoardProfile -ne 'development')) {
+    throw 'BoardMigration requires the development safe profile without PSRAM.'
+}
 $root = Split-Path $ProjectPath -Parent
 $buildName = if ($TargetProfile) { 'firmware-target' } else { 'firmware' }
+if ($BoardProfile -ne 'development') { $buildName += "-$BoardProfile" }
+if ($BoardMigration) { $buildName += '-board-migration' }
 if ($TcpPacketSize -ne 64) { $buildName += "-tcp$TcpPacketSize" }
 if ($ExecutorCore -eq 0) { $buildName += '-core0' }
 else { $buildName += '-core1' }
@@ -28,6 +35,8 @@ else { $defaults += ';sdkconfig.rmlink-core1.defaults' }
 if ($WifiCore -ge 0) { $defaults += ";sdkconfig.rmlink-wifi$WifiCore.defaults" }
 if ($ImageCachePsram) { $defaults += ';sdkconfig.rmlink-psram.defaults' }
 if ($StreamDiagnostics) { $defaults += ';sdkconfig.rmlink-streamdiag.defaults' }
+if ($BoardProfile -eq 'rmlink-v1') { $defaults += ';sdkconfig.rmlink-v1.defaults' }
+if ($BoardMigration) { $defaults += ';sdkconfig.rmlink-v1-migration.defaults' }
 [System.IO.Directory]::CreateDirectory($build) | Out-Null
 $tosDefaults = Join-Path $build 'sdkconfig.stream-priority.defaults'
 [IO.File]::WriteAllText($tosDefaults, "CONFIG_RMLINK_STREAM_IP_TOS=$StreamIpTos`n", (New-Object Text.UTF8Encoding($false)))

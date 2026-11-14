@@ -14,25 +14,94 @@
 #include "rmlink_capture.h"
 #include "rmlink_network.h"
 #include "rmlink_stream_codec.h"
-#if CONFIG_RMLINK_STREAM_DIAGNOSTICS
+#include "rmlink_stream.h"
 #include "esp_wifi.h"
+
+/* One bounded snapshot per batch; never hold this lock during IO or logging. */
+static portMUX_TYPE s_diagnostic_mux=portMUX_INITIALIZER_UNLOCKED;
+static struct {
+    uint32_t identity,batches,calls,partial,errors,last_errno;
+    uint32_t last_send_us,max_send_us,stalls,max_network_us;
+    uint32_t last_encode_us,max_encode_us,max_wake_us,last_batch;
+    uint64_t dequeued_at,sent_at,wire_bytes,raw_bytes;
+    int64_t send_started,network_started;
+    uint16_t peer_port;
+    bool active;
+} s_diag;
+static struct {
+    uint32_t identity,available,rto_ms,retries,dupacks,cwnd,window,sndbuf;
+    uint32_t unacked,unsent,inflight,queued,callback_wait_us;
+    uint64_t at;
+} s_tcp_diag;
+static atomic_llong s_diagnostic_requested;
+static void diag32(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;i++)p[i]=v>>(8*i);}
+static void diag64(uint8_t *p,uint64_t v) {for(unsigned i=0;i<8;i++)p[i]=v>>(8*i);}
+bool rmlink_stream_diagnostics(unsigned page,uint8_t out[60]) {
+    if(page>3)return false;
+    int64_t now=esp_timer_get_time();
+    portENTER_CRITICAL(&s_diagnostic_mux);
+    __typeof__(s_diag) d=s_diag;
+    __typeof__(s_tcp_diag) tcp=s_tcp_diag;
+    portEXIT_CRITICAL(&s_diagnostic_mux);
+    memset(out,0,60);out[0]=1;out[1]=page;
+    out[2]=d.active | (d.send_started?4:0) | (d.network_started?8:0);
+#if CONFIG_RMLINK_STREAM_DIAGNOSTICS
+    out[2]|=2;
+#endif
+    if(page==0) {
+        uint32_t values[]={d.identity,d.batches,d.calls,d.partial,d.errors,d.last_errno};
+        for(unsigned i=0;i<6;i++)diag32(out+4+4*i,values[i]);
+        diag64(out+28,now);diag64(out+36,d.dequeued_at);
+        diag64(out+44,d.sent_at);diag64(out+52,d.wire_bytes);
+    } else if(page==1) {
+        uint32_t values[]={d.last_send_us,d.max_send_us,d.send_started?(uint32_t)(now-d.send_started):0,
+            d.stalls,d.network_started?(uint32_t)(now-d.network_started):0,d.max_network_us,
+            d.last_encode_us,d.max_encode_us,d.max_wake_us,d.last_batch};
+        for(unsigned i=0;i<10;i++)diag32(out+4+4*i,values[i]);
+        diag64(out+44,d.raw_bytes);diag64(out+52,atomic_load(&s_diagnostic_requested));
+    } else if(page==2) {
+        uint32_t values[]={tcp.identity,tcp.available,tcp.rto_ms,tcp.retries,tcp.dupacks,
+            tcp.cwnd,tcp.window,tcp.sndbuf,tcp.unacked,tcp.unsent,tcp.inflight,tcp.queued};
+        for(unsigned i=0;i<12;i++)diag32(out+4+4*i,values[i]);
+        diag64(out+52,tcp.at);
+    } else {
+        rmlink_capture_buffer_stats(out+4);
+        diag32(out+36,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+        diag32(out+40,heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+        wifi_ap_record_t ap;
+        if(esp_wifi_sta_get_ap_info(&ap)==ESP_OK) {diag32(out+44,(int32_t)ap.rssi);diag32(out+48,ap.primary);}
+        diag32(out+52,rmlink_network_is_connected());diag32(out+56,tcp.callback_wait_us);
+    }
+    return true;
+}
+#if CONFIG_RMLINK_STREAM_DIAGNOSTICS
 #include "lwip/tcpip.h"
 /* ESP-IDF 5.1.2 pinned by this project. PCB access is confined to tcpip_thread. */
 #include "lwip/priv/tcp_priv.h"
 static esp_timer_handle_t s_diagnostic_timer;
-static atomic_llong s_send_started;
 static atomic_bool s_diagnostic_pending;
-static int64_t s_diagnostic_requested, s_diagnostic_last;
+static int64_t s_diagnostic_last;
 static void tcp_diagnostic(void *unused) {
     (void)unused;
-    int64_t now=esp_timer_get_time(),started=atomic_load(&s_send_started);
+    int64_t now=esp_timer_get_time();
+    portENTER_CRITICAL(&s_diagnostic_mux);
+    uint32_t identity=s_diag.identity;uint16_t peer=s_diag.peer_port;
+    int64_t started=s_diag.send_started;bool active=s_diag.active;
+    portEXIT_CRITICAL(&s_diagnostic_mux);
     for(struct tcp_pcb *p=tcp_active_pcbs;p;p=p->next) {
-        if(p->local_port!=3244 || p->state!=ESTABLISHED)continue;
+        if(!active || p->local_port!=3244 || p->remote_port!=peer || p->state!=ESTABLISHED)continue;
         unsigned unacked=0,unsent=0;
         for(struct tcp_seg *s=p->unacked;s;s=s->next)unacked++;
         for(struct tcp_seg *s=p->unsent;s;s=s->next)unsent++;
-        ESP_LOGW("rmlink_stream","TCP sender: blocked_us=%u tcpip_wait_us=%u rto_ms=%u retries=%u dupacks=%u cwnd=%u wnd=%u sndbuf=%u unacked=%u unsent=%u inflight=%u queued=%u",
-            started?(unsigned)(now-started):0,(unsigned)(now-s_diagnostic_requested),
+        uint32_t callback_wait=(uint32_t)(now-atomic_load(&s_diagnostic_requested));
+        portENTER_CRITICAL(&s_diagnostic_mux);
+        if(s_diag.active && s_diag.identity==identity) {
+            s_tcp_diag=(__typeof__(s_tcp_diag)){identity,1,p->rto*TCP_SLOW_INTERVAL,p->nrtx,p->dupacks,
+                p->cwnd,p->snd_wnd,p->snd_buf,unacked,unsent,p->snd_nxt-p->lastack,p->snd_lbb-p->lastack,callback_wait,now};
+        }
+        portEXIT_CRITICAL(&s_diagnostic_mux);
+        if(started && now-started>=100000)ESP_LOGW("rmlink_stream","TCP sender: stream=%u at_us=%llu blocked_us=%u tcpip_wait_us=%u rto_ms=%u retries=%u dupacks=%u cwnd=%u wnd=%u sndbuf=%u unacked=%u unsent=%u inflight=%u queued=%u",
+            (unsigned)identity,(unsigned long long)now,started?(unsigned)(now-started):0,(unsigned)callback_wait,
             (unsigned)p->rto*TCP_SLOW_INTERVAL,(unsigned)p->nrtx,(unsigned)p->dupacks,
             (unsigned)p->cwnd,(unsigned)p->snd_wnd,(unsigned)p->snd_buf,unacked,unsent,
             (unsigned)(p->snd_nxt-p->lastack),(unsigned)(p->snd_lbb-p->lastack));
@@ -41,11 +110,11 @@ static void tcp_diagnostic(void *unused) {
 }
 static void diagnose_stalled_send(void *unused) {
     (void)unused;
-    int64_t now=esp_timer_get_time(),started=atomic_load(&s_send_started);
-    if(!started || now-started<100000 || now-s_diagnostic_last<1000000)return;
+    int64_t now=esp_timer_get_time();
+    if(now-s_diagnostic_last<1000000)return;
     bool expected=false;
     if(!atomic_compare_exchange_strong(&s_diagnostic_pending,&expected,true))return;
-    s_diagnostic_requested=now;s_diagnostic_last=now;
+    atomic_store(&s_diagnostic_requested,now);s_diagnostic_last=now;
     if(tcpip_try_callback(tcp_diagnostic,NULL)!=ERR_OK)atomic_store(&s_diagnostic_pending,false);
 }
 #endif
@@ -58,9 +127,26 @@ static void batch_ready(void *unused) {
 }
 static bool exact(int fd, uint8_t *p, size_t n, bool sending) {
     while(n) {
-        if(!rmlink_network_wait_for_link())return false;
+        int64_t waiting=esp_timer_get_time();
+        if(sending) {portENTER_CRITICAL(&s_diagnostic_mux);s_diag.network_started=waiting;portEXIT_CRITICAL(&s_diagnostic_mux);}
+        bool link=rmlink_network_wait_for_link();
+        if(sending) {
+            uint32_t elapsed=(uint32_t)(esp_timer_get_time()-waiting);
+            portENTER_CRITICAL(&s_diagnostic_mux);
+            s_diag.network_started=0;if(elapsed>s_diag.max_network_us)s_diag.max_network_us=elapsed;
+            s_diag.calls++;
+            portEXIT_CRITICAL(&s_diagnostic_mux);
+        }
+        if(!link)return false;
         int part=sending?send(fd,p,n,0):recv(fd,p,n,0);
-        if(part<0 && errno==EINTR)continue;
+        int error=part<0?errno:0;
+        if(sending) {
+            portENTER_CRITICAL(&s_diagnostic_mux);
+            if(part>0) {s_diag.wire_bytes+=part;if((size_t)part<n)s_diag.partial++;}
+            else if(error!=EINTR) {s_diag.errors++;s_diag.last_errno=error;}
+            portEXIT_CRITICAL(&s_diagnostic_mux);
+        }
+        if(part<0 && error==EINTR)continue;
         if(part<=0) {
             ESP_LOGW("rmlink_stream","%s failed: result=%d errno=%d remaining=%u free_internal=%u min_internal=%u",
                 sending?"send":"recv",part,part<0?errno:0,(unsigned)n,
@@ -101,8 +187,18 @@ static void stream_task(void *unused) {
             uint8_t hello[20]; uint32_t generation;
             if(!exact(fd,hello,20,false) || (memcmp(hello,"RMS1",4) && memcmp(hello,"RMS2",4) && memcmp(hello,"RMS3",4)) || !rmlink_capture_bind(hello+4,&generation)) { close(fd); continue; }
             unsigned compact=hello[3]-'1';
+            struct sockaddr_in peer;socklen_t peer_size=sizeof(peer);
+            uint16_t peer_port=getpeername(fd,(struct sockaddr*)&peer,&peer_size)==0?ntohs(peer.sin_port):0;
+            portENTER_CRITICAL(&s_diagnostic_mux);
+            uint32_t identity=s_diag.identity+1;
+            memset(&s_diag,0,sizeof(s_diag));memset(&s_tcp_diag,0,sizeof(s_tcp_diag));
+            s_diag.identity=identity;s_diag.active=true;s_diag.peer_port=peer_port;
+            portEXIT_CRITICAL(&s_diagnostic_mux);
             uint8_t ok[4]={'O','K','A','Y'};
-            if(!exact(fd,ok,4,true)) { rmlink_capture_stream_lost(generation); close(fd); continue; }
+            if(!exact(fd,ok,4,true)) {
+                portENTER_CRITICAL(&s_diagnostic_mux);s_diag.active=false;portEXIT_CRITICAL(&s_diagnostic_mux);
+                rmlink_capture_stream_lost(generation); close(fd); continue;
+            }
             uint32_t batches=0,max_wake_us=0,max_send_us=0;uint64_t bytes=0,raw_bytes=0,last_warning=0;
 #if CONFIG_RMLINK_STREAM_DIAGNOSTICS
             esp_timer_start_periodic(s_diagnostic_timer,100000);
@@ -133,16 +229,27 @@ static void stream_task(void *unused) {
                 do {size_t n=rmlink_capture_take(batch+used,sizeof(batch)-used,0);if(!n)break;used+=n;}
                 while(used+384<=sizeof(batch));
                 raw_bytes+=used;
+                uint64_t encoding_at=esp_timer_get_time();size_t raw_size=used;
                 if(compact && used) {used=compact==2?rmlink_stream_pack_delta(batch,used):rmlink_stream_pack(batch,used);if(!used)break;}
                 uint64_t before_send=esp_timer_get_time();
-#if CONFIG_RMLINK_STREAM_DIAGNOSTICS
-                atomic_store(&s_send_started,(int64_t)before_send);
-#endif
+                if(used) {
+                    portENTER_CRITICAL(&s_diagnostic_mux);
+                    s_diag.dequeued_at=encoding_at;s_diag.raw_bytes+=raw_size;s_diag.last_batch=used;
+                    s_diag.last_encode_us=(uint32_t)(before_send-encoding_at);
+                    if(s_diag.last_encode_us>s_diag.max_encode_us)s_diag.max_encode_us=s_diag.last_encode_us;
+                    s_diag.max_wake_us=max_wake_us;s_diag.send_started=before_send;
+                    portEXIT_CRITICAL(&s_diagnostic_mux);
+                }
                 bool sent=!used || exact(fd,batch,used,true);
-#if CONFIG_RMLINK_STREAM_DIAGNOSTICS
-                atomic_store(&s_send_started,0);
-#endif
                 uint32_t send_us=(uint32_t)(esp_timer_get_time()-before_send);
+                if(used) {
+                    portENTER_CRITICAL(&s_diagnostic_mux);
+                    s_diag.send_started=0;s_diag.last_send_us=send_us;
+                    if(send_us>s_diag.max_send_us)s_diag.max_send_us=send_us;
+                    if(send_us>50000)s_diag.stalls++;
+                    if(sent) {s_diag.sent_at=esp_timer_get_time();s_diag.batches++;}
+                    portEXIT_CRITICAL(&s_diagnostic_mux);
+                }
                 if(send_us>max_send_us)max_send_us=send_us;
                 if(send_us>50000 && before_send-last_warning>1000000) {
                     ESP_LOGW("rmlink_stream","send stall: us=%u bytes=%u wake_max_us=%u core=%d priority=%u",
@@ -154,6 +261,7 @@ static void stream_task(void *unused) {
                 fd_set read; FD_ZERO(&read); FD_SET(fd,&read); struct timeval poll={0};
                 if(select(fd+1,&read,NULL,NULL,&poll)>0) break; /* EOF or invalid upstream bytes */
             }
+            portENTER_CRITICAL(&s_diagnostic_mux);s_diag.active=false;portEXIT_CRITICAL(&s_diagnostic_mux);
 #if CONFIG_RMLINK_STREAM_DIAGNOSTICS
             esp_timer_stop(s_diagnostic_timer);
             wifi_ap_record_t ap;
@@ -187,5 +295,7 @@ esp_err_t rmlink_stream_init(void) {
 }
 #else
 #include "esp_err.h"
+#include "rmlink_stream.h"
+bool rmlink_stream_diagnostics(unsigned page,uint8_t out[60]) {(void)page;(void)out;return false;}
 esp_err_t rmlink_stream_init(void) { return ESP_OK; }
 #endif

@@ -1,0 +1,2 @@
+# Install over the legacy safe profile, then OTA the verified V1 board image.
+CONFIG_RMLINK_OTA_BOARD_V1_MIGRATION=y

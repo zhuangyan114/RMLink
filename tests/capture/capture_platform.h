@@ -46,6 +46,8 @@ static inline void *xRingbufferReceive(RingbufHandle_t r,size_t *n,unsigned tick
 static inline void vRingbufferReturnItem(RingbufHandle_t r,void *data) { (void)r; free((uint8_t*)data-sizeof(node_t)); }
 static inline size_t xRingbufferGetCurFreeSize(RingbufHandle_t r) { return r->capacity-r->bytes; }
 extern uint8_t host_abort_reason;
-static inline void DAP_TransferDeadline(uint32_t us) { (void)us;host_abort_reason=0; }
+extern uint32_t host_swj_clock,host_deadline_us;
+static inline uint32_t DAP_GetSWJClock(void) {return host_swj_clock;}
+static inline void DAP_TransferDeadline(uint32_t us) { host_deadline_us=us;host_abort_reason=0; }
 static inline uint8_t DAP_GetTransferAbortReason(void) {return host_abort_reason;}
 uint32_t DAP_ProcessCommand(const uint8_t *request,uint8_t *response);

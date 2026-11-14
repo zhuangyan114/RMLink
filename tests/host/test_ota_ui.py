@@ -79,6 +79,19 @@ class OtaUiTests(unittest.TestCase):
                 self.assertEqual(result['state'], 'cancelled')
                 self.assertTrue(all(method == 'GET' for method, _ in self.calls))
 
+    def test_local_image_accepts_only_the_announced_migration_profile(self):
+        original_call=self.controller.call
+        def migrating(method,path,body=None):
+            result=original_call(method,path,body)
+            if method=='GET':
+                result['profile']='0123456789abcdef'
+                result['migration_profile']=self.image['profile']
+            return result
+        self.controller.call=migrating
+        result=upgrade_firmware(self.controller,self.terminal,file=self.path,yes=True,wait=False)
+        self.assertEqual(result['state'],'rebooting')
+        self.assertEqual(bytes(self.uploaded),self.data)
+
     def test_import_route_keeps_information_pause_and_needs_one_install_enter(self):
         with patch.object(self.terminal, 'menu', side_effect=['i', None]) as menu, patch.object(
                 self.terminal, 'prompt', return_value=str(self.path)), patch.object(

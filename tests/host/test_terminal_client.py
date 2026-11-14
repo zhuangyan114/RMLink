@@ -37,6 +37,24 @@ class TerminalClientTests(unittest.TestCase):
                 self.assertEqual(shell(controller, terminal), 0)
             action.assert_called_once_with(expected, controller, terminal)
 
+    def test_dashboard_clears_refresh_errors_after_reconnecting(self):
+        for operation in ('select', 'metrics'):
+            with self.subTest(operation=operation):
+                controller, terminal = MagicMock(), MagicMock()
+                controller.runtime.status.return_value = dict(version='0.3.4')
+                controller.metrics.return_value = dict(rates={})
+                error = ClientError('尚未发现设备' if operation == 'select' else '设备连接中断')
+                result = getattr(controller, operation).return_value
+                getattr(controller, operation).side_effect = [error, error, result, error, result]
+                terminal.size.return_value = os.terminal_size((80, 32))
+                terminal.screen.return_value = contextlib.nullcontext()
+                terminal.vt = True
+                terminal.key.side_effect = ['', '', '', '', 'q']
+                with patch('rmlink_connector.cli.dashboard', return_value=[]) as draw:
+                    self.assertEqual(shell(controller, terminal), 0)
+                self.assertEqual([call.args[6] for call in draw.call_args_list],
+                                 [str(error), str(error), '', str(error), ''])
+
     def test_log_location_is_shared_when_a_packaged_host_redirects_localappdata(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.dict(os.environ, USERPROFILE=directory, LOCALAPPDATA=str(Path(directory)/'package cache')):
