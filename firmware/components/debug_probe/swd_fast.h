@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 void SWD_OptimizedSetClock(uint32_t clock);
+extern bool SWD_OptimizedActive;
 /* Called only after the dedicated GPIO bundles are ready, on their owning CPU. */
 void SWD_OptimizedInit(void);
 /* false leaves the full CMSIS-DAP configuration to the generic engine. */

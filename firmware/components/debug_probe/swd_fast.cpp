@@ -11,7 +11,8 @@
 #include "swd_fast.h"
 #include "rmlink_swd_timing.h"
 #include "esp_cpu.h"
-#if CONFIG_IDF_TARGET_ESP32S3
+extern "C" { bool SWD_OptimizedActive; }
+#if CONFIG_IDF_TARGET_ESP32S3 && (CONFIG_DEBUG_PROBE_IFACE_SWD || defined(RMLINK_SWD_FAST_MODEL))
 extern "C" {
 #include "DAP_config.h"
 #include "DAP.h"
@@ -81,6 +82,32 @@ static inline __attribute__((always_inline)) void write_bits(
             paced_edge(*pacer, mask, low);
             paced_edge(*pacer, mask, low | cm);
         }
+    } else if constexpr (Bits == 32) {
+        /* At <=10 MHz a hardware loop leaves enough instruction slots for
+         * shifting the word. This avoids duplicating 32 padded bit bodies in
+         * IRAM. This file disables compiler counted-loop optimization: the asm owns
+         * LCOUNT/LBEG/LEND, which this GCC does not expose as asm clobbers. */
+        uint32_t low, high, bit;
+        const uint32_t count = 32;
+        asm volatile(
+            "extui %[bit], %[value], 0, 1\n"
+            "movi %[low], 0\n"
+            "movnez %[low], %[dm], %[bit]\n"
+            "loop %[count], 1f\n"
+            "ee.wr_mask_gpio_out %[low], %[mask]\n"
+            "or %[high], %[low], %[cm]\n"
+            ".rept %c[n]\n nop\n .endr\n"
+            "ee.wr_mask_gpio_out %[high], %[mask]\n"
+            "srli %[value], %[value], 1\n"
+            "extui %[bit], %[value], 0, 1\n"
+            "movi %[low], 0\n"
+            "movnez %[low], %[dm], %[bit]\n"
+            ".rept %c[n] - 3\n nop\n .endr\n"
+            "1:\n"
+            : [value] "+&r"(value), [low] "=&r"(low), [high] "=&r"(high), [bit] "=&r"(bit)
+            : [dm] "r"(dm), [cm] "r"(cm), [mask] "r"(mask), [count] "r"(count), [n] "i"(N)
+            : "memory");
+        if constexpr (Parity) write_bits<N, 1, 0>(pb, dm, cm, mask, 0, pacer);
     } else {
     uint32_t low, high, bit;
     asm volatile(
@@ -145,6 +172,39 @@ static inline __attribute__((always_inline)) uint32_t read_bits(
             if (i < 32) data |= ((input >> shift) & 1U) << i;
             else raw[i - 32] = input;
         }
+        return data;
+    } else if constexpr (Count >= 32) {
+        uint32_t data, input, bit;
+        const uint32_t count = 32;
+        asm volatile(
+            "ssr %[shift]\n"
+            "movi %[data], 0\n"
+            "loop %[count], 1f\n"
+            "ee.wr_mask_gpio_out %[low], %[mask]\n"
+            ".rept %c[n]\n nop\n .endr\n"
+            "ee.get_gpio_in %[input]\n"
+            "ee.wr_mask_gpio_out %[high], %[mask]\n"
+            "srli %[data], %[data], 1\n"
+            "srl %[bit], %[input]\n"
+            "extui %[bit], %[bit], 0, 1\n"
+            "slli %[bit], %[bit], 31\n"
+            "or %[data], %[data], %[bit]\n"
+            ".rept %c[n] - 4\n nop\n .endr\n"
+            "1:\n"
+            ".set rm_tail, 0\n"
+            ".rept %c[tail]\n"
+            "ee.wr_mask_gpio_out %[low], %[mask]\n"
+            ".rept %c[n]\n nop\n .endr\n"
+            "ee.get_gpio_in %[input]\n"
+            "ee.wr_mask_gpio_out %[high], %[mask]\n"
+            "s32i %[input], %[raw], 4*rm_tail\n"
+            ".rept %c[n]\n nop\n .endr\n"
+            ".set rm_tail, rm_tail + 1\n"
+            ".endr\n"
+            : [data] "=&r"(data), [input] "=&r"(input), [bit] "=&r"(bit)
+            : [raw] "r"(raw), [low] "r"(dm), [high] "r"(high), [mask] "r"(mask),
+              [shift] "r"(shift), [count] "r"(count), [tail] "i"(Count - 32), [n] "i"(N)
+            : "memory");
         return data;
     } else {
     uint32_t data, input, bit;
@@ -245,6 +305,7 @@ extern "C" void SWD_OptimizedSetClock(uint32_t clock)
 {
     requested_hz = clock;
     selected_level = 0;
+    SWD_OptimizedActive = false;
     if (!initialized || !clock) return;
     const uint32_t wanted = static_cast<uint64_t>(cpu_hz) * 8U / clock;
     /* Each selected fast level is no faster than the requested rate according
@@ -253,6 +314,7 @@ extern "C" void SWD_OptimizedSetClock(uint32_t clock)
     if (clock >= 8000000U && fast10_half_x16 >= wanted) selected_level = 3;
     half_cycles = (static_cast<uint64_t>(cpu_hz) + 2ULL * clock - 1) / (2ULL * clock);
     if (!selected_level && half_cycles >= min_half_cycles) selected_level = 1;
+    SWD_OptimizedActive = selected_level != 0;
 }
 
 extern "C" void SWD_OptimizedInit(void)

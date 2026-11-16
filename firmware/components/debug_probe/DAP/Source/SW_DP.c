@@ -308,7 +308,7 @@
    uint32_t started=swd_profile_enabled?esp_cpu_get_cycle_count():0;
    uint8_t ack;
  #if defined(__XTENSA__)
-   if (SWD_OptimizedTransfer(request, data, &ack)) {
+   if (SWD_OptimizedActive && SWD_OptimizedTransfer(request, data, &ack)) {
      /* The common default configuration is handled by the balanced bit kernel. */
    } else
  #endif

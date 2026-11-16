@@ -63,6 +63,11 @@ idf_component_register(
 # The appliance's SWD loops need predictable optimized code, independent of the
 # main application's debug build. Keep the original CMSIS-DAP executor/kernel.
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2)
+if(CONFIG_IDF_TARGET_ESP32S3)
+    # The compact SWD bit kernels explicitly own Xtensa's hardware loop state.
+    # Prevent the compiler from nesting a second hardware loop around them.
+    set_source_files_properties("swd_fast.cpp" PROPERTIES COMPILE_OPTIONS "-fno-branch-count-reg")
+endif()
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-u rmlink_ota_metadata")
 
 # Keep vendor discovery identity tied to the application version, not a second
