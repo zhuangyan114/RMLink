@@ -58,6 +58,8 @@ def main():
     p.add_argument('--rounds', type=int, default=8)
     p.add_argument('--words', type=int, default=1024)
     p.add_argument('--label', required=True)
+    p.add_argument('--allow-incomplete-clock-trace', action='store_true',
+                   help='Retain RMT diagnostic failures without skipping the independent SRAM checks')
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     if args.output.exists():
@@ -89,7 +91,13 @@ def main():
                     row['identity'] = client.target('connect', device='STM32H723VG', clock_hz=clock)
                     row['halt'] = client.target('halt')
                     for _ in range(3):
-                        row['traces'].append(client.target('measure_swd_clock', mode='dp_read'))
+                        try:
+                            row['traces'].append(client.target('measure_swd_clock', mode='dp_read'))
+                        except Exception as error:
+                            if not args.allow_incomplete_clock_trace:
+                                raise
+                            row['traces'].append(dict(measurement_valid=False,
+                                                      error=f'{type(error).__name__}: {error}'))
                 # The service deliberately separates enhanced and raw DAP sessions.
                 with api.open(args.device) as client:
                     with SwdSession(client, clock) as swd:

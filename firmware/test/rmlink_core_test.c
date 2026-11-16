@@ -34,6 +34,10 @@ int main(void)
     assert(!rmlink_dap_validate_for_size(r, 1, 63));
     assert(!rmlink_dap_validate_for_size(r, 1, RMLINK_PACKET_SIZE + 1));
     r[0] = 0x11; assert(!rmlink_dap_validate(r, 5)); r[1] = 0xe8; r[2] = 3; assert(rmlink_dap_validate(r, 5));
+    r[1]=0; r[2]=0x2d; r[3]=0x31; r[4]=1; /* 20,000,000 Hz */
+    assert(rmlink_dap_validate(r, 5));
+    assert(rmlink_dap_validate_for_size(r, 5, RMLINK_USB_PACKET_SIZE));
+    ++r[1]; assert(!rmlink_dap_validate(r, 5));
     memset(r, 0, 64); r[0] = 0x05; r[2] = 1; r[3] = 2;
     assert(!rmlink_dap_validate(r, 3)); assert(rmlink_dap_validate(r, 4));
     r[3] = 0; assert(!rmlink_dap_validate(r, 7)); assert(rmlink_dap_validate(r, 8));

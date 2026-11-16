@@ -48,10 +48,20 @@ static Result run(bool optimized, uint32_t clock, uint32_t req, uint32_t value, 
 }
 int main() {
     SWD_OptimizedInit();
+    DAP_Data.swd_conf.turnaround = 1;
+    const uint32_t high_clocks[] = {8000000U, 10000000U, 12000000U,
+        15000000U, 18000000U, 20000000U};
+    for (unsigned i = 0; i < 6; ++i) {
+        SWD_OptimizedSetClock(high_clocks[i]);
+        uint32_t timing[7]; SWD_OptimizedGetTiming(timing);
+        assert(timing[0] == high_clocks[i] && timing[2] == i + 2);
+        assert(timing[1] <= high_clocks[i] && timing[1] > 0);
+    }
     uint32_t seed = 0x13579bdf;
     unsigned comparisons = 0;
     const unsigned acks[] = {0, 1, 2, 3, 4, 5, 6, 7};
-    const uint32_t clocks[] = {1000000U, 4000000U, 8000000U, 10000000U};
+    const uint32_t clocks[] = {1000000U, 4000000U, 8000000U, 10000000U,
+        12000000U, 15000000U, 18000000U, 20000000U};
     for (unsigned trial = 0; trial < 4096; ++trial) {
         seed = seed * 1664525U + 1013904223U;
         for (uint32_t clock : clocks) for (unsigned ack : acks) {

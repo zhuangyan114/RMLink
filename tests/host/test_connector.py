@@ -29,7 +29,7 @@ class FakeTransport:
             elif p[0] == 3: result.append(b'\x03\x00')
             elif p[0] == 5: result.append(b'\x05\x00\x11')
             elif p[0] == 0x11:
-                valid = len(p) >= 5 and 1000 <= int.from_bytes(p[1:5], 'little') <= 10000000
+                valid = len(p) >= 5 and 1000 <= int.from_bytes(p[1:5], 'little') <= 20000000
                 result.append(b'\x11\x00' if valid else b'\x11\xff')
             else: result.append(b'\xff')
         return result
@@ -67,10 +67,16 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.broker.owner)
 
     async def test_invalid_preconnect_clock_does_not_claim_session(self):
-        packets = [b'\x11', b'\x11' + bytes(4), b'\x11' + (10000001).to_bytes(4, 'little')]
+        packets = [b'\x11', b'\x11' + bytes(4), b'\x11' + (20000001).to_bytes(4, 'little')]
         self.assertEqual(await self.broker.submit('a', packets), [b'\x11\xff'] * 3)
         self.assertIsNone(self.broker.owner)
         self.assertEqual(await self.broker.submit('b', [b'\x02\x01']), [b'\x02\x01'])
+
+    async def test_high_preconnect_clock_reserves_owner(self):
+        clock = b'\x11' + (20000000).to_bytes(4, 'little')
+        self.assertEqual(await self.broker.submit('a', [clock]), [b'\x11\x00'])
+        self.assertEqual(self.broker.owner, 'a')
+        self.assertEqual(await self.broker.submit('b', [clock]), [b'\x11\xff'])
 
     async def test_clock_transition_in_batch_and_release_before_connect(self):
         clock = b'\x11' + (2000000).to_bytes(4, 'little')

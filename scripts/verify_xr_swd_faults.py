@@ -18,6 +18,7 @@ from rmlink_swd import SwdSession
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--device', default='b81f3fc30470')
+    p.add_argument('--clocks', type=int, nargs='+', default=[4000000, 8000000, 10000000])
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     if args.output.exists():
@@ -26,7 +27,7 @@ def main():
                   scope='H723 fixture; read unmapped address 0xfffffffc; no memory write replay')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     try:
-        for clock in (4000000, 8000000, 10000000):
+        for clock in args.clocks:
             row = dict(clock_requested_hz=clock, passed=False)
             report['rows'].append(row)
             with ApiClient().open(args.device) as client, SwdSession(client, clock) as swd:

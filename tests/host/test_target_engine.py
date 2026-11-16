@@ -55,6 +55,19 @@ class TargetModel:
         return out
 
 class TargetEngineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_clock_upper_bound_before_target_access(self):
+        model=TargetModel(512);broker=Broker(model,'model');await broker.start()
+        engine=TargetEngine(broker,'owner')
+        try:
+            for clock in (0, 999, 20000001, True, 20000000.0):
+                with self.assertRaises(ValueError):await engine.connect(clock_hz=clock)
+            self.assertEqual(model.requests,[])
+            self.assertIsNone(broker.owner)
+            result=await engine.connect(clock_hz=20000000)
+            self.assertEqual(result['clock_hz'],20000000)
+            self.assertEqual(model.requests[0],b'\x11'+struct.pack('<I',20000000))
+        finally:await broker.close()
+
     async def test_run_reports_an_immediate_breakpoint_halt_without_timing_out(self):
         model=TargetModel(512);model.halt_on_run=True
         model.memory[0xe000ed30]=1

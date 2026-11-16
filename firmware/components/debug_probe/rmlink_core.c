@@ -43,7 +43,7 @@ bool rmlink_dap_validate_for_size(const uint8_t *r, size_t len, size_t packet_si
     case 0x11: {
         if (len < 5) return false;
         uint32_t hz = (uint32_t)r[1] | ((uint32_t)r[2] << 8) | ((uint32_t)r[3] << 16) | ((uint32_t)r[4] << 24);
-        return hz >= 1000u && hz <= 10000000u;
+        return hz >= 1000u && hz <= 20000000u;
     }
     case 0x12: return len >= 2 && len >= 2u + ((r[1] ? r[1] : 256u) + 7u) / 8u;
     case 0x05:

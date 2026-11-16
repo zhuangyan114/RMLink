@@ -54,7 +54,7 @@ size_t rmlink_clock_trace_command(const uint8_t *r,size_t len,uint8_t *out,size_
     }
     if(r[1]!=18 || len<3 || r[2]>1)return 3;
     uint32_t clock=DAP_GetSWJClock();
-    if(DAP_Data.debug_port!=DAP_PORT_SWD || clock<100000 || clock>10000000) {out[2]=5;return 3;}
+    if(DAP_Data.debug_port!=DAP_PORT_SWD || clock<100000 || clock>20000000) {out[2]=5;return 3;}
     if(!s_done)s_done=xSemaphoreCreateBinaryStatic(&s_done_storage);
     if(!s_done || !release_receiver()) {out[2]=4;return 3;}
     s_id=0;s_count=0;xSemaphoreTake(s_done,0);

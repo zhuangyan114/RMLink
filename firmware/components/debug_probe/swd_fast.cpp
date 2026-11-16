@@ -23,7 +23,9 @@ uint8_t selected_level;
 bool initialized;
 uint32_t requested_hz = 4000000U;
 uint32_t half_cycles, min_half_cycles;
-uint32_t fast8_half_x16, fast10_half_x16;
+/* Backend IDs 2..7: nominal 8/10/12/15/18/20 MHz. Diagnostics report
+ * the calibrated rate; the 25 MHz experiment did not pass on our H723. */
+uint32_t fast_half_x16[6];
 #ifdef RMLINK_SWD_FAST_MODEL
 constexpr uint32_t cpu_hz = 240000000U;
 #else
@@ -83,7 +85,7 @@ static inline __attribute__((always_inline)) void write_bits(
             paced_edge(*pacer, mask, low | cm);
         }
     } else if constexpr (Bits == 32) {
-        /* At <=10 MHz a hardware loop leaves enough instruction slots for
+        /* At N >= 4 a hardware loop leaves enough instruction slots for
          * shifting the word. This avoids duplicating 32 padded bit bodies in
          * IRAM. This file disables compiler counted-loop optimization: the asm owns
          * LCOUNT/LBEG/LEND, which this GCC does not expose as asm clobbers. */
@@ -308,10 +310,12 @@ extern "C" void SWD_OptimizedSetClock(uint32_t clock)
     SWD_OptimizedActive = false;
     if (!initialized || !clock) return;
     const uint32_t wanted = static_cast<uint64_t>(cpu_hz) * 8U / clock;
-    /* Each selected fast level is no faster than the requested rate according
-     * to the calibration. Only these two unrolled levels occupy IRAM. */
-    if (clock >= 8000000U && fast8_half_x16 >= wanted) selected_level = 2;
-    if (clock >= 8000000U && fast10_half_x16 >= wanted) selected_level = 3;
+    /* Select the fastest calibrated level that does not exceed the request.
+     * Integer instruction slots quantize the rate; use the diagnostic
+     * estimate instead of treating a requested rate as a pad measurement. */
+    if (clock >= 8000000U)
+        for (unsigned i = 0; i < 6; ++i)
+            if (fast_half_x16[i] >= wanted) selected_level = i + 2;
     half_cycles = (static_cast<uint64_t>(cpu_hz) + 2ULL * clock - 1) / (2ULL * clock);
     if (!selected_level && half_cycles >= min_half_cycles) selected_level = 1;
     SWD_OptimizedActive = selected_level != 0;
@@ -320,13 +324,17 @@ extern "C" void SWD_OptimizedSetClock(uint32_t clock)
 extern "C" void SWD_OptimizedInit(void)
 {
 #ifdef RMLINK_SWD_FAST_MODEL
-    fast8_half_x16 = 240;
-    fast10_half_x16 = 192;
+    const uint32_t model_halves[] = {240, 192, 160, 128, 112, 96};
+    for (unsigned i = 0; i < 6; ++i) fast_half_x16[i] = model_halves[i];
     min_half_cycles = 24;
 #else
     debug_probe_swdio_out_disable();
-    fast8_half_x16 = measure_half_x16<13>();
-    fast10_half_x16 = measure_half_x16<10>();
+    fast_half_x16[0] = measure_half_x16<13>();
+    fast_half_x16[1] = measure_half_x16<10>();
+    fast_half_x16[2] = measure_half_x16<8>();
+    fast_half_x16[3] = measure_half_x16<6>();
+    fast_half_x16[4] = measure_half_x16<5>();
+    fast_half_x16[5] = measure_half_x16<4>();
     const uint32_t dm = rmlink_swdio_out_mask, mask = dm | rmlink_swclk_out_mask;
     const uint32_t shift = __builtin_ctz(rmlink_swdio_in_mask);
     min_half_cycles = 80;
@@ -355,20 +363,28 @@ extern "C" void SWD_OptimizedGetTiming(uint32_t out[7])
 {
     uint32_t backend = selected_level;
     if (DAP_Data.swd_conf.turnaround != 1 || DAP_Data.swd_conf.data_phase) backend = 0;
-    const uint32_t half_x16 = backend == 2 ? fast8_half_x16 : backend == 3 ? fast10_half_x16 : 0;
+    const uint32_t half_x16 = backend >= 2 ? fast_half_x16[backend - 2] : 0;
     out[0] = requested_hz;
     out[1] = backend == 1 ? cpu_hz / (2U * half_cycles) : half_x16 ?
         static_cast<uint64_t>(cpu_hz) * 8U / half_x16 : 0;
     out[2] = backend; out[3] = half_cycles; out[4] = min_half_cycles;
-    out[5] = fast8_half_x16; out[6] = fast10_half_x16;
+    out[5] = fast_half_x16[0]; out[6] = fast_half_x16[1];
 }
 
 extern "C" bool SWD_OptimizedTransfer(uint32_t request, uint32_t *data, uint8_t *ack)
 {
     if (!selected_level || DAP_Data.swd_conf.turnaround != 1 || DAP_Data.swd_conf.data_phase)
         return false;
-    *ack = selected_level == 1 ? transfer<0>(request, data) :
-        selected_level == 3 ? transfer<10>(request, data) : transfer<13>(request, data);
+    switch (selected_level) {
+    case 1: *ack = transfer<0>(request, data); break;
+    case 2: *ack = transfer<13>(request, data); break;
+    case 3: *ack = transfer<10>(request, data); break;
+    case 4: *ack = transfer<8>(request, data); break;
+    case 5: *ack = transfer<6>(request, data); break;
+    case 6: *ack = transfer<5>(request, data); break;
+    case 7: *ack = transfer<4>(request, data); break;
+    default: return false;
+    }
     return true;
 }
 #else

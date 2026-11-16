@@ -53,7 +53,7 @@ class TargetEngine:
         return list(struct.unpack('<'+'I'*reads,reply[3:]))
 
     async def connect(self, clock_hz=DEFAULT_CLOCK_HZ, device=None):
-        if type(clock_hz) is not int or not 1000<=clock_hz<=10000000: raise ValueError('clock_hz range')
+        if type(clock_hz) is not int or not 1000<=clock_hz<=20000000: raise ValueError('clock_hz range')
         profile=resolve_target(device)
         async with self.lock:
             if self.broker.owner not in (None,self.source):
