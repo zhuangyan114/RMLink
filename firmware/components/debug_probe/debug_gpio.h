@@ -117,7 +117,7 @@ __STATIC_FORCEINLINE void debug_probe_swdio_out_disable(void)
 {
     /* Do not call gpio_ll_output_disable: it also disconnects the matrix. */
     if(GPIO_SWDIO<32)dedic_gpio_dev->enable_w1tc=1u<<GPIO_SWDIO;
-    else dedic_gpio_dev->enable1_w1tc.data=1u<<(GPIO_SWDIO-32);
+    else dedic_gpio_dev->enable1_w1tc.data=1u<<(GPIO_SWDIO & 31);
     (void)REG_READ(GPIO_SWDIO < 32 ? GPIO_ENABLE_REG : GPIO_ENABLE1_REG);
 }
 

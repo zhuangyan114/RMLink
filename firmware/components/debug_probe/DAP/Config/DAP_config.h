@@ -353,7 +353,7 @@ __STATIC_INLINE void PORT_OFF (void) {
 \return Current status of the SWCLK/TCK DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWCLK_TCK_IN  (void) {
-  return gpio_get_level(GPIO_SWCLK);
+  return gpio_get_level((gpio_num_t)GPIO_SWCLK);
 }
 
 /** SWCLK/TCK I/O pin: Set Output to High.
@@ -483,7 +483,7 @@ __STATIC_FORCEINLINE void     PIN_nTRST_OUT  (uint32_t bit) {
 */
 __STATIC_FORCEINLINE uint32_t PIN_nRESET_IN  (void) {
 #if CONFIG_RMLINK_NRST_GPIO >= 0
-  return gpio_get_level(CONFIG_RMLINK_NRST_GPIO);
+  return gpio_get_level((gpio_num_t)CONFIG_RMLINK_NRST_GPIO);
 #else
   return 1U;
 #endif
@@ -496,9 +496,9 @@ __STATIC_FORCEINLINE uint32_t PIN_nRESET_IN  (void) {
 */
 __STATIC_FORCEINLINE void     PIN_nRESET_OUT (uint32_t bit) {
 #if CONFIG_RMLINK_NRST_GPIO >= 0
-  gpio_set_level(CONFIG_RMLINK_NRST_GPIO, bit & 1U);
-  gpio_set_direction(CONFIG_RMLINK_NRST_GPIO, GPIO_MODE_INPUT_OUTPUT_OD);
-  gpio_set_pull_mode(CONFIG_RMLINK_NRST_GPIO, GPIO_PULLUP_ONLY);
+  gpio_set_level((gpio_num_t)CONFIG_RMLINK_NRST_GPIO, bit & 1U);
+  gpio_set_direction((gpio_num_t)CONFIG_RMLINK_NRST_GPIO, GPIO_MODE_INPUT_OUTPUT_OD);
+  gpio_set_pull_mode((gpio_num_t)CONFIG_RMLINK_NRST_GPIO, GPIO_PULLUP_ONLY);
 #endif
 }
 

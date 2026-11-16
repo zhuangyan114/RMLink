@@ -7,6 +7,7 @@ set(DAP_sources
 
 set(debug_probe_sources
     "swd.c"
+    "swd_fast.cpp"
     "esp_usb_jtag.c"
     "debug_gpio.c"
     "rmlink_core.c"

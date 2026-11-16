@@ -28,10 +28,18 @@
  #include "DAP_config.h"
  #include "DAP.h"
  #include "esp_cpu.h"
+ #if defined(__XTENSA__)
+ #include "swd_fast.h"
+ #endif
  static DAP_SWDMetrics_t swd_metrics;
  static uint8_t swd_profile_enabled,swd_clock_4mhz;
  void SWD_GetMetrics(DAP_SWDMetrics_t *out) { *out=swd_metrics; }
- void SWD_SetClock(uint32_t clock) { swd_clock_4mhz=clock==4000000U; }
+ void SWD_SetClock(uint32_t clock) {
+   swd_clock_4mhz=clock==4000000U;
+ #if defined(__XTENSA__)
+   SWD_OptimizedSetClock(clock);
+ #endif
+ }
  uint8_t SWD_ProfileEnabled(void) { return swd_profile_enabled; }
  void SWD_ProfileEnable(uint8_t enabled) {
    if(enabled && !swd_profile_enabled)swd_metrics=(DAP_SWDMetrics_t){0};
@@ -299,6 +307,11 @@
  uint8_t  SWD_Transfer(uint32_t request, uint32_t *data) {
    uint32_t started=swd_profile_enabled?esp_cpu_get_cycle_count():0;
    uint8_t ack;
+ #if defined(__XTENSA__)
+   if (SWD_OptimizedTransfer(request, data, &ack)) {
+     /* The common default configuration is handled by the balanced bit kernel. */
+   } else
+ #endif
    if (DAP_Data.fast_clock) {
      ack=SWD_TransferFast(request, data);
    } else if(swd_clock_4mhz && DAP_Data.clock_delay==7U) {
