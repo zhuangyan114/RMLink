@@ -1,78 +1,153 @@
 # RMLink
 
-基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，面向 Orbit 扩展板端采样与批量操作。
+基于 ESP32-S3 的 USB / Wi-Fi CMSIS-DAP 调试器，配合 Windows 控制台和后台连接服务使用。除了标准有线、无线（OpenOCD TCP）烧录和调试，搭配 [Orbit](https://github.com/zhuangyan114/Orbit) 还能直接在探针端完成高频变量采样（Watch / Timeline / RTT）和整包缓存烧录。
 
-**2026-10-19 战略调整：无线 CMSIS-DAP 只通过 TCP 提供给 OpenOCD，停止虚拟 USB 路线。** 原生 USB 有线功能和 RMLink 增强采集路线保留。当前源码已删除 USB/IP 服务、虚拟挂载、驱动管理与专用验收脚本；已发布包仍保留旧行为，下文相关版本说明与验收按历史条件阅读。具体范围及 TCP 验收待办见[当前项目方向](docs/current-direction.md)。
+## 功能特点
 
-2026-10-19：[统一目标算法包](docs/shared-target-package.md)已接入 Orbit 普通 CMSIS-DAP 与 RMLink 增强路径，源码范围对齐 F103C8、F407VE、F407IG、H723VG 四组目标；新增目标的 RMLink 实板验收仍待完成。
+- **有线与无线双模**：原生 USB 口走标准 CMSIS-DAP 与独立 Bulk 连续采样；无线连入电脑 2.4 GHz 热点后，可通过 TCP 进行高速调试和采样。
+- **免额外内核驱动**：有线直接使用 Windows 自带 WinUSB，无线走 TCP 端口，不再依赖虚拟 USB 内核驱动，也不需要改动系统安全启动或测试模式。
+- **板端订阅与缓存烧录**：支持板端定时读取变量和指针链，以及先整包上传到 ESP32 再由探针自主擦写校验的快速烧录。
+- **支持芯片**：内置算法包覆盖 `STM32F103C8`、`STM32F407VE`、`STM32F407IG`、`STM32H723VG`（其他标准调试可通过 OpenOCD TCP 使用）。
+- **OTA 在线升级**：支持从 GitHub Release 或本地 `.bin` 文件直接通过 USB / Wi-Fi 升级探针固件，带双分区和启动失败回滚保护。
 
-2026-10-28：新增 [Windows 正式安装器构建流程](docs/windows-installer.md)，用户态客户端／连接组件版本为 **0.3.4**，固件版本独立管理。支持当前用户安装、开始菜单、可选 PATH／登录自启、升级与卸载；未配置发布者证书时，产物明确标为 `unsigned`。新电脑首次连接与硬件验收仍需单独完成。
+## 安装与使用（Windows）
 
-当前测试候选为 **固件／客户端／连接服务 0.3.2**，SDK 为 0.2.8。[RMLink 终端控制台](docs/terminal-client.md)安装后输入 `rmlink`，统一管理设备、USB 配网、连接／虚拟 USB 挂载、实时速率、驱动检测和诊断；支持本地应用导入、GitHub 正式／测试通道与 RMLink 自身 OTA，保留明确的 Enter 安装确认及上传、校验和重连进度。[OTA](docs/ota-upgrade.md)采用 Espressif 官方双升级分区和回滚 bootloader；最新测试条件、实板故障注入和未覆盖项见 [0.3.2 测试版验收](docs/test-release-0.3.2.md)。下面的实板性能检查点保留各历史版本条件。
+### 1. 安装客户端
 
-此前实板性能检查点为 **固件0.2.40／连接服务0.2.14／SDK 0.2.8**，包含采样流无损压缩、传输诊断、复位保留订阅及运行到入口能力。真实 Orbit 的烧录、main 入口和十变量采样记录见 [Timeline 与复位验收](docs/timeline-stability-20261016.md)；数据到达长尾及前端卡顿仍有剩余限制。默认请求 SWD 4 MHz；[8 MHz 实板试验](docs/swd-8mhz-trial-20261016.md)未通过烧录和持续采样，已回退4 MHz。
+到 [GitHub Releases](https://github.com/zhuangyan114/RMLink/releases/latest) 下载最新的 Windows 安装包（如 `RMLink-0.3.4-windows-x64-setup-unsigned.exe`），双击安装即可。
 
-此前0.2.28检查点：“五条独立三级指针链＋五个普通变量”，72 MHz F103、4 MHz SWD 下15分钟三订阅共存平均 **1108.68 Hz**，全部应用流约 **110.01 KiB/s**；无数据无效、板端丢帧或实时消费者缺口，仍有期限跳过、时序抖动和网络发送长尾。过程、失败及布局边界见[千赫兹优化记录](docs/mixed-1khz-optimization.md)。
+- 默认安装到当前用户的 `%USERPROFILE%\.rmlink\app`，不需要管理员权限，也不需要预先安装 Python 或 ESP-IDF。
+- 安装包目前未做商业代码签名（文件名带 `unsigned`），下载或首次打开时 Windows SmartScreen 可能会弹窗提示，确认放行即可。
 
-新增[LibXR SWD参考与实板试验](docs/libxr-swd-review.md)：已拉取固定版本，试验字节展开与奇偶校验优化。实际线时钟校准后未证明优于原版，候选未采用，保留原0.2.28及新增底层协议模型；“1M/s”的原测试条件未知。
+### 2. 硬件接线
 
-标准无线 CMSIS-DAP 改为 OpenOCD TCP 接入。此前 0.2.28 的 OpenOCD 虚拟 USB 烧录/调试、原生／虚拟 USB 完整回读及更早 pyOCD 结果保留为历史证据，不替代新路线验收。增强接口的历史实板证据针对 STM32F103C8；新增目标范围见统一算法包文档，已安装 VS Code 界面仍待单独验收。虚拟 USB 驱动正式签名及借此接入 Keil/IAR 的工作不再推进。
+以 **RMLink V1** 硬件为例，板载 10 Pin 调试接口定义如下：
 
-ESP32缓存镜像并通过唯一SWD执行器自主烧录。同一全密度64 KiB镜像，默认包含板端完整回读比较，五次总耗时中位 **3.623 s**；可再加主机SHA256回读。支持进度、取消、断连停止和新作业恢复，未知写入不自动重放。见[缓存烧录协议](docs/buffered-flash-protocol.md)。
+| P1 针脚 | 信号 | ESP32-S3 GPIO | 说明 |
+| :---: | --- | :---: | --- |
+| 1 | GND | GND | 务必与目标板共地 |
+| 2 | SWCLK / TCK | GPIO18 | 串联 33 Ω |
+| 3 | 3.3 V | 3V3 | 电源脚 |
+| 4 | SWDIO / TMS | GPIO17 | 串联 33 Ω |
+| 5 | TDO / SWO | GPIO7 | 串联 0 Ω |
+| 6 | TDI | GPIO8 | 串联 33 Ω |
+| 7 | UART RX | GPIO5 | 串联 0 Ω |
+| 8 | NRST | GPIO6 | 串联 100 Ω（未接时用软件复位） |
+| 9 | UART TX | GPIO4 | 串联 33 Ω |
+| 10 | USB VBUS | 电源网络 | 5 V 输入网络 |
 
-Watch、Timeline、RTT均为板端订阅。十条独立四级链与Watch/RTT共存的一小时实测 **328.30 Hz**，无无效数据、SWD失败和板端缓存丢弃。新增“五个三级指针＋五个普通变量”组合，5000 Hz请求下共存实测：独立链 **676.22 Hz**、共享链 **1139.74 Hz**（各三次×5 s中位）。请求频率、实际频率和超期分别记录，见[时钟与混合采样对照](docs/clock-calibration-0216.md)。
+> [!CAUTION]
+> 目标 SWD 为 **3.3 V** 电平，切勿将 5 V 接到 SWDIO / SWCLK / NRST 引脚。
 
-默认请求SWD **4000 kHz**；0.2.21起内部RMT测得典型DP脉冲约4 MHz，未用外部仪器确认目标端模拟波形。后续F103测试默认72 MHz并核对RCC，STM32测试后保留新程序。架构见[订阅设计](docs/subscription-design.md)，第三方前端使用[公开API与Python/Node/C SDK](docs/api-v1.md)。历史检查点与失败证据保留在[开发进度](docs/development-status.md)，旧包不覆盖。
+板上其他接口：
+- **原生 USB 口**（GPIO19 / GPIO20）：日常有线调试、初次 USB 配网与高速 USB 采集请插这个口。
+- **串口下载口**（CH343）：用于查看底层串口日志或救砖烧录 bootloader。
+- **按键与状态灯**：WS2812 状态灯接 GPIO1，用户按键接 GPIO2（未连上时按住 2 秒进入模式切换，短按在 Wi-Fi 与 USB 间切换）。
+- *注：早期 ESP32-S3 普通开发板测试配置使用 GPIO4（SWDIO）、GPIO5（SWCLK）、GPIO6（NRST）。*
 
-## 目录
+### 3. 配对与 Wi-Fi 配网
 
-| 目录 | 用途 |
+安装完成后，从开始菜单打开 **RMLink**，或者在终端直接输入：
+
+```powershell
+rmlink
+```
+
+控制台支持键盘方向键、Enter 以及鼠标点击/滚轮操作。首次使用建议先插上原生 USB 线：
+
+1. 在控制台进入 **设备管理**，选中扫描到的设备完成配对；也可以设为默认设备或起个别名。
+2. 在电脑设置中开启 **2.4 GHz 移动热点**，进入控制台 **Wi-Fi 配置**，输入热点名称和密码下发给 RMLink（如果热点已开且只想从命令行配网，可直接运行 `rmlink wifi configure --ssid "你的热点名称"`）。
+3. 配网成功后拔掉 USB 线，RMLink 上电会自动连入热点并出现在设备列表里。
+
+### 4. 开始调试
+
+#### 搭配 Orbit 使用
+
+在项目的 `launch.json` 中把 `probe` 设为 `"rmlink"` 即可接入增强后端（含板端缓存烧录和 Watch / Timeline / RTT 订阅）：
+
+```json
+{
+  "name": "Orbit RMLink",
+  "type": "orbit",
+  "request": "launch",
+  "probe": "rmlink",
+  "device": "STM32H723VG",
+  "interface": "SWD",
+  "speedKHz": 4000,
+  "program": "${workspaceFolder}/build/Debug/app.elf",
+  "flashBeforeDebug": true,
+  "runToEntryPoint": "main"
+}
+```
+
+- 只有一台在线且已配对的 RMLink 时可以省略 `rmlinkDeviceId`；多台设备共存时建议填上设备 MAC（可在 `rmlink devices` 里查看）。
+- 详细配置与常见问题见 [Orbit 专用连接说明](docs/orbit-rmlink-connection.md)。
+
+#### 搭配标准 OpenOCD（无线 TCP）使用
+
+RMLink 同一时间只允许一个工具控制目标 MCU。如果要改用标准 OpenOCD 通过 Wi-Fi 调试，先释放连接服务的占用：
+
+```powershell
+rmlink disconnect
+```
+
+在 OpenOCD 配置中指定 TCP 后端和板端默认端口 **3241**（注意需使用包含 `cmsis-dap backend tcp` 的较新 OpenOCD 构建）：
+
+```tcl
+adapter driver cmsis-dap
+cmsis-dap backend tcp
+cmsis-dap tcp host rmlink-xxxxxx.local
+cmsis-dap tcp port 3241
+```
+
+调试结束后，执行 `rmlink connect` 即可把设备交回后台服务继续自动重连。
+
+## 常用 CLI 命令
+
+除了交互式界面，`rmlink` 也提供纯命令行子命令（均支持 `--json`）：
+
+```powershell
+rmlink devices                          # 查看已发现与已配对设备
+rmlink pair <设备ID>                    # 配对设备
+rmlink wifi configure --ssid "热点名"   # 通过 USB 下发 Wi-Fi 账号密码
+rmlink connect --transport wifi         # 恢复连接并切到 Wi-Fi 优先
+rmlink disconnect                       # 断开服务占用（供 OpenOCD TCP 直接接入）
+rmlink firmware status                  # 查看当前固件版本与 OTA 状态
+rmlink firmware update --latest --yes   # 从 GitHub 拉取并升级最新正式固件
+rmlink doctor                           # 诊断连接服务、网络与设备状态
+```
+
+> 0.3.0 之前的老固件还没有 OTA 分区表，首次升级需要按 [OTA 升级说明](docs/ota-upgrade.md) 通过串口迁移一次引导程序和分区表；0.3.0 及以上版本可直接在终端内在线升级。
+
+---
+
+## 仓库结构与源码构建
+
+如果你需要修改固件或自行打包安装器，下面是仓库的主要目录：
+
+| 目录 | 说明 |
 | --- | --- |
-| firmware/ | 以乐鑫 esp-usb-bridge 为基础的 RMLink 固件源码 |
-| host/ | 用户态连接服务、目标算法包、公开 SDK 与 Orbit 接入 |
-| reference/ | 上游参考仓库及引用版本记录；保持上游源码可对照 |
-| scripts/ | 可复现构建、设备检查及验证脚本 |
-| docs/ | 项目方向、源码核对、协议、接线与开发进度 |
-| artifacts/ | 构建产物、日志、设备备份和测试证据 |
-| tests/ | STM32 实板验收程序源码 |
+| `firmware/` | 基于 ESP-IDF（`esp-usb-bridge`）的 ESP32-S3 固件源码 |
+| `host/` | Windows 连接服务、`rmlink` 控制台、目标 Flash 算法包与公开 SDK |
+| `scripts/` | 固件编译、串口迁移、Windows 安装器打包与测试验证脚本 |
+| `tests/` | 主机单元测试、C 原生状态机模型与 STM32 测试程序 |
+| `docs/` | 协议规范、API 文档、硬件记录与修复日志 |
+| `reference/` | 上游参考仓库（本地对照用，不随代码提交） |
 
-根目录保留项目入口与编辑器设置，临时文件和日志放入 artifacts/，不混入文档或参考源码。
-项目根目录统一管理固件、脚本、测试与文档；reference/ 下各项目保留独立历史但全部排除，详见 [仓库管理](docs/git-management.md)。
+### 自行构建
 
-## 入口
+构建固件需要本机 ESP-IDF v5.1.2 环境；构建 Windows 安装器需要 Python 构建环境、Arm GNU 工具链及 Inno Setup 6.7.3+。
 
-- [当前项目方向与无线 TCP/OpenOCD 决策](docs/current-direction.md)
-- [新增芯片适配规范](docs/adding-targets.md)与[适配记录模板](docs/templates/target-adaptation.md)
-- [Orbit 与 RMLink 统一目标算法包](docs/shared-target-package.md)
-- [最初方向记录（2026-10-12）](docs/RMLink项目方向记录.md)：保留讨论历史，后续实施以新的源码核对与开发记录为准。
-- [当前源码核对](docs/source-audit.md)
-- [开发与验证进度](docs/development-status.md)
-- [用户确认后的修复与功能记录](docs/fix-log/README.md)
-- [STM32 烧录 / 调试验收](docs/stm32-acceptance.md)
-- [当前项目方向](docs/current-direction.md)
-- [Watch / Timeline / RTT 订阅完整方案](docs/subscription-design.md)
-- [实现检查点与分层验证](docs/subscriptions-implementation.md)
-- [最新订阅性能与实板证据](docs/subscription-performance-20261015.md)
-- [公开 API 与 SDK](docs/api-v1.md)
-- [Orbit 的 RMLink 专用连接配置](docs/orbit-rmlink-connection.md)
-- [构建、连接与接线](docs/quickstart.md)
-- [已实现的开发协议](docs/protocol-v1.md)
-- [历史 Windows 连接组件评估](docs/windows-connector-evaluation.md)
-- [连接组件历史实现与验收](docs/windows-connector.md)
-- [历史虚拟 USB 取消问题与测试驱动](docs/virtual-usb-cancellation.md)
-- [ESP32 / 电脑传输速率与延迟](docs/transport-benchmark.md)
-- [完整提速计划与阶段验收](docs/performance-plan.md)
-- [提速实现与实板结果](docs/performance-results.md)
+```powershell
+# 编译 RMLink V1 固件
+.\scripts\Build-Firmware.ps1 -TargetProfile -BoardProfile rmlink-v1 -TcpPacketSize 512 -ImageCachePsram -StreamIpTos 160
 
-当前硬件：普通双 USB-C ESP32-S3 开发板；COM13 为 CH343 下载/日志口。
-已通过芯片工具读取确认 16 MB Flash、8 MB 内置 PSRAM；GPIO4 / GPIO5 接 STM32F103C8 的 SWDIO / SWCLK，并共地；GPIO6 预留 NRST，当前缺线 / 未验收。
+# 打包 Windows 安装器（输出到 artifacts/packages/）
+.\scripts\Build-Installer.ps1
+```
 
-当前开发按阶段推进，构建或主机测试通过不代表目标 STM32 已通过实板调试、烧录或性能验收。
+### 更多开发文档
 
-2026-10-13：当前固件 0.1.4。USB / Wi-Fi 三线 SWD 已完成烧录、64 KiB 回读、暂停 / 继续、寄存器 / RAM、断点 / 单步、DWT、软件复位及异常恢复，原主 Flash 已恢复。新增 Windows 连接服务与 usbip-win2 虚拟 USB 封装，OpenOCD 通过虚拟 CMSIS-DAP 经 Wi-Fi 完成同样的实板验收，64 KiB 烧录 / 校验约 11.3 秒且无 Error 行。NRST 缺线；直接 OpenOCD TCP 的旧验收仍有兼容模式 / 主机报错限制，详见 [实板验收](docs/stm32-acceptance.md) 与 [连接组件](docs/windows-connector.md)。
-
-连接服务已实现 mDNS 发现、明确配对、后台重连、自动重挂载、本机 API 与虚拟 USB / API 会话互斥；独立 EXE 无需安装 Python。此前无 OTG 启动与 0.1.1 测速是独立历史证据。Orbit 实验适配位于隔离工作树；已安装 VS Code 界面、HID、统一产品安装界面和更多软件兼容性仍须分别验证。
-
-2026-10-14：固件 0.1.5 / 服务 0.1.1 补齐 Connect 前设置时钟的会话规则。修补 UDE 已通过本地测试签名加载，虚拟 USB 空读取消和 pyOCD 0.45.1 的目标识别、暂停、读 PC、继续运行均通过。OpenOCD 经虚拟 USB / Wi-Fi 完成 64 KiB 烧录、校验约 12.85 秒及三线调试验收；原 Flash 已恢复，完整回读匹配备份，选项字节未变。API / 虚拟 USB 互斥和 STA 断连自动恢复也通过，重挂载后再次验收空读及 pyOCD 成功。证据见 [Windows 连接组件](docs/windows-connector.md) 和 [驱动取消问题](docs/virtual-usb-cancellation.md)。
-
-当前开发电脑使用“官方 filter / CLI ＋本地测试签名修补 UDE”，Secure Boot 关闭、TESTSIGNING 生效、内存完整性保持开启。正式微软驱动签名与分发仍待完成；物理 NRST、HID、Keil / IAR 尚未验收。测试模式状态保留用于后续开发，回退脚本已准备但未实际运行。
+- **协议与接口**：[API v1 与公开 SDK](docs/api-v1.md) · [开发协议 v1](docs/protocol-v1.md) · [统一目标算法包](docs/shared-target-package.md) · [订阅采集设计](docs/subscription-design.md)
+- **运维与打包**：[终端客户端详述](docs/terminal-client.md) · [Windows 安装器构建与签名](docs/windows-installer.md) · [OTA 升级机制](docs/ota-upgrade.md)
+- **工程与记录**：[当前项目方向](docs/current-direction.md) · [RMLink V1 接线与验证](docs/rmlink-v1-bringup.md) · [修复与功能记录](docs/fix-log/README.md) · [仓库协作与参考说明](docs/git-management.md)

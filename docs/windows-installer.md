@@ -1,39 +1,41 @@
 # RMLink Windows 安装器
 
-RMLink 安装器适用于 Windows 10/11 x64，包含控制台、后台连接组件和目标算法包。程序已包含 Python 运行环境，使用时无需安装 Python、ESP-IDF 或开发工具链。
+适用于 Windows 10/11 x64，打包了 `rmlink` 控制台、后台连接服务、目标 Flash 算法包以及独立的 Python 运行环境。最终用户直接安装即可使用，不用额外配置 Python 或 ESP-IDF。
 
-双击 `RMLink-版本-windows-x64-setup.exe`，按提示安装。默认目录是当前用户的 `%USERPROFILE%\.rmlink\app`，安装过程无需管理员权限。安装后从开始菜单打开 RMLink；选择加入 PATH 后，也可以在新终端输入 `rmlink`。已经打开的 Windows Terminal 可能需要完全退出再打开。
+## 安装、升级与卸载
 
-安装器提供登录时启动后台服务、桌面快捷方式两个可选项。关闭控制台后，后台连接组件仍可运行。首次无线连接请在控制台配置 2.4 GHz Wi-Fi 并选择设备；有线连接请使用设备的原生 USB 口。
+- **安装**：到 GitHub Releases 下载 `RMLink-<版本>-windows-x64-setup.exe`（未签名版带 `-unsigned` 后缀）双击运行。默认装在当前用户的 `%USERPROFILE%\.rmlink\app`，无需管理员权限。安装向导可选是否加入用户 `PATH` 和开机登录自启。如果选了加入 `PATH`，新开终端就能直接敲 `rmlink`（已经开着的 Windows Terminal 可能需要彻底退出重开才能刷新环境变量）。
+- **升级**：直接运行新版安装器覆盖即可。升级前请先结束调试会话并关闭控制台；处于空闲状态的后台服务会正常退出再替换文件，安装器不会强行杀掉正在调试的进程。配对信息、Wi-Fi 配置、日志和录制文件都留在 `%USERPROFILE%\.rmlink` 里，升级不会清掉。
+- **卸载**：在 Windows **设置 → 应用 → 已安装的应用** 中卸载。卸载会清理程序文件、快捷方式、安装器写入的 `PATH` 和登录自启项，但会保留 `%USERPROFILE%\.rmlink` 里的用户数据，也不会删除你手动放进安装目录的额外文件。
 
-升级时直接运行新版安装器。请先结束调试会话并关闭控制台；空闲的已安装后台服务会正常停止，再替换程序文件。安装器不会强制终止调试进程。升级保留配对、Wi-Fi 配置、日志和录制数据。
+## 关于驱动与签名
 
-在 Windows“设置 → 应用 → 已安装的应用”中卸载 RMLink。卸载删除程序、快捷方式、对应的 PATH 和登录自启项，保留 `%USERPROFILE%\.rmlink` 中的用户数据。用户自己放进程序目录的额外文件也不会被递归清除。
+本安装器**不包含内核驱动**。有线模式直接使用 Windows 自带 WinUSB，无线模式走 TCP，因此不需要申请 WHQL 签名、安装测试证书，也不用关闭 Secure Boot 或内存完整性。
 
-## 签名
+如果文件名里带有 `unsigned`，说明该安装包和里面的 EXE 没有配置商业代码签名证书（带 `preview` 则表示构建时 Git 工作区存在未提交改动）。未签名程序在下载或首次启动时可能会被 Windows SmartScreen 拦截提示；开启了严格应用控制策略的电脑也可能会阻止运行。正式对外长期分发建议配置可信的 Authenticode 代码签名和时间戳（参见 [Microsoft SmartScreen 说明](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)）。
 
-本安装器不包含内核驱动。有线使用 Windows 自带的 WinUSB，无线使用 TCP；无需申请 WHQL 或安装测试签名证书，也无需更改 Secure Boot 或内存完整性。
+## 自行构建安装包
 
-`unsigned` 文件名表示没有发布者代码签名，`preview` 表示预览构建。未签名文件在下载或启动时可能触发 SmartScreen；启用 Smart App Control 或组织应用控制策略的电脑还可能阻止运行。正式对外分发建议为应用 EXE、安装器和卸载器使用可信发布者的 Authenticode 代码签名并加时间戳。新签名程序也可能需要积累信誉，签名不保证消除所有提示。参见[微软 SmartScreen 说明](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)。
-
-## 构建
-
-构建需要现有连接组件构建环境（Python、Arm GNU 工具链及目标算法包生成脚本），并安装 Inno Setup 6.7.3 或更新版本。构建环境与终端用户使用环境分开；安装包使用者无需这些工具。运行：
+构建端需要 Python 构建环境、Arm GNU 工具链（用于生成目标算法包）以及 Inno Setup 6.7.3 或更新版本：
 
 ```powershell
 .\scripts\Build-Installer.ps1
 ```
 
-构建器重新生成客户端和服务，按白名单收集程序与许可证，输出到 `artifacts\packages`。正式构建要求 Git 工作区干净；开发验证可追加 `-AllowUncommitted`，产物始终带 `preview`。同名产物不会被覆盖，可用 `-OutputDirectory` 指定新的输出目录。`-Iscc` 可指定 `ISCC.exe` 路径。
+构建脚本会先重新打包客户端与后台服务，再按白名单收集文件和许可证，最终输出到 `artifacts\packages\`。
 
-签名构建可通过 `-SignCommand` 传入 Inno Setup SignTool 命令，其中 `$f` 表示待签名文件。命令会用于应用、安装器和卸载器；证书或硬件密钥由发布者提供，不随源码或安装包分发。例如在已配置证书的构建环境中：
+- **正式构建要求 Git 工作区干净**；开发调试时可加 `-AllowUncommitted`，产物会自动带上 `-preview` 后缀。
+- 同名安装包不会被覆盖，可用 `-OutputDirectory` 指定新的输出目录，用 `-Iscc` 指定 `ISCC.exe` 路径。
+- 如需签名，可通过 `-SignCommand` 传入签名命令（`$f` 占位符代表待签名文件），构建器会依次对内部 EXE、安装器和卸载器签名并校验状态：
 
 ```powershell
 .\scripts\Build-Installer.ps1 -SignCommand 'signtool.exe sign /sha1 证书指纹 /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 $f'
 ```
 
-无人值守安装可使用 `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`；不会自动打开控制台。`/TASKS="addtopath,startlogon"` 可选择 PATH 和登录自启，`/TASKS=""` 可关闭所有可选项。无人值守卸载使用安装目录内的 `unins000.exe` 和相同静默参数。
+## 静默安装与许可证
 
-安装器的本机安装、升级和卸载验证不能替代干净电脑首次使用、USB 枚举、无线 OpenOCD 调试以及 Windows 应用控制策略下的验收。
+- 静默安装：`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`（`/TASKS="addtopath,startlogon"` 勾选可选项，`/TASKS=""` 全不选）。
+- 静默卸载：运行安装目录下的 `unins000.exe` 并附带相同静默参数。
+- 简体中文向导翻译基于 Inno Setup 6.7.3 的 `Files/Languages/Unofficial/ChineseSimplified.isl`（[上游仓库](https://github.com/jrsoftware/issrc/tree/is-6_7_3)），所有组件许可证一并随安装包放在安装目录的 `licenses/` 下。
 
-中文安装消息来自 Inno Setup 6.7.3 的 `Files/Languages/Unofficial/ChineseSimplified.isl`，保留原作者说明；上游地址为 https://github.com/jrsoftware/issrc/tree/is-6_7_3 。安装包包含 Inno Setup 及各运行组件的许可证。
+> 本机自动化已覆盖中文/空格路径静默安装、覆盖升级、进程占用拒绝升级、修复安装和卸载清理；干净无开发环境的新电脑首次点击向导与代码签名流程尚未单独实测。

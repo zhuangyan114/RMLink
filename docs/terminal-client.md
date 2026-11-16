@@ -1,18 +1,17 @@
 # RMLink 终端客户端
 
-> 2026-10-19 方向变更：无线 CMSIS-DAP 改为 OpenOCD TCP 接入，停止推进虚拟 USB。当前源码已删除挂载和驱动管理，终端保留七个菜单：设备管理、Wi-Fi 配置、连接管理、实时监控、固件升级、诊断与日志、设置。旧版本验收记录保留其历史条件；本机已安装程序尚未替换。见[当前项目方向](current-direction.md)。
+`rmlink` 是随安装包一起分发的控制台入口，既可以当交互式菜单用，也能直接跑命令行脚本。退出界面后后台连接服务仍会留在用户态继续运行（它不注册 Windows 系统服务，配对和配置保存在 `%USERPROFILE%\.rmlink\connector.json`，日志在 `%USERPROFILE%\.rmlink\logs`）。
 
-客户端 0.3.1 完善 OTA 确认和进度提示，与本机现有连接服务 0.3.0 兼容。固件从 0.3.0 开始支持 OTA；SDK 使用各自版本，目标程序和 Orbit 工作树保留。
+## 启动与界面操作
 
-0.3.1 交互修复：导入后保留固件信息停顿页，展示当前版本到所选版本的变化，底部以蓝色明确显示「Enter 确认安装并重启 RMLink」，`q / Esc` 取消并返回固件菜单；不再把回车标成返回，也不再追加第二个安装菜单。确认后立即显示 0% 进度，持续显示上传百分比、校验、等待重连秒数和最终成功提示。181 项主机测试通过，冻结 EXE 在 Windows PowerShell 伪终端配合隔离模拟服务完成取消不上传、完整上传、VALID 等待与各阶段提示验收；记录在本机 `artifacts/tests/ota-ui-031-conpty/acceptance.json`。已安装客户端还在真实设备上完成信息页／版本对比／q 取消检查，设备分区和镜像摘要保持一致，记录为 `artifacts/tests/ota-ui-031-installed.json`。客户端文件与构建哈希一致，保留原服务及真实设备 0.3.0，留给用户体验真实升级。
+装好后在开始菜单点开 **RMLink**，或者在终端里直接运行 `rmlink` 进入主菜单。主菜单有七个入口：**设备管理**、**Wi-Fi 配置**、**连接管理**、**实时监控**、**固件升级**、**诊断与日志**、**设置**。
 
-0.3.0 OTA 软件验收：174 项全量主机测试通过；随后加入 TCP512 覆盖后，13 项 OTA 专项测试通过。生产 C 状态机通过 native 故障注入，包含 USB64 分块和 TCP512 跨描述头写入。safe 和当前目标板 TCP512／PSRAM／streamdiag／video 配置均构建成功；冻结 EXE 通过 10 步隔离本机 API 验收。已安装客户端和连接服务 0.3.0，并在 PowerShell 5.1 检查固件子菜单、本地导入／GitHub 入口和旧固件迁移提示。最终应用资产位于本机 `artifacts/packages/ota-0.3.0-ready/`；详细范围见 [OTA 升级](ota-upgrade.md)。
+- **键盘操作**：方向键移动焦点，`Enter` 进入或确认，也支持数字快捷键；`q` 或 `Esc` 返回上一级（首页按 `q` 或 `Ctrl+C` 退出界面）。需要颜色关闭时可用 `--no-color` 或环境变量 `NO_COLOR`。
+- **鼠标操作**：支持左键点击菜单和底部按钮、滚轮翻页或滚动日志、右键返回上一级。输入 Wi-Fi 名称、密码或路径等文字表单时会自动暂停鼠标捕获（密码全程隐藏显示）；需要复制文字时可按住 `Shift` 拖选。
 
-随后经用户授权完成原 0.2.40 备份、首次 USB 分区迁移及 Wi-Fi／USB 两次真实 OTA。安装后的 `rmlink.exe` 上传、重启及镜像摘要／VALID 确认均通过，运行分区依次为 ota_0、ota_1，最终固件 0.3.0、Wi-Fi 偏好恢复。原 Wi-Fi 配置保留；STM32 核心运行，USB 和 Wi-Fi 各完成 100 Hz／100 帧只读采样。报告为本机 `artifacts/tests/ota-hardware-acceptance-20261017.json`，备份位于 `artifacts/backups/ota-bootstrap-20261017-180722/`。两份验收镜像均为 0.3.0，以不同 ELF 摘要区分；不将同版本号视为没有实际写入。GitHub 实际查询明确返回尚无正式 Release，已发布资产的完整下载升级、断电及首次启动异常回滚尚未实测。完整证据见[实板 OTA 记录](ota-acceptance-20261017.md)。
+> 鼠标和交互界面已在 Windows Terminal / PowerShell 5.1 ConPTY 下测试；传统旧版 `conhost` 控制台和 Linux / macOS 终端暂未实测。
 
-## 安装与启动
-
-开发环境构建及安装：
+如果是从源码开发环境安装（非安装包），可以运行：
 
 ```powershell
 .\scripts\Build-Connector.ps1
@@ -20,118 +19,49 @@
 rmlink
 ```
 
-安装到当前用户的 `%USERPROFILE%\.rmlink\app\bin`，将该目录加入用户 PATH。程序、状态和日志均使用普通终端与打包应用可共享的用户目录，避开 AppData 的包级文件虚拟化。若原有 PATH 已配置用户 `bin` 或 `.local\bin`，安装器同时在该目录放置 `rmlink.cmd` 启动入口，让尚未刷新 PATH 的终端立即使用。否则需完整退出 Windows Terminal 再重新打开；仅创建新标签页可能继续继承旧环境。运行安装脚本的 PowerShell 会话立即更新 PATH。
+## 常用命令行
 
-安装器通过打开 EXE 的文件句柄查询真实路径；如果文件实际落在 `Packages/.../LocalCache` 私有缓存，安装会明确失败。旧 `%LOCALAPPDATA%\RMLink\bin` 的 PATH 注册由新安装器迁移，原有配对仍保存在 `%USERPROFILE%\.rmlink\connector.json`。可直接使用完整路径启动：
-
-```powershell
-& "$env:USERPROFILE\.rmlink\app\bin\rmlink.exe"
-```
-
-不带参数进入交互控制台：RMLINK 字标采用参考图中的规整像素块风格，保持七行高度，宽度为 66 列；`RM` 深蓝、`LINK` 浅蓝，搭配设备概览、实时速率及七个操作入口。主菜单和操作子菜单使用同一字标；窗口空间不足时自动使用紧凑字标，优先显示菜单与操作提示。仅当前选中的菜单项变蓝，上下键选择，左右键切换两列同一行，Enter 打开，也支持数字快捷键；`q`、Ctrl+C 退出界面，后台连接服务继续运行。窄终端使用单列菜单，左右键依次选择；`NO_COLOR` 或 `--no-color` 关闭颜色，同时保留选中标记。重定向输出时不启动交互循环。
-
-Wi-Fi、设备管理、连接管理、固件升级、诊断与日志、设置均使用上下键选择、Enter 进入的列表。详情页返回后保留子菜单焦点；选择「返回上一级」或按 `q`／Esc 返回。只有网络名称、密码、路径、别名等文字表单需要输入文本，密码隐藏输入。电脑热点状态可在未发现设备时查看。
-
-交互控制台也支持鼠标，原有键盘操作继续可用：
-
-- 左键点击主菜单或子菜单即可打开；点击「返回上一级」或底部返回／退出文字执行对应操作。
-- 滚轮在菜单中移动选中项，在详情、日志和固件信息页中上下滚动；右键相当于 `q`，返回上一级，在首页退出。
-- 固件信息页可点击「Enter 确认安装并重启 RMLink」确认安装，也可点击取消；点击信息正文、滚动或移动鼠标不会确认安装。
-- 网络名、密码、路径等表单仍使用文字输入，密码继续隐藏。输入表单时暂停鼠标捕获，完成或取消输入后恢复；退出控制台时恢复终端输入模式。
-
-Windows 使用原生控制台输入事件；其他支持 SGR 鼠标协议的终端使用终端鼠标报告。窗口缩放后按重新绘制的位置响应点击。终端可能保留右键粘贴等自定义绑定，此时可点击界面中的返回文字或使用键盘；终端支持时可按住 Shift 选择和复制文本。重定向输出及非交互命令不启用鼠标捕获。Windows 输入接口参见 [Microsoft 控制台事件说明](https://learn.microsoft.com/en-us/windows/console/reading-input-buffer-events)。
-
-2026-10-28 鼠标支持验证：216 项主机测试通过，其中 17 项覆盖鼠标命中、中文列宽、裁剪、长列表、确认按钮、输入模式和键盘回退。独立构建的 `artifacts/build/cli-mouse-20261028/dist/rmlink.exe` 在 Windows PowerShell 5.1／ConPTY 中通过 9 项交互检查，包含主菜单／子菜单点击、详情返回、右键、滚轮、方向键、数字键、Esc、缩放到单列与正常退出，记录为本机 `artifacts/tests/cli-mouse-20261028-03/acceptance.json`。另用源码在 ConPTY 验证中文表单、隐藏密码、表单后的鼠标恢复和 Ctrl+C 后输入／输出模式恢复，记录为 `artifacts/tests/console-modes-20261028-03/acceptance.json`。交互检查使用隔离模拟 API，没有请求真实探针；传统 Windows 控制台与 Linux／macOS 终端尚未实测。
-
-随后按用户要求更新了 `%USERPROFILE%\.rmlink\app\bin\rmlink.exe`，同步终端文档和安装清单。旧控制台正常退出，后台服务保持运行；新控制台已启动，显示鼠标操作提示。安装文件与上述独立构建的 SHA256 一致，安装清单全部文件核对通过。旧文件备份在本机 `artifacts/backups/cli-mouse-install-20261028/`，安装记录为 `artifacts/tests/cli-mouse-install-20261028/installation.json`。解锁桌面后进行了真实鼠标操作；因用户同时操作，没有将代理的单次点击归为独立验收。用户随后明确反馈“我实测可用”，据此记录桌面鼠标验证通过，停止代理鼠标操作并取消测试窗口的置顶状态。最后观察到取消配对结果页，设备 `50787d15a924` 显示未连接、未配对，无法确认由哪次操作触发。
-
-2026-10-17 最新界面调整通过 18 项终端测试和全部 162 项主机测试，覆盖两种菜单布局的单项蓝色、左右切换后 Enter 打开正确入口、Windows 原生／VT 方向键、Wi-Fi 状态／配网表单／无设备热点查询、取消菜单不执行操作、长列表滚动及小终端布局。重建并更新本机 `rmlink.exe`，在 Windows PowerShell 5.1 的 ConPTY 中确认 Wi-Fi 子菜单上下选择、Enter 打开电脑热点状态、`q` 返回后保留焦点、Esc 返回主菜单及 `q` 恢复原终端；本轮未写入 Wi-Fi 凭据或维护驱动。
-
-客户端在需要时启动隐藏的每用户后台进程，沿用 `.rmlink/connector.json` 中的配对和本机凭据；不注册 Windows SCM 系统服务。可选登录自启：
+所有子命令都支持 `--json`（方便脚本解析）、`--device <完整 MAC>`（多设备共存时指定目标）和 `--no-color`：
 
 ```powershell
-rmlink service autostart on
-rmlink service autostart off
+rmlink devices                              # 列出已发现和已配对设备
+rmlink pair <设备ID>                        # 配对设备
+rmlink config default <设备ID>              # 设为默认设备
+rmlink config alias "工作台"                # 设置设备别名
+rmlink wifi status                          # 查询板端 Wi-Fi 状态
+rmlink wifi hotspot                         # 读取本机当前开启的 2.4 GHz 热点信息
+rmlink wifi configure --ssid "热点名称"     # 通过 USB 下发热点凭据（交互隐藏输密码）
+rmlink connect --transport wifi             # 恢复后台连接并优先走 Wi-Fi
+rmlink disconnect                           # 释放服务对设备的占用（保留配对）
+rmlink unpair                               # 取消配对
+rmlink monitor                              # 查看实时收发速率与活动订阅
+rmlink info                                 # 查看设备版本与连接信息
+rmlink doctor --output .\rmlink-diag.json   # 导出环境、服务与设备诊断包
+rmlink logs --lines 80                      # 查看最近后台日志
+rmlink service status                       # 检查后台连接服务状态
+rmlink service restart                      # 重启后台连接服务
+rmlink service autostart on                 # 开启登录后自动启动后台服务（off 关闭）
+rmlink firmware status                      # 查看设备当前固件与 OTA 分区状态
+rmlink firmware inspect .\rmlink.bin        # 离线检查固件镜像与硬件指纹
+rmlink firmware update --latest --yes       # 从 GitHub 升级最新正式固件（加 --prerelease 查测试版）
 ```
 
-## 常用命令
+### 几条使用边界
 
-```powershell
-rmlink devices
-rmlink pair 50787d15a924
-rmlink config default 50787d15a924
-rmlink config alias "工作台"
-rmlink wifi status
-rmlink wifi hotspot
-rmlink wifi configure --ssid "电脑热点"
-rmlink connect --transport wifi
-rmlink monitor
-rmlink disconnect
-rmlink unpair
-rmlink info
-rmlink doctor --output .\rmlink-diagnostics.json
-rmlink logs --lines 80
-rmlink service status
-rmlink service restart
-rmlink firmware status
-rmlink firmware inspect .\rmlink.bin
-```
+- **配网安全**：脚本自动化传密码可以用 `--password-stdin`（UTF-8 标准输入），开放热点需显式加 `--open-network`。工具不会提供明文密码参数，也不会把密码落盘到本机配置或诊断文件里。
+- **操作互斥**：只要目标当前正被 Orbit 或其他 API 会话占用，切换传输、断开连接、取消配对、USB 配网和 OTA 升级都会被直接拒绝。
+- **监控指标口径**：首页和 `monitor` 里显示的速率按连接服务实际收发的应用层字节求差（含 DAP 帧头和压缩采样流，不含底层 TCP/IP 或 USB 总线开销）。采样频率按探针自带时间戳计算；如果没有任务在跑会直接显示不可用，不会拿历史缓存伪造当前速率。
 
-所有命令支持 `--json`、`--device <完整 MAC 编号>` 和 `--no-color`。多设备且未选择默认设备时要求明确选择，不自动选择第一块设备。USB 发现只查询真实 OTG 设备；USB 配对默认使用有线承载，已有传输偏好保留。
+## 本机后台 HTTP 接口（API 1.4）
 
-密码使用隐藏输入；脚本可使用 `--password-stdin` 通过 UTF-8 stdin 传入，开放网络需显式 `--open-network`。不提供密码命令行参数，不回读或显示已保存密码，不将密码写入主机设置或诊断文件。SSID 和密码按 UTF-8 字节校验，USB 侧重发完整字段；提交未确认时不自动重试。
+控制台和公开 SDK 底层都通过 `http://127.0.0.1:3243/v1` 与后台服务通信，除了核心调试与订阅接口（见 [API v1 说明](api-v1.md)），终端管理功能对应以下路由：
 
-`disconnect` 保留配对并暂停自动重连，`connect` 恢复自动连接。切换传输、取消配对、断开及配网在存在目标 owner 或活动 API 租约时拒绝执行。首次配网无需先配对，通过 `devices` 或 Wi-Fi 菜单发现 USB 设备即可。
-
-## 监控口径
-
-速率以连接服务实际收发的探针应用层字节计数求差：包含 TCP DAP 帧头、压缩后的采样流和 USB OUT 填充，不包含 TCP/IP、无线及 USB 总线开销。原生 USB 计数包含成功完成的批次；失败批次的部分完成字节不估算。连接重建会更换计数代次，第一帧显示 `--`，不会因计数清零显示尖峰。
-
-订阅信息来自现有 owner 的缓存，仅显示已存在任务，不创建订阅、不连接目标、不读写目标内存。实际均值以收到样本的板端时间戳计算，与请求采样率分开；没有样本、没有任务或旧服务未提供统计时显示不可用，不伪造频率和丢样指标。首页读取本机缓存，不主动测速。
-
-## 固件升级边界
-
-虚拟 USB 的挂载、驱动查询、安装、修复和卸载命令已从当前源码删除；不再分发 `Driver.ps1`。标准无线 CMSIS-DAP 由 OpenOCD 直接连接板端 TCP 3241，有线 CMSIS-DAP 继续使用原生 USB。旧驱动实验仅保留[历史故障记录](virtual-usb-cancellation.md)，源码可在切换前检查点 `022ff12` 查阅。
-
-`firmware` 专指 RMLink 自身。0.3.0 支持本地 `.bin` 导入和 GitHub 最新正式固件获取，使用官方双升级分区和启动确认／失败回滚。`inspect` 离线核对芯片、应用结构、镜像完整性、版本及硬件配置；`update 文件 --yes` 或 `update --latest --yes` 在空闲设备上写入备用分区并等待重启确认。旧固件明确返回首次 USB 迁移要求，不发送 STM32 Flash 命令。完整协议、发布清单、迁移和验证边界见 [OTA 升级](ota-upgrade.md)。
-
-0.3.2 增加独立的「从 GitHub 获取测试固件」菜单；脚本使用 `firmware latest --prerelease` 或 `firmware update --latest --prerelease --yes`。测试版在确认页显式标注，默认正式通道不选择 Pre-release；公共 API 限流时使用 GitHub 官方发布订阅／重定向，无需写入 GitHub 凭据。本轮完整检查见 [0.3.2 测试版验收](test-release-0.3.2.md)。
-
-## 本机 API 扩展
-
-本轮沿用认证和唯一 Broker，API 1.4 新增：
-
-| 接口 | 用途 |
+| 路由 | 用途 |
 | --- | --- |
-| GET /v1/usb-devices | 查询真实 USB 探针身份并加入发现列表 |
-| GET / POST /v1/preferences | 读取／保存默认设备 |
-| POST /v1/alias | 保存已配对设备别名 |
-| POST /v1/connect、/disconnect、/unpair | 管理连接与配对 |
-| GET /v1/devices/{id}/metrics | 被动收发计数、现有订阅缓存 |
-| GET / POST /v1/devices/{id}/wifi | 读取网络状态／通过 USB 配网 |
-| GET /v1/devices/{id}/firmware | 固件版本与自身升级支持状态 |
-| POST /v1/devices/{id}/firmware | 固件上传 begin／write／finish／abort，维护锁和严格偏移保护 |
-
-既有 RMLinkConnector 开发命令和 Python／Node／C SDK 保留。原服务正在运行时客户端复用它；新增管理接口需连接服务 0.2.15，旧服务应在结束调试后重启升级。
-
-## 验证
-
-主机测试覆盖管理操作占用保护、配对配置保留、配网 UTF-8 边界／开放网络／拒绝后不提交、被动指标不访问目标、重连速率代次、离线检查及 CLI JSON／窄终端输出。实际构建、安装、终端交互及本机 API 验收结果追加在此处；Wi-Fi 凭据写入、驱动替换和目标访问不由主机测试代替。
-
-2026-10-17 本轮结果：
-
-- 全部 152 项主机测试通过；后续锁文件并发启动修复完成独立双进程检查，调整后的 8 项终端测试再次通过。独立 TCP peer 检查包含分片响应及应用层字节计数。
-- Windows x64 的 `rmlink.exe` 与 `RMLinkConnector.exe` 构建成功。冻结 EXE 使用带空格的隔离状态目录，通过两个并发启动、重复启动复用同一 PID、设备发现、真实驱动状态／签名查询、电脑热点查询、日志、诊断导出、凭据不出现在公共输出及服务停止共 10 步验收；报告见本机 `artifacts/tests/terminal-client-acceptance-20261017-03/acceptance.json`，`concurrent_start=true`。
-- ConPTY 中验证彩色交互、ANSI 方向键切换、数字菜单、Wi-Fi 子菜单及 `q` 退出恢复原屏幕；`TERM=dumb`／`NO_COLOR` 下完成无颜色模式操作。Windows PowerShell 子进程固定系统模块路径及安全模块来源，避免从 PowerShell 7 或冻结 EXE 启动时的类型数据冲突。
-- 本机 USBip CLI 已安装，filter 和修补 UDE 为 Running，文件签名检查 Valid。本轮只读查询，未安装、替换或卸载内核驱动，未改变启动安全设置。
-- 0.2.15 曾安装到逻辑路径 `C:\Users\22690\AppData\Local\RMLink\bin\rmlink.exe`。同一应用环境内文件哈希和服务检查通过，但用户普通 PowerShell 实际无法访问，后续确认是文件虚拟化，不能将当时验证视为外部终端安装验收通过。
-- 首次补充 PATH 启动入口后，同一应用环境内 Windows PowerShell 5.1 检查通过，用户外部终端仍报告找不到路径。该失败保留：补充启动器解决了命令发现，但未解决 EXE 位于包私有缓存的问题。
-- 验收时未发现在线探针，未写入 Wi-Fi 凭据、未执行实际带设备采样测速或固件写入。USB 配网、真实流量／采样显示和驱动维护写入仍需对应实机验收；自身固件升级保持明确的预留状态。
-
-0.2.16 安装修复：
-
-- 用 `GetFinalPathNameByHandle` 确认，旧逻辑 AppData 路径实际位于 `D:\WpSystem\...\Packages\OpenAI.Codex_...\LocalCache\Local\RMLink`，是当前应用的私有缓存；用户终端能读取公共 `bin/rmlink.cmd`，但无法通过旧逻辑路径找到 EXE。
-- 两种安装器统一改到 `%USERPROFILE%\.rmlink\app`；日志改到 `%USERPROFILE%\.rmlink\logs`，保留原有配对。命令注册迁移旧 PATH 项，启动器使用用户目录，登录自启原已开启时迁移到新位置。
-- 安装器新增真实文件路径检查，明确拒绝包私有缓存。新文件的逻辑路径和真实路径均为 `C:\Users\22690\.rmlink\app\bin\rmlink.exe`，安装文件与构建输出 SHA256 一致。
-- 153 项主机测试通过，含打包应用与普通终端 AppData 不同时共享日志位置的回归检查；旧私有缓存安装位置拒绝测试通过。Windows PowerShell 5.1 由用户主目录解析公共启动器，0.2.16 版本／状态查询和完整交互界面启动通过。
-- 后台服务已从公共新目录启动为0.2.16。安装证据在本机 `artifacts/tests/terminal-client-0216-installation.json`；这些验证不替代用户外部终端的最终确认或设备实机验收。
+| `GET /v1/usb-devices` | 查询已连接的原生 USB 探针并合并到设备列表 |
+| `GET / POST /v1/preferences` | 读取或保存默认设备 |
+| `POST /v1/alias` | 修改已配对设备别名 |
+| `POST /v1/connect`、`/disconnect`、`/unpair` | 控制设备连接状态与配对 |
+| `GET /v1/devices/{id}/metrics` | 读取被动收发计数与当前订阅缓存统计 |
+| `GET / POST /v1/devices/{id}/wifi` | 查询网络状态或通过 USB 写入热点凭据 |
+| `GET / POST /v1/devices/{id}/firmware` | 查询 OTA 状态，或执行分片上传（`begin/write/finish/abort`）与提交重启 |
