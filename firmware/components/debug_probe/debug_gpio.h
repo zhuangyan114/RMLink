@@ -81,6 +81,8 @@ extern uint32_t dedic_gpio_conf;
 extern uint32_t rmlink_swclk_out_mask;
 extern uint32_t rmlink_swdio_out_mask;
 extern uint32_t rmlink_swdio_in_mask;
+/* Owned by the same SWD executor as the bundles; reset/init update it too. */
+extern bool rmlink_swdio_driving;
 
 /**
  * @brief Initialize debug GPIO pins for JTAG mode
@@ -107,18 +109,22 @@ void debug_probe_notify_activity(bool active);
 
 __STATIC_FORCEINLINE void debug_probe_swdio_out_enable(void)
 {
+    if (rmlink_swdio_driving) return;
     /* init_swd_pins selects GPIO_ENABLE as OE and retains the CPU data route. */
     gpio_ll_output_enable(dedic_gpio_dev, GPIO_SWDIO);
     /* Drain the APB write before a fast first data edge can reach the pad. */
     (void)REG_READ(GPIO_SWDIO < 32 ? GPIO_ENABLE_REG : GPIO_ENABLE1_REG);
+    rmlink_swdio_driving = true;
 }
 
 __STATIC_FORCEINLINE void debug_probe_swdio_out_disable(void)
 {
+    if (!rmlink_swdio_driving) return;
     /* Do not call gpio_ll_output_disable: it also disconnects the matrix. */
     if(GPIO_SWDIO<32)dedic_gpio_dev->enable_w1tc=1u<<GPIO_SWDIO;
     else dedic_gpio_dev->enable1_w1tc.data=1u<<(GPIO_SWDIO & 31);
     (void)REG_READ(GPIO_SWDIO < 32 ? GPIO_ENABLE_REG : GPIO_ENABLE1_REG);
+    rmlink_swdio_driving = false;
 }
 
 __STATIC_FORCEINLINE int debug_probe_swdio_read(void)

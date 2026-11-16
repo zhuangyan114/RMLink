@@ -9,6 +9,7 @@
 #include "esp_err.h"
 #include "debug_probe.h"
 #include "esp_cpu.h"
+#include "swd_fast.h"
 
 #define GET_IDX(mask)   (__builtin_ctz(mask))
 
@@ -23,6 +24,7 @@ uint32_t dedic_gpio_conf;
 uint32_t rmlink_swclk_out_mask;
 uint32_t rmlink_swdio_out_mask;
 uint32_t rmlink_swdio_in_mask;
+bool rmlink_swdio_driving;
 
 static int s_debug_gpio_init = 0;
 
@@ -146,6 +148,8 @@ void debug_probe_init_swd_pins(void)
 #endif
 
         s_debug_gpio_init = 1;
+        rmlink_swdio_driving = true;
+        SWD_OptimizedInit();
 
         ESP_LOGI(TAG, "SWD GPIO init done (CPU %d)", esp_cpu_get_core_id());
     }
@@ -155,6 +159,7 @@ void debug_probe_reset_pins(void)
 {
     if (!s_debug_gpio_init) return;
     gpio_reset_pin(GPIO_SWDIO); // GPIO_TMS
+    rmlink_swdio_driving = false;
     gpio_reset_pin(GPIO_SWCLK); // GPIO_TCK
 #if CONFIG_RMLINK_NRST_GPIO >= 0
     gpio_set_level(CONFIG_RMLINK_NRST_GPIO, 1);

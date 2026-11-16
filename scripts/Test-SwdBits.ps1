@@ -9,7 +9,7 @@ if ($LASTEXITCODE -ne 0) { throw 'SWD pin model compilation failed' }
 if ($LASTEXITCODE -ne 0) { throw 'SWD pin model failed' }
 $cpp = Join-Path (Split-Path $Gcc -Parent) 'g++.exe'
 $fastOutput = Join-Path $root 'artifacts\tests\swd-fast-test.exe'
-& $cpp -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers "-I$root\tests\swd" (Join-Path $root 'tests\swd\swd_fast_test.cpp') -o $fastOutput
+& $cpp -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers "-I$root\tests\swd" "-I$root\firmware\components\debug_probe\include" (Join-Path $root 'tests\swd\swd_fast_test.cpp') -o $fastOutput
 if ($LASTEXITCODE -ne 0) { throw 'Fast SWD protocol model compilation failed' }
 & $fastOutput
 if ($LASTEXITCODE -ne 0) { throw 'Fast SWD protocol model failed' }

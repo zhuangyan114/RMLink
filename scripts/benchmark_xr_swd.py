@@ -99,6 +99,11 @@ def main():
                         selected = struct.pack('<BI', profile['profileId'], PACK_TAG)
                         if client.exchange(b'\x81\x15' + selected) != b'\x81\x15\0' + selected:
                             raise RuntimeError('H723 target package selection failed')
+                        timing = client.exchange(b'\x80\x10')
+                        if len(timing) == 32 and timing[:4] == b'\x80\x10\0\1':
+                            row['backend_timing'] = dict(zip(('requested_hz', 'estimated_hz', 'backend',
+                                'half_cycles', 'minimum_half_cycles', 'fast8_half_x16', 'fast10_half_x16'),
+                                struct.unpack('<7I', timing[4:])))
                         vendor(client, 14, b'\0')
                         vendor(client, 14, b'\1')
                         try:
@@ -127,6 +132,20 @@ def main():
                                 if result['reads'] != 1024 or result['checksum'] != 0:
                                     raise AssertionError(f'Local benchmark incomplete: {result}')
                                 row['local'].append(dict(stride=stride, **result))
+                        row['local_profiles'] = []
+                        for stride in (4, 64):
+                            vendor(client, 14, b'\1')
+                            try:
+                                reply = client.exchange(b'\x81\x0a' + struct.pack('<IIIB', SCRATCH, stride, 1024, 8))
+                                if reply[:3] != b'\x81\x0a\0':
+                                    raise RuntimeError('Profiled local benchmark rejected')
+                                reads, elapsed, checksum = struct.unpack('<IQI', reply[3:])
+                                if reads != 1024 or checksum != 0:
+                                    raise AssertionError('Profiled local benchmark incomplete')
+                                row['local_profiles'].append(dict(stride=stride, elapsed_us=elapsed,
+                                                                 **metrics(client)))
+                            finally:
+                                vendor(client, 14, b'\0')
                         row['last_pattern_sha256'] = hashlib.sha256(struct.pack('<' + 'I' * len(words), *words)).hexdigest()
                     row['passed'] = True
                     for direction in ('read', 'write'):

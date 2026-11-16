@@ -34,6 +34,7 @@
 #include "rmlink_network.h"
 #include "rmlink_transport_bench.h"
 #include "rmlink_stream.h"
+#include "rmlink_swd_timing.h"
 #endif
 
 #define WIFI_RECONNECT_GRACE_US 1000000LL
@@ -469,6 +470,16 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
     if (r[1] == 15) { /* Probe-only stream snapshots, including during a blocked send. */
         if(len<3 || !rmlink_stream_diagnostics(r[2],out+3)) {out[2]=2;return 3;}
         out[2]=0;return 63;
+    }
+    if (r[1] == 16) { /* SWD backend calibration snapshot; no target operation. */
+#if CONFIG_DEBUG_PROBE_IFACE_SWD && !defined(RMLINK_NETWORK_HOST_TEST)
+        uint32_t values[7];SWD_OptimizedGetTiming(values);
+        out[2]=0;out[3]=1;
+        for(unsigned j=0;j<7;j++)for(unsigned i=0;i<4;i++)out[4+j*4+i]=values[j]>>(8*i);
+        return 32;
+#else
+        out[2]=2;return 3;
+#endif
     }
     if (r[1] == 14) { /* Probe-only diagnostic switch; default off. */
 #if CONFIG_DEBUG_PROBE_IFACE_SWD
