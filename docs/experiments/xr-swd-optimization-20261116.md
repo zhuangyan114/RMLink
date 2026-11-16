@@ -1,8 +1,33 @@
 # XR-DAP SWD 优化与 H723 实机测试
 
+完成时间：2026-11-17 凌晨；实验起始日期为 2026-11-16。
+
 本实验由用户于 2026-11-16 授权：逐步吸收 XR-DAP 的 SWD 实现，在已通过 Wi-Fi 连接的 RMLink 和 STM32H723VGT6 上实测，每完成一部分进行一次本地 Git 提交。用户允许覆盖测试所需的目标内存和程序，不要求备份、恢复原程序。
 
 本记录区分代码检查、主机测试、构建、代理执行的实板测试和用户手动验收。用户尚未手动验收，因此暂不写入 `docs/fix-log/`。
+
+## 已取得的结果
+
+已把 XR-DAP 的合并边沿输出、换向完成确认、方向状态复用、平衡半周期汇编、启动标定和低速周期调度引入 RMLink。最终固件已通过 Wi-Fi OTA 部署到二号机，版本仍为当前开发版 0.3.4，默认时钟仍为 4 MHz，公开上限仍为 10 MHz。
+
+同一 H723 测试程序的 A/B 中，旧源码基线在 8 MHz 第 5 轮写入 FAULT，最终方案在 4/8/10 MHz 各通过 24 轮 4 KiB 写读。最终 10 MHz 的板内连续读耗时为 9.855 ms，旧基线已通过的 4 MHz 为 17.836 ms；收益来自更高时钟档位通过实测。同频 4 MHz 未取得吞吐收益，保留原通用内核。三档 FAULT 注入与清除、4/10 MHz 各三次完整烧录均通过。
+
+采样完成三档各 30 s 短测及 10 MHz 十分钟并行快照测试。长测逐帧检查 1,198,318 帧，内容错误和 SWD 失败为零，但累计缺口 2217，约 0.185%：调度漏拍 908，探针环形缓冲丢弃 1309。本次通过了内容与 SWD 正确性检查，未达到连续无丢帧，丢弃的上游成因尚未定位。测试程序已覆盖 H723 原 Flash 第一扇区，原应用未备份、未恢复。
+
+## XR-DAP 中吸收了什么
+
+参考目录为 `D:\STM32\XR-DAP`，已按授权建立 CodeGraph 索引。重点对照 XRDAP-ESP 的本地提交 `75a7f2cd56e5c5aed98ebc575c4b168f45fcb070`，源码入口如下。新后端注明 Apache-2.0 和原实现来源，仓库已有同版 `LICENSE`。
+
+| XR-DAP 中的做法与源码入口 | RMLink 的取舍 | 原因与验证 |
+| --- | --- | --- |
+| `firmware/esp32sx/main/swd_fast.cpp` 的 `WriteBits/ReadBits`：下降沿更新数据，上升沿前采样，利用高半周期移位拼字 | 采用调度方式，改成带掩码的专用 GPIO 写入 | 保留本核其他专用输出；RMT 数字回读核对 8/10 MHz 数据区半周期 |
+| `swd_fast.cpp` 的 `XferBody` 和 GPIO 输出使能读回：把换向、ACK、数据和校验分开处理 | 采用换向读回确认，接入原 CMSIS-DAP 状态机 | 保留全部原始 ACK、IdleCycles、时间戳、空指针读取语义；特殊配置回退 |
+| `third_party/libxr/src/driver/debug/swd_general_gpio.hpp` 的 `SetSwdioDriveMode/SetSwdioSampleMode`：缓存当前方向 | 用单一执行器的方向状态缓存实现 | 减少冗余 APB 操作，初始化和释放时同步缓存 |
+| `firmware/esp32sx/main/swd_engine.hpp` 的 `Calibrate/PacedTransfer`，以及 `swd_fast.cpp` 的 `MeasureHalfX16` | 启动实测档位；低速按 CPU 周期调度边沿 | 当前 1 MHz 用 paced，4 MHz 不满足该路径的标定下限，保留通用内核 |
+| 多档展开与 IRAM 常用档 | 只保留 8/10 MHz，32 位数据改用硬件计数循环 | 最终 IRAM 相对展开实验少 14860 字节，相对原始基线仍多 6128 字节 |
+| `XferBody/PacedTransfer` 中的 AP 写后空闲 | 做过对照，撤除固定追加策略 | WAIT 减少但总周期和离散读取耗时增加；见第 5 节 |
+
+上表源码路径均相对 `D:\STM32\XR-DAP\XRDAP-ESP`。没有移植整套 libxr，也没有采用其更高时钟范围。RMLink 的传输所有权、烧录恢复、采样缓存和 Wi-Fi 架构继续由原实现负责，本次重点落在位级 SWD。
 
 ## 设备与基线
 
@@ -30,7 +55,7 @@
 
 主机引脚模型通过 24576 组协议轨迹；构建通过并通过 Wi-Fi OTA 启动确认。1/4/8/10 MHz 各通过 8 轮 4 KiB 写读，错误计数均为零。8/10 MHz 各记录 96 次 WAIT，由原有协议层处理。10 MHz 的单次传输平均约 6.03 µs，板内 1024 字连续/离散读取中位数为 8.736/19.152 ms。
 
-当前源码的未优化 0.3.4 对照镜像在 4/8 MHz 通过 6 轮，10 MHz 第 2 轮写入 FAULT。相同源码基线与第一阶段的 4 MHz 连续读取分别约 17.828/18.176 ms，约慢 2%；本阶段主要收益是换向可靠性，不能宣称所有速度都提升。
+当前源码的未优化 0.3.4 对照镜像在 4/8 MHz 通过 6 轮，10 MHz 第 2 轮写入 FAULT。相同源码基线与第一阶段的 4 MHz 连续读取分别约 17.828/18.176 ms，约慢 2%；该组合方案在当前接线下通过了更高时钟档位的测试，没有独立分离合并输出和换向读回各自的贡献，不能宣称所有速度都提升。
 
 构建：ESP-IDF 5.1.2，S3 240 MHz，RMLink V1，TCP512，执行器 core0，PSRAM 镜像缓存，IP TOS 160；固件版本 0.3.4。第一阶段应用 951088 字节，ELF SHA256 `33ad6445027398589f87db75f37b2e133b501b55b69bccc176946d30217f88ec`。
 
@@ -149,4 +174,122 @@ A 在 8 MHz 返回 `052a04`，随后以 1 MHz 重连成功；没有重放失败�
 
 这些结果说明采样内容与会话能正常持续，不能称为严格零跳拍的 2 kHz。`host_history_evicted`（兼容字段名 `host_dropped`）是服务淘汰有界历史记录的累计值；本次实时游标的 `consumer_gap=0`，不能把历史淘汰直接当成实时网络丢帧。数字序号和状态也不足以定位每次跳拍的中断或 Wi-Fi 原因。
 
-证据：`07-capture-matrix.json`、同名 `.progress.jsonl`；十分钟测试另行记录。
+证据：`07-capture-matrix.json`、同名 `.progress.jsonl`。
+
+### 11. 十分钟连续测试：内容正确，仍有丢帧
+
+2026-11-16 23:52 至 11-17 00:02，在最终固件 10 MHz 下，十字段每 500 µs 采样并行两字段每 20 ms 快照，持续 600 s 后正常停止。目标全程保持运行，未发生连接中断、SWD 失败或订阅异常停止。
+
+| 指标 | 十分钟实测 |
+| --- | --- |
+| 逐帧检查的主采样 | 1,198,318 帧，内容错误 0，计数变化 1,198,317 次 |
+| 按主采样时间戳计算的有效帧率 | 1996.31 Hz |
+| 已交付序号缺口 | 2217，约占预计序号总数 0.185% |
+| 主采样探针计数 | deadline_missed=908，ring_dropped=1309，failures=0，budget_overrun=340 |
+| 快照探针计数 | deadline_missed=0，ring_dropped=0，failures=0 |
+| 主机实时游标 | consumer_gap=0，stream_error 为空 |
+| 末 65536 帧采集跨度 p50/p95/p99/max | 121/161/308/775 µs |
+| 末 65536 帧帧间隔 p50/p99/max | 500/651/1512 µs |
+
+缺口总数与 `908 + 1309 = 2217` 一致。其中环形缓冲丢弃首次出现在约第 510 s，约第 570 s 的十秒观察区间新增 1026 帧丢弃；服务的最大取流间隔为 209.2 ms。它们说明丢帧已在探针缓冲环节计数，但现有证据不足以确定为何缓冲未及时排空，不能直接归因于射频丢包、Wi-Fi 重传或 SWD 内核。未通过扩大 PSRAM 采样环来掩盖此问题，原小容量内部 RAM 采样环保持不变。
+
+采样脚本 JSON 中的 `passed=true` 表示内容有效、数值变化且 SWD/订阅未失败；零缺口不在该字段的判定条件内，必须结合上述交付和缓冲计数看待。此次长测应记为“内容正确性通过、无丢帧条件未通过”。中途进度更新所述的零环形缓冲丢弃，仅说明截至当时累计计数仍为零，不能代表全程。
+
+脚本检查了全部交付的主采样帧，但只保存前 8 帧示例、十秒进度和汇总；没有归档全部百万帧原始值。跨度与帧间隔分位数采用最后 65536 帧的有界窗口，不能作为全程最大值。内容编号验证能发现位错误或字段错位，但不证明多字段原子同步，也不能测量主机显示延迟。
+
+证据：`08-capture-soak.json`、`08-capture-soak.progress.jsonl`。长测没有覆盖整夜运行，不据十分钟数据作更长时间可靠性保证。
+
+### 12. 最终低速检查与交付状态
+
+用最终镜像补测 1 MHz：8 轮 4 KiB 写读通过，16768 次 SWD 传输、零 WAIT、零错误。只读诊断确认 backend=1（paced）、半周期 120 个 CPU 周期、估计 1 MHz；板内连续/离散读取中位数 65.092/154.382 ms。这是最终低速路径的可用性检查，没有同程序低速 A/B，不作低速加速结论。
+
+2026-11-17 00:04 完成交付核对：固件 ELF 与第 6 节相同，OTA boot_state=2（VALID），Wi-Fi 连接正常，设备所有者为空。H723 测试程序处于 Running，两次读取计数发生变化；测试结束时重新请求 4 MHz，诊断确认使用通用后端。未留下测试订阅或占用会话。最初一次临时收尾检查在未建立 SWD 上下文时读取 vendor 命令被拒绝，补齐原始 DAP 初始化后核对通过；这不属于 SRAM/Flash 或 SWD 传输失败。
+
+证据：`08-final-1mhz.json`、`09-final-state.json`。用户下一次使用前需要重新烧入自己的 H723 应用，当前第一扇区保留的是独立测试程序。
+
+## 软件检查和覆盖边界
+
+| 检查 | 结果 | 证据文件，均位于实验原始数据目录 |
+| --- | --- | --- |
+| 原有 C 引脚轨迹模型 | 24576 组通过 | `06-host-protocol.log` |
+| 新后端 C++ 协议模型 | 131072 组通过，含 ACK、校验、时间戳、空读取、回退、周期迟到/回绕 | `06-host-protocol.log` |
+| Core，包长 64/512 | 每档 20000 组解析器用例及所有权、边界检查通过 | `core64.log`、`core512.log` |
+| 原生采样状态机、网络测试 | 通过 | `capture-native.log`、`03-network-native.log` |
+| 主机单元测试 | 正确设置 PYTHONPATH 后 251 项通过 | `host-suite-r2.log` |
+| ESP32-S3 SWD 最终配置 | 编译、链接、OTA、启动确认通过 | `06-compact-build-r4.log`、`06-compact-final-ota.json`、`07-ab-B-ota.json` |
+| S3 JTAG 附加构建 | 空后端编译通过，完整固件链接失败；未宣称支持完成 | `jtag-build.log` |
+
+协议模型以可移植引脚操作替代 Xtensa 汇编，验证状态机和输出语义，不证明实际指令周期或电气时序。真实汇编另由 H723 写读、RMT、烧录和采样验证。构建检查时尝试过 GCC 不支持的汇编循环寄存器 clobber 与 `-mno-loops`，最终采用单文件 `-fno-branch-count-reg`，并检查反汇编中的显式计数循环。未将失败尝试算作通过结果。
+
+实板覆盖限定为这一台 ESP32-S3、当前接线、H723 测试程序、Wi-Fi 512 字节 DAP 包。尚未完成 USB 物理链路、其他探针或 MCU、真实应用带 Cache/复杂中断负载、外部示波器模拟信号、物理 NRST 引脚、Orbit/VS Code 界面以及用户手动验收。CPU 周期调度遇到中断会延长半周期，快速档标定也是测量估计，不是晶振级频率保证。JTAG 链接问题不在此次 SWD 工作范围内。
+
+## 文件与复现
+
+主要实现位于 `firmware/components/debug_probe/` 下的 `swd_fast.cpp`、`swd_fast.h`、`debug_gpio.c/.h`、`DAP/Source/SW_DP.c`、`DAP/Config/DAP_config.h` 和组件 `CMakeLists.txt`。只读诊断声明位于该组件的 `include/rmlink_swd_timing.h`，命令分发位于 `firmware/main/rmlink_network.c`。非默认 turnaround/data phase 等特殊配置继续走原协议内核；没有将未受益的实验开关留给产品用户。
+
+诊断 `0x80/16` 的 schema=1，返回七个小端 uint32：请求频率、估计频率、backend、半周期 CPU 周期数、paced 最小半周期、8 MHz 档半周期×16、10 MHz 档半周期×16。backend 为 0/1/2/3，分别表示通用、paced、快速 8 MHz、快速 10 MHz；通用后端的估计频率返回 0，不能解读为实际 SWCLK 为零。原始 DAP 调用须先建立 SWD 上下文，不能将增强命令与原始交换混在同一会话。
+
+以下命令在仓库根目录 PowerShell 执行。基准覆盖 `0x24010000` 起的 AXI SRAM 并暂停目标；整扇区脚本覆盖 Flash 第一扇区；采样与故障脚本要求测试程序已经运行。`--allow-target-write` 是复用脚本时对覆盖范围的显式确认，本次已有用户授权。每次使用新的输出文件名，脚本拒绝覆盖旧证据。
+
+```powershell
+# 软件检查
+./scripts/Test-SwdBits.ps1
+./scripts/Test-Core.ps1 -PacketSize 64
+./scripts/Test-Core.ps1 -PacketSize 512
+./scripts/Test-Capture.ps1
+python scripts/test_network_native.py
+$env:PYTHONPATH = "$PWD\host;$PWD\scripts"
+python -m unittest discover -s tests/host -q
+
+# 构建与本次完全相同的配置（输出路径的 xr-swd 是本地实验标签）
+./scripts/Build-Firmware.ps1 -TargetProfile -BoardProfile rmlink-v1 `
+  -TcpPacketSize 512 -ImageCachePsram -StreamIpTos 160 -BuildTag xr-swd
+./scripts/Build-H723SwdFixture.ps1
+
+# 结束其他调试会话后，Wi-Fi OTA；命令须完成 boot_confirmed 再继续
+$probeImage = 'artifacts/build/firmware-target-rmlink-v1-tcp512-core0-psram-video-xr-swd/rmlink.bin'
+& "$env:USERPROFILE\.rmlink\app\bin\rmlink.exe" firmware update $probeImage `
+  --device b81f3fc30470 --yes --json
+if ($LASTEXITCODE -ne 0) { throw 'OTA 未确认完成，先检查设备状态' }
+
+# 首次安装独立 H723 测试程序：擦写第一扇区、双重比对、复位运行
+@'
+from pathlib import Path
+from rmlink_connector.client import ApiClient
+with ApiClient().open('b81f3fc30470') as c:
+    c.target('connect', device='STM32H723VG', clock_hz=4000000)
+    print(c.flash_image(Path('artifacts/build/h723-swd-fixture/fixture-128k.bin').read_bytes(),
+                        verify_on_host=True, reset_after=True))
+'@ | python -
+
+# 固定测试程序就绪后的验证；不要与其他调试会话同时运行
+python scripts/benchmark_xr_swd.py --allow-target-write `
+  --clocks 4000000 8000000 10000000 --rounds 24 --label reproduction `
+  --output artifacts/diagnostics/xr-swd-reproduction/benchmark.json
+# 上一基准会留下暂停态；故障脚本在注入前通过 DHCSR 恢复运行
+python scripts/verify_xr_swd_faults.py `
+  --output artifacts/diagnostics/xr-swd-reproduction/faults.json
+python scripts/verify_xr_swd_flash.py --allow-target-write --clock 10000000 `
+  --output artifacts/diagnostics/xr-swd-reproduction/flash.json
+python scripts/verify_xr_swd_capture.py --clocks 10000000 --seconds 600 --coexist `
+  --output artifacts/diagnostics/xr-swd-reproduction/capture.json
+```
+
+上述 `flash_image` 使用目标包默认 Flash 起址 `0x08000000`；`verify_xr_swd_flash.py` 的标识检查用于防止误把普通应用当成此测试程序，不能用于首次安装。烧录脚本以复位运行为结束态，采样脚本启动前也会恢复运行。原始记录保存在 `artifacts/`，源码、脚本、测试和报告按阶段本地提交，不推送远端。新构建的镜像应重新记录摘要；第 6 节摘要唯一标识本次实际部署并测试的镜像，不能仅凭版本号认为两次构建相同。
+
+## 本地提交与证据保留
+
+分支为 `codex/xr-swd-optimization`，起点 `756b53e`。已按完成部分提交：
+
+| 提交 | 完成部分 |
+| --- | --- |
+| `ffb0a33` | 可重复 SWD 基准与初始结果 |
+| `2fa6c71` | 合并 GPIO 输出与换向完成确认 |
+| `831ba5e` | 两档平衡半周期路径 |
+| `8d510a0` | 启动标定与低速调度 |
+| `2e213e6` | H723 独立测试程序与首次完整烧录 |
+| `bfef1d0` | AP 写空闲对照与无收益策略撤除 |
+| `94e89c8` | 紧凑汇编与默认通用时序 |
+| `59b8f5c` | 同程序 A/B、FAULT 清除、多轮烧录及短采样脚本 |
+
+本报告的最终提交可用 `git log --oneline 756b53e..HEAD` 查看。参考仓库、构建镜像、日志和设备数据均未纳入 Git，也未添加 submodule/gitlink。原始证据目录中的 `evidence-manifest.json` 记录文件大小和 SHA256，便于核对本地留存内容。文档读者审阅只验证表述与复现步骤是否自洽，不代替源码检查或用户验收；提出的首次 OTA/安装步骤和运行状态衔接问题已经补齐。
