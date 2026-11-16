@@ -404,6 +404,8 @@ __STATIC_FORCEINLINE uint32_t PIN_SWDIO_IN      (void) {
 /** SWDIO I/O pin: Set Output (used in SWD mode only).
 \param bit Output value for the SWDIO DAP hardware I/O pin.
 */
+#define PIN_SWDIO_SWCLK_OUT(bit) debug_probe_swdio_clock_low(bit)
+
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT     (uint32_t bit) {
     debug_probe_swdio_write(bit);
 }

@@ -109,6 +109,8 @@ __STATIC_FORCEINLINE void debug_probe_swdio_out_enable(void)
 {
     /* init_swd_pins selects GPIO_ENABLE as OE and retains the CPU data route. */
     gpio_ll_output_enable(dedic_gpio_dev, GPIO_SWDIO);
+    /* Drain the APB write before a fast first data edge can reach the pad. */
+    (void)REG_READ(GPIO_SWDIO < 32 ? GPIO_ENABLE_REG : GPIO_ENABLE1_REG);
 }
 
 __STATIC_FORCEINLINE void debug_probe_swdio_out_disable(void)
@@ -116,6 +118,7 @@ __STATIC_FORCEINLINE void debug_probe_swdio_out_disable(void)
     /* Do not call gpio_ll_output_disable: it also disconnects the matrix. */
     if(GPIO_SWDIO<32)dedic_gpio_dev->enable_w1tc=1u<<GPIO_SWDIO;
     else dedic_gpio_dev->enable1_w1tc.data=1u<<(GPIO_SWDIO-32);
+    (void)REG_READ(GPIO_SWDIO < 32 ? GPIO_ENABLE_REG : GPIO_ENABLE1_REG);
 }
 
 __STATIC_FORCEINLINE int debug_probe_swdio_read(void)
@@ -146,6 +149,14 @@ __STATIC_FORCEINLINE void debug_probe_swdio_clr(void)
 __STATIC_FORCEINLINE void debug_probe_swdio_write(int val)
 {
     dedic_gpio_cpu_ll_write_mask(rmlink_swdio_out_mask, (val & 0x01) ? rmlink_swdio_out_mask : 0);
+}
+
+/* Change data with the falling clock edge using one dedicated-GPIO write.
+ * Keep the mask: other dedicated outputs on this core retain their state. */
+__STATIC_FORCEINLINE void debug_probe_swdio_clock_low(uint32_t value)
+{
+    dedic_gpio_cpu_ll_write_mask(rmlink_swclk_out_mask | rmlink_swdio_out_mask,
+                                (value & 1U) ? rmlink_swdio_out_mask : 0U);
 }
 
 __STATIC_FORCEINLINE void debug_probe_swd_blink(int on)

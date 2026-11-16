@@ -9,6 +9,7 @@ unsigned host_input(void);
 #define PIN_SWCLK_TCK_SET() host_clock(1)
 #define PIN_SWCLK_TCK_CLR() host_clock(0)
 #define PIN_SWDIO_OUT(value) host_output((value)&1U)
+#define PIN_SWDIO_SWCLK_OUT(value) do { host_output((value)&1U); host_clock(0); } while (0)
 #define PIN_SWDIO_IN() host_input()
 #define PIN_SWDIO_OUT_ENABLE() host_direction(1)
 #define PIN_SWDIO_OUT_DISABLE() host_direction(0)

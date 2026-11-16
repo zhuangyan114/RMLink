@@ -50,9 +50,14 @@
    PIN_SWCLK_SET();                      \
    PIN_DELAY()
  
- #define SW_WRITE_BIT(bit)               \
+ #ifndef PIN_SWDIO_SWCLK_OUT
+ #define PIN_SWDIO_SWCLK_OUT(bit)        \
    PIN_SWDIO_OUT(bit);                   \
-   PIN_SWCLK_CLR();                      \
+   PIN_SWCLK_CLR()
+ #endif
+
+ #define SW_WRITE_BIT(bit)               \
+   PIN_SWDIO_SWCLK_OUT(bit);             \
    PIN_DELAY();                          \
    PIN_SWCLK_SET();                      \
    PIN_DELAY()
