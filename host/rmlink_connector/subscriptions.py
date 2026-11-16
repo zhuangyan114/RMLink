@@ -45,7 +45,10 @@ def compile_config(body,profile=None):
     if kind=='rtt_stream' and channel: sid=4
     strict=body.get('strict_deadlines',False)
     if type(strict) is not bool:raise ValueError('strict_deadlines must be boolean')
-    return dict(subscription_id=sid,kind=kind,addresses=addresses,fields=fields,period_us=period,sample_limit=limit,channel=channel,strict_deadlines=strict)
+    realtime=body.get('realtime',False)
+    if type(realtime) is not bool or realtime and (kind!='memory_series' or limit or strict):
+        raise ValueError('realtime requires an unlimited, non-strict memory_series')
+    return dict(subscription_id=sid,kind=kind,addresses=addresses,fields=fields,period_us=period,sample_limit=limit,channel=channel,strict_deadlines=strict,realtime=realtime)
 
 
 class Subscriptions:
@@ -64,11 +67,16 @@ class Subscriptions:
         self.last_status={}
         self.usb_bulk_stream=False
         self.stream_diagnostics=None
+        self.timeline_active=False;self.timeline_progress=time.monotonic()
+        self.timeline_ready_at=self.timeline_progress+5.0
+        self.realtime_stream=False
 
     def accept_frames(self,frames):
+        progress=False
         for frame in frames:
             sid=frame[6]
             capture=int.from_bytes(frame[8:12],'little')
+            if sid==1 and capture==self.configs.get(1,{}).get('capture_id'):progress=True
             timestamp=int.from_bytes(frame[36:44],'little')
             observed=self.observed.get(sid)
             if observed is None or observed['capture_id']!=capture:
@@ -78,8 +86,28 @@ class Subscriptions:
             if self.recording:self.recording.offer(cursor,frame)
             if len(self.records)==self.records.maxlen:self.host_dropped+=1
             self.records.append((cursor,frame));self.next_sequence+=1
+        if progress:self.timeline_progress=time.monotonic()
+
+    async def _watch_realtime(self):
+        while True:
+            await asyncio.sleep(.1)
+            config=self.configs.get(1,{})
+            if not config.get('realtime') or not self.timeline_active or self.halted_for_control:continue
+            # Older firmware used a 1500 ms base RTO. Keep this watchdog as a
+            # final escape after transport retries, not a replacement for them.
+            limit=max(2.5,3*config['period_us']/1000000)
+            now=time.monotonic()
+            if now>=self.timeline_ready_at and now-self.timeline_progress>=limit:
+                self.error=f'TimeoutError: Realtime capture stalled for {limit:g}s'
+                # Reset only the independent data socket. Do not wait for the
+                # old TCP sender to drain its queue or close the control owner.
+                if self.writer:self.writer.transport.abort()
+                async with self.condition:self.condition.notify_all()
+                return
 
     async def start_recording(self,directory,body):
+        if self.realtime_stream or any(c.get('realtime') for c in self.configs.values()):
+            raise ValueError('Recording requires a non-realtime data stream; dispose shared subscriptions and recreate without realtime')
         if self.recording and any(task and not task.done() for task in (self.recording.task,self.recording.failure_task)):
             raise ValueError('Recording already active or finalizing')
         ids=body.get('subscription_ids',list(self.configs));strict=body.get('strict',True)
@@ -99,10 +127,11 @@ class Subscriptions:
         decoder=CompactFrameDecoder(delta=self.delta_stream) if self.compact_stream else FrameDecoder()
         diagnostics=self.stream_diagnostics=CaptureStreamDiagnostics(getattr(self.target.broker,'device_id','unknown'))
         reporter=asyncio.create_task(diagnostics.report(self)) if diagnostics.enabled else None
+        watchdog=asyncio.create_task(self._watch_realtime())
         try:
             while True:
                 data=await self.reader.read(4096)
-                if not data: raise ConnectionError('Probe capture stream closed')
+                if not data: raise ConnectionError(self.error or 'Probe capture stream closed')
                 traffic=getattr(self.target.broker.transport,'traffic',None)
                 if traffic:traffic.rx_bytes+=len(data)
                 read_at=time.perf_counter()
@@ -118,6 +147,7 @@ class Subscriptions:
             if self.recording and self.recording.accepting:self.recording.fail('capture_stream_failed')
             async with self.condition: self.condition.notify_all()
         finally:
+            watchdog.cancel();await asyncio.gather(watchdog,return_exceptions=True)
             if reporter:
                 reporter.cancel();await asyncio.gather(reporter,return_exceptions=True)
                 diagnostics.emit(self,'closed')
@@ -140,8 +170,12 @@ class Subscriptions:
             if self.recording and self.recording.accepting:self.recording.fail('capture_stream_failed')
             async with self.condition:self.condition.notify_all()
 
-    async def ensure_stream(self):
-        if self.task and not self.task.done() and not self.error:return
+    async def ensure_stream(self,config=None):
+        fast=bool((config or {}).get('realtime') and self.target.capture_features&512 and self.target.capture_features&4096)
+        if self.task and not self.task.done() and not self.error:
+            if self.configs or fast==self.realtime_stream:return
+            # With no remaining consumers it is safe to negotiate the requested
+            # policy anew. Never downgrade an in-use RMS4 stream into a recording.
         # A failed data socket does not invalidate the control owner. A new
         # subscription explicitly retries the data connection with a fresh
         # ticket/decoder; it never replays the other stopped subscriptions.
@@ -162,7 +196,8 @@ class Subscriptions:
             configure_probe_tcp(self.writer.get_extra_info('socket'))
             self.delta_stream=bool(self.target.capture_features&512)
             self.compact_stream=self.delta_stream or bool(self.target.capture_features&256)
-            self.writer.write((b'RMS3' if self.delta_stream else b'RMS2' if self.compact_stream else b'RMS1')+ticket); await self.writer.drain()
+            self.realtime_stream=fast
+            self.writer.write((b'RMS4' if fast else b'RMS3' if self.delta_stream else b'RMS2' if self.compact_stream else b'RMS1')+ticket); await self.writer.drain()
             traffic=getattr(self.target.broker.transport,'traffic',None)
             if traffic:traffic.tx_bytes+=4+len(ticket)
             if await asyncio.wait_for(self.reader.readexactly(4),3)!=b'OKAY': raise ConnectionError('Stream binding rejected')
@@ -178,7 +213,6 @@ class Subscriptions:
         async with self.target.lock:
             sid=config['subscription_id']
             if sid in self.configs: raise ValueError('Subscription slot already exists; stop/dispose it first')
-            await self.ensure_stream()
             await self.target.vendor(1,struct.pack('<BBBIIIB',sid,KINDS[config['kind']],len(config['addresses']),
                 config['period_us'],config['sample_limit'],config['channel'],int(config['strict_deadlines'])))
             chunk=(self.target.broker.packet_size-5)//4
@@ -189,6 +223,9 @@ class Subscriptions:
                 for i,f in enumerate(config['fields']):
                     offsets=f.get('offsets',[])
                     await self.target.vendor(15,bytes([sid,i,len(offsets),f.get('byte_length',4)])+struct.pack('<'+'i'*len(offsets),*offsets))
+            # PREPARE clears this slot's old generation before a replacement
+            # reader can begin draining it. START still follows stream binding.
+            await self.ensure_stream(config)
             config['stream_cursor']=self.next_sequence-1
             await self.target.vendor(3,bytes([sid]))
             # Orbit restores Timeline while its launch is still halted. Keep
@@ -199,6 +236,9 @@ class Subscriptions:
             stats=await self.target.vendor(7,bytes([sid]))
             config['capture_id']=int.from_bytes(stats[3:7],'little')
             self.configs[sid]=config
+            if sid==1:
+                self.timeline_active=not self.halted_for_control;self.timeline_progress=time.monotonic()
+                self.timeline_ready_at=self.timeline_progress+5.0
             return config
 
     async def action(self,sid,action):
@@ -206,7 +246,16 @@ class Subscriptions:
         commands={'stop':4,'pause':5,'resume':6,'status':7}
         if action not in commands: raise ValueError('Unsupported subscription action')
         if action=='resume' and self.error:raise ConnectionError('Capture stream failed; stop/dispose and recreate the subscription')
-        async with self.target.lock: data=await self.target.vendor(commands[action],bytes([sid]))
+        previous=self.timeline_active
+        if sid==1 and action in ('stop','pause'):self.timeline_active=False
+        try:
+            async with self.target.lock: data=await self.target.vendor(commands[action],bytes([sid]))
+        except BaseException:
+            if sid==1 and action in ('stop','pause'):self.timeline_active=previous
+            raise
+        if sid==1 and action in ('stop','pause','resume'):
+            self.timeline_active=action=='resume';self.timeline_progress=time.monotonic()
+            self.timeline_ready_at=self.timeline_progress+5.0
         if action=='status':
             state,kind,count,capture,seq,frames,missed,dropped,failures,overrun,reason=struct.unpack('<BBBIIQQQQIB',data)
             result=dict(state=state,kind=kind,field_count=count,capture_id=capture,last_sequence=seq,
@@ -264,6 +313,7 @@ class Subscriptions:
         if self.task:
             self.task.cancel();await asyncio.gather(self.task,return_exceptions=True)
             self.task=None
+        self.realtime_stream=False
         if self.usb_bulk_stream:
             await self.target.broker.transport.close_capture_stream()
             self.usb_bulk_stream=False

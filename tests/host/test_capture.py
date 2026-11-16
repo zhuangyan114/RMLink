@@ -37,6 +37,13 @@ class CaptureWireTests(unittest.TestCase):
             with self.assertRaises(ValueError): compile_config({'kind':'memory_series','addresses':addresses})
         for period in (0,199,10000001,1.5,True):
             with self.assertRaises(ValueError): compile_config({'kind':'memory_series','addresses':[0x20000000],'period_us':period})
+    def test_realtime_is_explicit_and_only_for_live_series(self):
+        base={'kind':'memory_series','addresses':[0x20000000]}
+        self.assertFalse(compile_config(base)['realtime'])
+        self.assertTrue(compile_config(dict(base,realtime=True))['realtime'])
+        for extra in ({'realtime':1},{'realtime':True,'sample_limit':3},
+                      {'realtime':True,'strict_deadlines':True},{'realtime':True,'kind':'memory_snapshot'}):
+            with self.assertRaises(ValueError):compile_config(dict(base,**extra))
 
 
 class ConsumerTests(unittest.IsolatedAsyncioTestCase):

@@ -16,9 +16,9 @@
 #include "freertos/task.h"
 #include "freertos/ringbuf.h"
 #include "esp_timer.h"
+#include "esp_attr.h"
 #include "esp_random.h"
 #include "esp_log.h"
-#include "esp_heap_caps.h"
 #include "esp_rom_crc.h"
 #include "DAP.h"
 #endif
@@ -62,17 +62,18 @@ typedef struct {
 static subscription_t s_sub[SLOTS];
 static uint8_t s_transport;
 static uint32_t s_session, s_capture;
-static uint32_t s_record_bytes=64*1024;
+static uint32_t s_record_bytes=32*1024;
 static bool s_barrier;
 static uint64_t s_lease;
 static esp_timer_handle_t s_timer;
 static uint64_t s_timer_due;
 static void (*s_wake)(void);
 static RingbufHandle_t s_records[SLOTS];
-#if CONFIG_SPIRAM && !defined(RMLINK_HOST_TEST)
-/* CPU-only record payload; the ring control, task stacks, SWD data and USB DMA
- * remain internal. Stream/USB workers copy a record before sending it. */
-static StaticRingbuffer_t s_external_record_control;
+#ifndef RMLINK_HOST_TEST
+/* Fixed internal RAM budget on chips with or without PSRAM. Real-time display
+ * drops old frames under backpressure instead of building seconds of latency. */
+static DRAM_ATTR uint8_t s_record_storage[32*1024] __attribute__((aligned(4)));
+static DRAM_ATTR StaticRingbuffer_t s_record_control[SLOTS];
 #endif
 static portMUX_TYPE s_stream_mux = portMUX_INITIALIZER_UNLOCKED;
 static uint8_t s_ticket[16];
@@ -327,29 +328,28 @@ void rmlink_capture_buffer_stats(uint8_t output[32]) {
 esp_err_t rmlink_capture_init(void (*wake)(void)) {
     rmlink_capture_invalidate_ap();
     s_wake=wake;
-    /* At 5 kHz / four fields each ring item costs 80 bytes. Measured TCP
-     * stalls reach 3.8 s; 2 MiB retains about 5.2 s, with recovery margin.
-     * Targets, GPIO state, ring controls and USB DMA remain internal. */
-    const size_t sizes[SLOTS]={2*1024*1024,4*1024,6*1024,6*1024};
+    const size_t sizes[SLOTS]={16*1024,4*1024,6*1024,6*1024};
     s_record_bytes=0;
-    for(unsigned i=0;i<SLOTS;i++) {
-        size_t allocated=i==0?48*1024:sizes[i];
-#if CONFIG_SPIRAM && !defined(RMLINK_HOST_TEST)
-        if(i==0) {
-            uint8_t *storage=heap_caps_malloc(sizes[i],MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-            if(storage) {
-                s_records[i]=xRingbufferCreateStatic(sizes[i],RINGBUF_TYPE_NOSPLIT,storage,&s_external_record_control);
-                if(!s_records[i])free(storage);
-                else {allocated=sizes[i];ESP_LOGI("rmlink_capture","Timeline ring: %u bytes PSRAM",(unsigned)sizes[i]);}
-            }
-        }
+#ifndef RMLINK_HOST_TEST
+    size_t offset=0;
 #endif
-        if(!s_records[i])s_records[i]=xRingbufferCreate(i==0?48*1024:sizes[i],RINGBUF_TYPE_NOSPLIT);
+    for(unsigned i=0;i<SLOTS;i++) {
+#ifdef RMLINK_HOST_TEST
+        s_records[i]=xRingbufferCreate(sizes[i],RINGBUF_TYPE_NOSPLIT);
+#else
+        s_records[i]=xRingbufferCreateStatic(sizes[i],RINGBUF_TYPE_NOSPLIT,
+                                           s_record_storage+offset,&s_record_control[i]);
+        offset+=sizes[i];
+#endif
         if(!s_records[i]) return ESP_ERR_NO_MEM;
-        s_record_capacity[i]=allocated;s_record_bytes+=allocated;
+        s_record_capacity[i]=sizes[i];s_record_bytes+=sizes[i];
     }
     esp_timer_create_args_t args={.callback=timer_cb,.name="rmlink_capture",.skip_unhandled_events=true};
     return esp_timer_create(&args,&s_timer);
+}
+static void discard_records(unsigned slot) {
+    size_t n;void *p;
+    while((p=xRingbufferReceive(s_records[slot],&n,0)))vRingbufferReturnItem(s_records[slot],p);
 }
 static void stream_reset(void) {
     portENTER_CRITICAL(&s_stream_mux);
@@ -357,9 +357,7 @@ static void stream_reset(void) {
     portEXIT_CRITICAL(&s_stream_mux);
     atomic_store(&s_stream_failed,false);
     s_usb_length=0;s_usb_frame_id=0;
-    size_t n; void *p;
-    for(unsigned i=0;i<SLOTS;i++)
-        while((p=xRingbufferReceive(s_records[i],&n,0))) vRingbufferReturnItem(s_records[i],p);
+    for(unsigned i=0;i<SLOTS;i++)discard_records(i);
 }
 void rmlink_capture_closed(uint8_t transport,uint32_t session) {
     rmlink_capture_invalidate_ap();
@@ -693,6 +691,7 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
         out[2]=0; out[3]=1; out[4]=FIELDS; out[5]=SLOTS; w16(out+6,3244);
         w32(out+8,4000000); w32(out+12,200); w32(out+16,s_record_bytes);
         w32(out+20,63|128|256|512|2048 /* shared target package selection */
+            |4096 /* RMS4 realtime stream, bounded batch send */
 #ifndef RMLINK_HOST_TEST
             |64 /* RMT clock trace */
 #if RMLINK_USB_STREAM_AVAILABLE
@@ -815,6 +814,10 @@ size_t rmlink_capture_command(uint8_t transport,uint32_t session,const uint8_t *
            (r[3]==3 && (r[4]!=1 || r[2]<3)) || (r[3]==1 && r[2]!=1) || (r[3]==2 && r[2]!=2)) return 3;
         uint32_t period=u32(r+5); if(period<200 || period>10000000) return 3;
         if(s->state==2 || s->rtt_pending) { out[2]=3; return 3; }
+        /* PREPARE replaces only this stopped subscription. No old producer can
+         * run concurrently on the executor. Clear its queued generation before
+         * a replacement data socket is bound; preserve other consumers' rings. */
+        discard_records(r[2]-1);
         memset(s,0,sizeof(*s)); s->kind=r[3]; s->count=r[4]; s->period=period;
         s->strict_deadlines=len<18 || r[17]!=0; /* old clients retain strict behavior */
         memset(s->width,4,sizeof(s->width));

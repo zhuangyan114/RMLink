@@ -295,16 +295,44 @@ static void buffer_snapshot_test(void) {
     rmlink_capture_buffer_stats(during);
     uint32_t capacity,free_before,free_during,free_after;
     memcpy(&capacity,before,4);memcpy(&free_before,before+4,4);memcpy(&free_during,during+4,4);
-    assert(capacity==48*1024 && free_during<free_before);
+    assert(capacity==16*1024 && free_during<free_before);
     rmlink_capture_buffer_stats(after);assert(!memcmp(during,after,32)); /* no dequeue */
     assert(rmlink_capture_take(frame,sizeof(frame),0)==60);
     rmlink_capture_buffer_stats(after);memcpy(&free_after,after+4,4);
     assert(free_after==free_before);
     rmlink_capture_closed(2,7);
 }
+static void replacement_generation_test(void) {
+    uint8_t frame[384];uint32_t old_id,new_id,value;
+    for(unsigned lost=0;lost<2;lost++) {
+        uint8_t ticket_cmd[]={0x81,11},nonce[16];uint32_t generation;
+        command(ticket_cmd,2);assert(out[2]==0);memcpy(nonce,out+3,16);
+        assert(rmlink_capture_bind(nonce,&generation));
+        prepare(1,1,1);address(1,0,0x20000000);action(3,1);action(7,1);memcpy(&old_id,out+6,4);
+        for(unsigned i=0;i<100;i++){host_clock+=1000;ram[0]=i;assert(rmlink_capture_run());}
+        action(4,1);
+        prepare(2,2,1);address(2,0,0x20000004);action(3,2);assert(rmlink_capture_run());action(4,2);
+        if(lost) {rmlink_capture_stream_lost(generation);assert(!rmlink_capture_run());}
+        prepare(1,1,1);address(1,0,0x20000000);
+        if(lost) {
+            command(ticket_cmd,2);assert(out[2]==0);memcpy(nonce,out+3,16);
+            assert(rmlink_capture_bind(nonce,&generation));
+        }
+        action(3,1);action(7,1);memcpy(&new_id,out+6,4);assert(new_id!=old_id);
+        host_clock+=1000;ram[0]=1234;assert(rmlink_capture_run());
+        unsigned timeline=0,watch=0;
+        while(rmlink_capture_take(frame,sizeof(frame),0)) {
+            memcpy(&value,frame+8,4);
+            if(frame[6]==1){assert(value==new_id);timeline++;}
+            else {assert(frame[6]==2);watch++;}
+        }
+        assert(timeline==1 && watch==1); /* only this slot's old queue was cleared */
+        rmlink_capture_closed(2,7);
+    }
+}
 int main(void) {
     assert(rmlink_capture_init(NULL)==0);buffer_snapshot_test();memap_cache_test();bounded_read_recovery_test();read_fault_recovery_test();independent_pointer_prefetch_test();
-    snapshot_read_test();
+    snapshot_read_test();replacement_generation_test();
     memset(ram,0,sizeof(ram));reads=0;writes=0;commands=0;
     uint8_t sync[10]={0x81,13,1,2,3,4,5,6,7,8};
     unsigned sync_reads=reads;owner.session=8;
@@ -490,12 +518,12 @@ int main(void) {
     uint8_t bad[]={0x81,1,1,1,1,0,0,0,0}; command(bad,sizeof(bad)); assert(out[2]==1);
     owner.session=8; command(ticket,2); assert(out[2]==2);
     owner.session=7;rmlink_capture_closed(2,7);
-    /* Buffer a 500 ms sender outage at 1 kHz with one field, then drain in order. */
+    /* A small internal ring holds a short outage; long ones drop old frames. */
     prepare(1,1,1);address(1,0,0x20000000);action(3,1);
-    for(unsigned i=0;i<500;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
+    for(unsigned i=0;i<100;i++) {host_clock+=980;ram[0]=i;assert(rmlink_capture_run());}
     action(5,1);action(7,1);uint64_t buffered_drops;memcpy(&buffered_drops,out+30,8);
     assert(buffered_drops==0);
-    for(unsigned i=0;i<500;i++) {
+    for(unsigned i=0;i<100;i++) {
         assert(rmlink_capture_take(frame,sizeof(frame),0)==60);
         memcpy(&v,frame+32,4);assert(v==i);
         memcpy(&v,frame+56,4);assert(v==i);

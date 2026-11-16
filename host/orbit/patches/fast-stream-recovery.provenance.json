@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-14",
+  "source_repository": "C:\\Users\\22690\\Desktop\\AI\\Orbit",
+  "base_commit": "ff3240264a381056c8354ea3ed683d107b04ba25",
+  "files": [
+    "clients/rmlink/rmlink-client.d.mts",
+    "src/ozone-backend/commander.ts",
+    "src/ozone-backend/commander-rmlink-recovery.test.ts"
+  ],
+  "patch_sha256": "89b5d2ef744956e8f4d7db44387356403da6f4e546463a4caabc9227391c847b",
+  "debugadapter_sha256": "e2f060975ceb90b3e7ce113f5181188e0ad11ed5601be3bf5ac46c595d93005c",
+  "automated_validation": {
+    "host_tests_passed": 250,
+    "orbit_tests_passed": 1328,
+    "orbit_tests_skipped": 1,
+    "native_deadline_scenarios": 12,
+    "typecheck": "passed",
+    "orbit_build": "passed",
+    "firmware_v1_build": "passed",
+    "firmware_development_build": "passed",
+    "connector_build": "passed"
+  },
+  "policy": {
+    "startup_grace_seconds": 5,
+    "steady_idle_seconds": 2.5,
+    "stable_recovery_seconds": 3
+  },
+  "hardware_validation": "OTA 后运行 ELF/profile/VALID 与后台摘要已核对；修订策略的真实断线恢复、长稳和用户验收待完成。",
+  "user_manual_acceptance": "pending",
+  "evidence": "artifacts/diagnostics/recovery-repeat-stall-20261114"
+}

@@ -56,6 +56,18 @@ class ProbeModel:
 
 
 class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_replacement_slot_is_prepared_before_data_socket_binding(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        self.probe.requests.clear()
+        status,_=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000]})
+        self.assertEqual(status,200)
+        commands=[p[1] for p in self.probe.requests if p[0]==0x81]
+        self.assertLess(commands.index(1),commands.index(11))
+        self.assertLess(commands.index(15),commands.index(11))
+        self.assertLess(commands.index(11),commands.index(3))
+
     async def test_reset_retains_subscription_then_continue_resumes_same_capture(self):
         from unittest.mock import AsyncMock
         _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
@@ -88,7 +100,10 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         try:
             self.peers.append(writer)
             previous_capture=self.probe.capture_ids.get(1)
-            self.assertEqual(await reader.readexactly(20),b'RMS1'+b'X'*16)
+            hello=await reader.readexactly(20)
+            self.assertEqual(hello[4:],b'X'*16)
+            self.assertIn(hello[:4],(b'RMS1',b'RMS3',b'RMS4'))
+            self.last_hello=hello[:4]
             if self.reject_binding:
                 writer.write(b'NOPE');await writer.drain();await reader.read();return
             writer.write(b'OKAY');await writer.drain();await self.probe.started.wait()
@@ -97,6 +112,9 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
             while self.probe.capture_ids.get(1)==previous_capture:await asyncio.sleep(.001)
             data=bytearray(b''.join(record(i) for i in range(5)))
             for offset in range(0,len(data),64):struct.pack_into('<I',data,offset+8,self.probe.capture_ids[1])
+            if hello[:4] in (b'RMS3',b'RMS4'):
+                body=b''.join(data[i+28:i+64] for i in range(0,len(data),64))
+                data=struct.pack('<4sBBHIII',b'RMC2',1,1,5,self.probe.capture_ids[1],1,len(body))+body
             for i in range(0,len(data),7):writer.write(data[i:i+7]);await writer.drain()
             await reader.read()
         finally:writer.close();await writer.wait_closed()
@@ -146,6 +164,112 @@ class CaptureServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((captures.recording.status()['phase'],captures.recording.status()['sha256']),('failed',sealed_hash))
         from rmlink_connector.recording_reader import inspect_recording
         self.assertEqual(inspect_recording(sealed['path'])['sha256'],sealed_hash)
+
+    async def test_realtime_silence_expires_and_can_recreate_on_same_owner(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        body={'kind':'memory_series','addresses':[0x20000000,0x20000004],'realtime':True}
+        _,initial=await self.http('POST',root+'/subscriptions',body)
+        _,events=await self.http('POST',root+'/events',{'wait_ms':1000})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        self.assertEqual(len(events['records']),5)
+        captures.timeline_ready_at=time.monotonic()-1;captures.timeline_progress=time.monotonic()-3
+        await asyncio.sleep(.2)
+        self.assertIn('Realtime capture stalled',captures.error or '')
+        self.assertTrue(captures.task.done())
+        self.assertEqual(self.broker.owner,session['session_id'])
+        await self.http('DELETE',root+'/subscriptions/1')
+        code,new=await self.http('POST',root+'/subscriptions',body)
+        self.assertEqual(code,200);self.assertNotEqual(initial['capture_id'],new['capture_id'])
+        _,events=await self.http('POST',root+'/events',{'after':new['stream_cursor'],'wait_ms':1000})
+        self.assertEqual(len(events['records']),5);self.assertIsNone(events['error'])
+
+    async def test_realtime_allows_one_tcp_retransmission_before_reconnecting(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        _,config=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004],'realtime':True})
+        _,events=await self.http('POST',root+'/events',{'wait_ms':1000})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        # The real device's initial RTO is 1500 ms. Data delivered by that first
+        # retry must not lose to a 1000 ms application watchdog.
+        captures.timeline_ready_at=time.monotonic()-1
+        await asyncio.sleep(1.65)
+        self.assertIsNone(captures.error)
+        self.assertFalse(captures.task.done());self.assertEqual(len(self.peers),1)
+        frame=bytearray(record(6));struct.pack_into('<I',frame,8,config['capture_id'])
+        self.peers[-1].write(frame);await self.peers[-1].drain()
+        _,later=await self.http('POST',root+'/events',{'after':events['cursor'],'wait_ms':1000})
+        self.assertEqual(len(later['records']),1);self.assertIsNone(later['error'])
+
+    async def test_realtime_startup_grace_delays_cutoff_but_does_not_disable_it(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004],'realtime':True})
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        self.assertGreater(captures.timeline_ready_at-time.monotonic(),4.5)
+        captures.timeline_progress=time.monotonic()-3
+        captures.timeline_ready_at=time.monotonic()+.4
+        await asyncio.sleep(.2);self.assertIsNone(captures.error)
+        await asyncio.sleep(.4);self.assertIn('Realtime capture stalled',captures.error or '')
+
+    async def test_paused_realtime_and_reliable_recording_do_not_use_idle_recovery(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004],'realtime':True})
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        code,_=await self.http('POST',root+'/recordings',{'strict':True})
+        self.assertEqual(code,400)
+        await self.http('POST',root+'/subscriptions/1',{'action':'pause'})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        await asyncio.sleep(1.3)
+        self.assertIsNone(captures.error);self.assertFalse(captures.task.done())
+        await self.http('POST',root+'/subscriptions/1',{'action':'resume'})
+        captures.timeline_ready_at=time.monotonic()-1;captures.timeline_progress=time.monotonic()-3
+        await asyncio.sleep(.2)
+        self.assertIn('Realtime capture stalled',captures.error or '')
+
+    async def test_realtime_negotiates_rms4_only_with_new_firmware_feature(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        captures.target.capture_features|=4096|512
+        code,_=await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004],'realtime':True})
+        self.assertEqual(code,200);self.assertEqual(self.last_hello,b'RMS4')
+        _,events=await self.http('POST',root+'/events',{'wait_ms':1000})
+        self.assertEqual(len(events['records']),5);self.assertIsNone(events['error'])
+
+    async def test_rtt_frames_do_not_hide_stalled_timeline(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/subscriptions',{'kind':'memory_series','addresses':[0x20000000,0x20000004],'realtime':True})
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        captures.timeline_ready_at=time.monotonic()-1;captures.timeline_progress=time.monotonic()
+        progress=captures.timeline_progress
+        for i in range(5):
+            self.peers[-1].write(record(i,kind=3));await self.peers[-1].drain();await asyncio.sleep(.2)
+        self.assertEqual(captures.timeline_progress,progress)
+        captures.timeline_progress=time.monotonic()-3
+        await asyncio.sleep(.2)
+        self.assertIn('Realtime capture stalled',captures.error or '')
+
+    async def test_reliable_capture_reopens_an_idle_rms4_stream_before_recording(self):
+        _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})
+        root='/v1/sessions/'+session['session_id']
+        await self.http('POST',root+'/target',{'command':'connect'})
+        captures=self.connector.sessions[session['session_id']]['captures']
+        captures.target.capture_features|=4096|512
+        body={'kind':'memory_series','addresses':[0x20000000,0x20000004]}
+        await self.http('POST',root+'/subscriptions',dict(body,realtime=True))
+        await self.http('POST',root+'/events',{'wait_ms':1000})
+        self.assertTrue(captures.realtime_stream)
+        await self.http('DELETE',root+'/subscriptions/1')
+        code,_=await self.http('POST',root+'/subscriptions',body)
+        self.assertEqual(code,200);self.assertEqual(self.last_hello,b'RMS3')
+        self.assertFalse(captures.realtime_stream)
+        self.assertEqual((await self.http('POST',root+'/recordings',{'strict':True}))[0],200)
 
     async def test_rejected_recovery_closes_socket_and_allows_another_explicit_start(self):
         _,session=await self.http('POST','/v1/sessions',{'device_id':'model'})

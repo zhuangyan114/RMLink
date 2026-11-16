@@ -50,6 +50,15 @@ if (Test-Path -LiteralPath $cachedConfig) {
     if ($streamConfig -notmatch '(?m)^CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y\r?$') { $streamConfig += "`nCONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`n" }
     $streamConfig = [regex]::Replace($streamConfig, '(?m)^CONFIG_RMLINK_STREAM_IP_TOS=.*\r?\n', '')
     $streamConfig += "`nCONFIG_RMLINK_STREAM_IP_TOS=$StreamIpTos`n"
+    # Apply the transport policy to existing caches too; SDKCONFIG_DEFAULTS
+    # alone never replaces an older RTO/send-buffer value.
+    foreach ($entry in @{'CONFIG_LWIP_TCP_TMR_INTERVAL'=50; 'CONFIG_LWIP_TCP_RTO_TIME'=300;
+                         'CONFIG_LWIP_TCP_SND_BUF_DEFAULT'=5744; 'CONFIG_TCP_SND_BUF_DEFAULT'=5744;
+                         'CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM'=16; 'CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM'=16;
+                         'CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM'=16}.GetEnumerator()) {
+        $streamConfig = [regex]::Replace($streamConfig, "(?m)^$($entry.Key)=.*\r?\n", '')
+        $streamConfig += "`n$($entry.Key)=$($entry.Value)`n"
+    }
     if ($StreamDiagnostics) {
         $streamConfig = $streamConfig.Replace('# CONFIG_RMLINK_STREAM_DIAGNOSTICS is not set', 'CONFIG_RMLINK_STREAM_DIAGNOSTICS=y')
     }
@@ -67,8 +76,6 @@ if ($WifiCore -ge 0 -and (Test-Path -LiteralPath $cachedConfig)) {
 if ($ImageCachePsram -and (Test-Path -LiteralPath $cachedConfig)) {
     $configText = [IO.File]::ReadAllText($cachedConfig)
     $configText = $configText.Replace('# CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP is not set', 'CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y')
-    $configText = [regex]::Replace($configText, '(?m)^CONFIG_LWIP_TCP_SND_BUF_DEFAULT=\d+\r?$', 'CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768')
-    $configText = [regex]::Replace($configText, '(?m)^CONFIG_TCP_SND_BUF_DEFAULT=\d+\r?$', 'CONFIG_TCP_SND_BUF_DEFAULT=32768')
     [IO.File]::WriteAllText($cachedConfig, $configText, (New-Object Text.UTF8Encoding($false)))
 }
 & (Join-Path $PSScriptRoot 'Invoke-Idf.ps1') -ProjectPath $ProjectPath -IdfArguments @('-D', 'IDF_TARGET=esp32s3', '-D', "RMLINK_DAP_PACKET_SIZE=$TcpPacketSize", '-D', "SDKCONFIG_DEFAULTS=$defaults", '-D', "SDKCONFIG=$($build.Replace('\', '/'))/sdkconfig", '-B', $build, 'build')

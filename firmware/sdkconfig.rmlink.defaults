@@ -16,3 +16,12 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # CONFIG_SPIRAM is not set
 CONFIG_RMLINK_WIFI_ENABLED=y
 CONFIG_RMLINK_TCP_PORT=3241
+# Fine TCP ticks and a 300 ms initial RTO recover individual losses without
+# waiting 1.5 s or depending on a multi-second sample buffer.
+CONFIG_LWIP_TCP_TMR_INTERVAL=50
+CONFIG_LWIP_TCP_RTO_TIME=300
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=5744
+# Bound radio queue memory too when all networking uses internal RAM.
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16

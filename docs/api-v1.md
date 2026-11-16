@@ -61,6 +61,10 @@ Orbit 开发工作树现可用 `"probe":"rmlink"` 直接选择本服务后端，
 
 返回 subscription_id、capture_id、stream_cursor 和接受的配置。stream_cursor 是启动新任务前的服务游标，用于排除历史任务。`GET .../subscriptions/{id}` 返回 state、kind、completed、deadline_missed、ring_dropped、failures、budget_overrun、stop_reason 和服务缓存状态。completed 对内存订阅为已生成帧数（含 partial），RTT 为已提交字节数。
 
+`realtime` 默认 false。仅无限采样且 `strict_deadlines=false` 的 `memory_series` 可设为 true，适用于优先恢复最新数据的实时波形。新建或 resume 后先保留 5 秒恢复宽限期；此后该 capture 连续 `max(2.5 秒, 3 个采样周期)` 没有完整帧时，服务关闭独立 TCP 数据连接并报告 `Realtime capture stalled`。该阈值给当前 1.5 秒基础 TCP 重传保留机会，避免 1 秒阈值反复提前终止连接；RTT 或旧 capture 的帧不能延长时限。目标暂停及显式 pause/stop 期间不检测。服务本身不重放订阅，Orbit 已有的自动重采在同一控制 owner 上创建新 capture_id；断流前未送达的数据不补齐，界面保留缺口。重采后须持续收到至少 3 秒、相邻间隔不超过 `max(1 秒, 3 个采样周期)` 的有效当前 capture 样本，才重置重试退避，短暂突发不算稳定恢复。真实网络恢复及重连耗时不包含在检测阈值内。
+
+启用 realtime 的订阅不能直接用于 RMLR 录制，录制接口明确返回错误；需要完整记录时，应删除共享此数据流的所有订阅并以 realtime=false 重新创建，新流将协商普通模式。仍有其他订阅共用 RMS4 时，录制入口也会拒绝，不能只删除 realtime 配置后沿用旧流开始录制。Orbit 波形自身的 CSV 记录仍保存实际收到的样本与缺口。USB 数据流不启用 TCP 停顿检测。
+
 `POST .../subscriptions/{id}` 支持 action=stop/pause/resume；`DELETE` 停止并移除服务注册。配置更新首版采用停止/删除/重新创建，不提供运行中原子 PATCH。重新创建产生新的 capture_id；不能把旧缓存的帧当作新任务数据。
 
 仅采样数据流断开时，`stream_error` 记录原因，原本地二进制流结束，正在录制的文件以失败状态收尾。控制连接仍正常时，可在同一 owner 会话中删除需重建的订阅，再创建新订阅：服务清理旧数据连接，通过新 ticket 重新绑定，使用新的解码器接收数据；握手失败也可再次显式重试。其他旧订阅不会自动重启，失败录制不会续写，服务游标保持递增。客户端需为新采样重新打开本地流，并按返回的 capture_id 过滤帧。控制连接或 owner 已丢失时，仍须建立新会话。
@@ -87,11 +91,15 @@ RMS2 连接输出连续 RMC2 组：组头 20 B，布局为 `magic[4]="RMC2", kin
 
 服务还原原RML1帧后逐条检查原始CRC和schema，再交给现有消费者。时间戳、序号、duration、有效位、flags及数值的原始字节全部保留，不合并相同值的样本，也不改变SWD操作；每组重置前值，独立解码，不跨连接续用压缩状态。RMS3解码器同时接受RMC2；旧RMS2解码器拒绝未协商RMC3。真实十变量记录中RMS3的bytes/raw_bytes约20.9%，取决于变量变化情况，不能作为任意布局的固定压缩率。
 
+feature bit12（4096）声明 `RMS4` 实时优先数据流。服务在为 realtime=true 的 Timeline 新开 TCP 流时，仅当 bit9 和 bit12 均存在才发送 `RMS4 + ticket`；响应及 RMC3/RMC2 编码沿用 RMS3。板端对 RMS4 的每个发送批次使用非阻塞发送和 2.5 秒总时限；新绑定连接的前 5 秒保留恢复宽限，批次预算取 `max(2.5 秒, 连接宽限期剩余时间)`，分段成功不重置总时限。超时、取消或对端关闭时结束数据流，控制 owner 不变。RMS1/2/3 仍保留原发送策略，旧固件不接收 RMS4。若 Timeline 复用先前由其他订阅打开的普通流，先由服务检测无进展；下一次重采新开流时协商 RMS4。
+
 有线数据走0x81/16 USB_PULL：请求frame_id(uint32 LE，初始1)、offset(uint16 LE)。回应为command/sub/status、frame_id32、total16、offset16、chunk_len8和最多52 B数据。total=0为空轮询，不推进frame_id；每帧最多384 B，重复读取相同id/offset稳定，下一帧id递增并跳过0，旧id／跳号拒绝。USB_PULL与TCP数据绑定互斥。服务组帧后使用同样CRC／schema和本地stream接口；分片格式不是标准 CMSIS-DAP 命令，标准无线软件通过 OpenOCD TCP 使用普通 DAP 命令。
 
 帧头为 32 B：RML1、version、kind、subscription_id、flags、capture_id、revision、sequence、payload_len、record_count、header_len、payload CRC32。内存样本头为 24 B：seq32、timestamp_us64、duration_us32、valid_bitmap32、sample_flags16、data_len16，之后是每字段 uint32 原始值。sample_flags：bit0 partial、bit1 执行预算超限、bit2 Watch 复用。RTT 数据部分为 channel32 + byte_sequence64 + length32 + bytes。
 
-RML1 每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算。探针缓存：0.2.33–0.2.38 有 PSRAM 时 Timeline 为 256 KiB，0.2.39 增至 2 MiB；无 PSRAM 或分配失败时保持 48 KiB 内部内存回退。Watch4 KiB、两个 RTT 各6 KiB，因此 0.2.39 总量为2064/64 KiB；0.2.37 起能力查询的缓存字节数报告实际分配总量。四个32位字段每条环形记录约80 B，2 MiB在5 kHz请求下约能容纳5.2秒；字段数、采样频率及实际分配影响可承受时间，不能把它当作固定断网保证。内存缓存满时有界丢旧并计数，最多回收8条；若并发发送仍占用空间则丢新，绝不阻塞SWD。RTT无空间不消费目标缓冲。服务最多保留4096条记录，各消费者游标独立。服务端原始录制见下文；应用确认重传尚未实现。
+RML1 每记录独立带帧头，10×32-bit/1 kHz 为约 96 KB/s，再加 TCP 开销；这是格式预算。2026-11-14 的小缓存修订将 Timeline 固定为 16 KiB 片内 RAM，Watch 4 KiB、两个 RTT 各 6 KiB，总计 32 KiB，全部使用片内静态存储，采样不依赖 PSRAM。此前 0.2.39 的 2 MiB PSRAM / 48 KiB 回退策略不再用于新构建。四个 32 位字段每条环形记录约 80 B，16 KiB 在 5 kHz 下只覆盖约 41 ms，长停顿会显式缺样。内存缓存满时有界丢旧并计数，最多回收 8 条；若并发发送仍占用空间则丢新，绝不阻塞 SWD。RTT 无空间不消费目标缓冲。服务最多保留 4096 条记录，各消费者游标独立。服务端原始录制见下文；应用确认重传尚未实现。
+
+新建订阅先 PREPARE 清理该槽上一轮的未发送记录，再配置字段、绑定数据流、START。STOP 后尚未替换的记录仍可读取；新一轮不会重传旧采样队列，其他槽的 Watch/RTT 数据保留。TCP 计时粒度为 50 ms，初始 RTO 为 300 ms，发送缓冲为 5744 B；Wi-Fi 动态收发及缓存队列上限均为 16。S3 PSRAM 配置允许 Wi-Fi/lwIP 按芯片条件分配普通网络内存，无 PSRAM 配置使用片内内存；两者的采样环形队列都固定在片内。可选 PSRAM 烧录镜像缓存是独立功能。短重传计时和有限缓冲不能消除无线丢包或保证录制完整，真实断流恢复及长期稳定性仍需实板验证。
 
 0.2.39 的独立数据 socket 发送等待上限为5秒，握手接收仍为2秒，控制 socket 的超时与所有权规则不随之延长。较大缓存用于保留网络短暂停顿期间的样本，实时画面仍可能停顿后追上；不插值、隐藏溢出或保证长期断线可恢复。
 

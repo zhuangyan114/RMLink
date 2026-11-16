@@ -1,0 +1,85 @@
+diff --git a/clients/rmlink/rmlink-client.d.mts b/clients/rmlink/rmlink-client.d.mts
+index a8c6709..173c3f3 100644
+--- a/clients/rmlink/rmlink-client.d.mts
++++ b/clients/rmlink/rmlink-client.d.mts
+@@ -7,6 +7,7 @@ export interface SubscriptionConfig {
+   addresses?:number[]; fields?:Array<{address:number;offsets?:number[];byte_length?:1|2|4}>;
+   period_us?:number; sample_limit?:number; control_block_address?:number; channel?:number;
+   strict_deadlines?:boolean;
++  realtime?:boolean;
+ }
+ export function decodeCaptureFrame(frame:Uint8Array):CaptureSample;
+ export class RMLinkClient {
+diff --git a/src/ozone-backend/commander-rmlink-recovery.test.ts b/src/ozone-backend/commander-rmlink-recovery.test.ts
+index f154829..321a240 100644
+--- a/src/ozone-backend/commander-rmlink-recovery.test.ts
++++ b/src/ozone-backend/commander-rmlink-recovery.test.ts
+@@ -41,6 +41,27 @@ function fixture(ending:'eof'|'error'='eof') {
+ 
+ describe('RMLink Timeline stream recovery on the existing owner',()=>{
+   afterEach(()=>vi.useRealTimers());
++  it('keeps retry backoff through short sample bursts and resets it after sustained progress',async()=>{
++    vi.useFakeTimers({toFake:['setTimeout','clearTimeout','performance']});
++    let capture=0,emit!:(sample:any)=>void,lost!:()=>void;
++    const target={usingNative:true,
++      subscribe:vi.fn(async()=>({subscription_id:1,capture_id:++capture})),unsubscribe:vi.fn(async()=>{}),
++      onCapture:(listener:any)=>{emit=listener;return ()=>{};},
++      onCaptureStreamLost:(listener:any)=>{lost=listener;return ()=>{};},
++    };
++    const backend=new OzoneBackend();(backend as any).sessionTarget=target;
++    const stop=await backend.subscribeProbeSamples('memory_series',[{expression:'counter',address:0x20000100,size:4}],200,()=>{});
++    const sample=()=>emit({subscriptionId:1,kind:1,captureId:capture,values:[1]});
++    try {
++      lost();await vi.advanceTimersByTimeAsync(500);expect(capture).toBe(2);
++      sample();await vi.advanceTimersByTimeAsync(100);sample();lost();
++      await vi.advanceTimersByTimeAsync(500);expect(capture).toBe(2);
++      await vi.advanceTimersByTimeAsync(500);expect(capture).toBe(3);
++      sample();
++      for(let i=0;i<13;i++){await vi.advanceTimersByTimeAsync(250);sample();}
++      lost();await vi.advanceTimersByTimeAsync(500);expect(capture).toBe(4);
++    }finally{await stop();}
++  });
+   it.each(['eof','error'] as const)('automatically recreates Timeline after %s without a new debug owner',async ending=>{
+     vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
+     const f=fixture(ending),samples:any[]=[];
+@@ -48,6 +69,7 @@ describe('RMLink Timeline stream recovery on the existing owner',()=>{
+     try {
+       expect((await f.selector.connect({probe:'rmlink',device:'STM32F103C8',speedKHz:4000,rmlinkDeviceId:'probe'})).ok).toBe(true);
+       stop=await f.backend.subscribeProbeSamples('memory_series',[{expression:'counter',address:0x20000100,size:4}],200,sample=>samples.push(sample));
++      expect(f.client.subscribe).toHaveBeenCalledWith('memory_series',expect.objectContaining({realtime:true}));
+       await tick();f.end();await tick();
+       await vi.advanceTimersByTimeAsync(500);await tick();
+       expect(f.client.subscribe).toHaveBeenCalledTimes(2);
+diff --git a/src/ozone-backend/commander.ts b/src/ozone-backend/commander.ts
+index 3461e18..78ae342 100644
+--- a/src/ozone-backend/commander.ts
++++ b/src/ozone-backend/commander.ts
+@@ -153,18 +153,26 @@ export class OzoneBackend {
+     let expectedCapture:number|undefined;
+     let handle:Awaited<ReturnType<typeof subscribe>>|undefined;
+     let stopped=false,retryDelay=500;
++    let healthySince:number|undefined,lastProgress:number|undefined;
+     let retryTimer:NodeJS.Timeout|undefined;
+     let retryTask:Promise<void>=Promise.resolve();
+-    const config={fields,period_us:periodUs};
++    const config={fields,period_us:periodUs,...(kind==='memory_series'?{realtime:true}:{})};
+     const detach=target.onCapture(sample=>{
+       if(!stopped && sample.kind===expectedKind && sample.captureId===expectedCapture) {
+-        retryDelay=500;onSample(sample);
++        if(retryDelay>500) {
++          const now=performance.now();
++          if(lastProgress===undefined || now-lastProgress>Math.max(1000,3*periodUs/1000))healthySince=now;
++          lastProgress=now;
++          if(healthySince!==undefined && now-healthySince>=3000)retryDelay=500;
++        }
++        onSample(sample);
+       }
+     });
+     const scheduleRetry=()=>{
+       // Only the live Timeline opts in. Strict recordings and other stopped
+       // subscriptions retain their failure rather than being silently replayed.
+       if(kind!=='memory_series' || stopped || !target.usingNative || retryTimer)return;
++      healthySince=lastProgress=undefined;
+       const delay=retryDelay;retryDelay=Math.min(5000,retryDelay*2);
+       log.dap(`[timeline] RMLink capture stream lost; retry in ${delay} ms`);
+       retryTimer=setTimeout(()=>{

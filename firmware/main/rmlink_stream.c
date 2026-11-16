@@ -15,6 +15,7 @@
 #include "rmlink_network.h"
 #include "rmlink_stream_codec.h"
 #include "rmlink_stream.h"
+#include "rmlink_stream_deadline.h"
 #include "esp_wifi.h"
 
 /* One bounded snapshot per batch; never hold this lock during IO or logging. */
@@ -158,6 +159,47 @@ static bool exact(int fd, uint8_t *p, size_t n, bool sending) {
     }
     return true;
 }
+typedef struct {int fd;uint32_t generation;} realtime_socket_t;
+static int64_t realtime_now(void *context) {(void)context;return esp_timer_get_time();}
+static bool realtime_live(void *context) {
+    realtime_socket_t *socket=context;
+    return rmlink_capture_stream_live(socket->generation);
+}
+static int realtime_write(void *context,const uint8_t *data,size_t size) {
+    realtime_socket_t *socket=context;
+    int sent=send(socket->fd,data,size,MSG_DONTWAIT);
+    int error=sent<0?errno:0;
+    portENTER_CRITICAL(&s_diagnostic_mux);
+    s_diag.calls++;
+    if(sent>0) {s_diag.wire_bytes+=sent;if((size_t)sent<size)s_diag.partial++;}
+    portEXIT_CRITICAL(&s_diagnostic_mux);
+    if(sent<0 && (error==EAGAIN || error==EWOULDBLOCK || error==EINTR))return 0;
+    return sent>0?sent:-1;
+}
+static bool realtime_wait(void *context,int64_t remaining_us) {
+    realtime_socket_t *socket=context;
+    fd_set read,write;FD_ZERO(&read);FD_ZERO(&write);
+    FD_SET(socket->fd,&read);FD_SET(socket->fd,&write);
+    int64_t slice=remaining_us<100000?remaining_us:100000;
+    struct timeval timeout={.tv_sec=0,.tv_usec=(long)slice};
+    int ready=select(socket->fd+1,&read,&write,NULL,&timeout);
+    if(ready<0)return errno==EINTR;
+    /* The host sends no bytes after binding. Readability is EOF/cancel or an
+     * invalid upstream message; neither may wait behind the send queue. */
+    if(ready>0 && FD_ISSET(socket->fd,&read)) {errno=ECONNRESET;return false;}
+    return true;
+}
+static bool realtime_send(int fd,uint32_t generation,uint8_t *data,size_t size,int64_t started_us) {
+    realtime_socket_t socket={fd,generation};
+    rmlink_stream_io_t io={&socket,realtime_now,realtime_live,realtime_write,realtime_wait};
+    int64_t budget=rmlink_stream_realtime_budget(started_us,esp_timer_get_time());
+    rmlink_send_result_t result=rmlink_stream_write_deadline(&io,data,size,budget);
+    if(result==RMLINK_SEND_OK)return true;
+    int error=result==RMLINK_SEND_TIMEOUT?ETIMEDOUT:result==RMLINK_SEND_CANCELLED?ECANCELED:errno;
+    portENTER_CRITICAL(&s_diagnostic_mux);s_diag.errors++;s_diag.last_errno=error;portEXIT_CRITICAL(&s_diagnostic_mux);
+    ESP_LOGW("rmlink_stream","realtime send ended: result=%d errno=%d",result,error);
+    return false;
+}
 static void stream_task(void *unused) {
     s_stream_task=xTaskGetCurrentTaskHandle();
     for(;;) {
@@ -185,8 +227,9 @@ static void stream_task(void *unused) {
                 ESP_LOGW("rmlink_stream","IP_TOS failed: errno=%d",errno);
 #endif
             uint8_t hello[20]; uint32_t generation;
-            if(!exact(fd,hello,20,false) || (memcmp(hello,"RMS1",4) && memcmp(hello,"RMS2",4) && memcmp(hello,"RMS3",4)) || !rmlink_capture_bind(hello+4,&generation)) { close(fd); continue; }
-            unsigned compact=hello[3]-'1';
+            if(!exact(fd,hello,20,false) || (memcmp(hello,"RMS1",4) && memcmp(hello,"RMS2",4) && memcmp(hello,"RMS3",4) && memcmp(hello,"RMS4",4)) || !rmlink_capture_bind(hello+4,&generation)) { close(fd); continue; }
+            bool realtime=hello[3]=='4';
+            unsigned compact=realtime?2:hello[3]-'1';
             struct sockaddr_in peer;socklen_t peer_size=sizeof(peer);
             uint16_t peer_port=getpeername(fd,(struct sockaddr*)&peer,&peer_size)==0?ntohs(peer.sin_port):0;
             portENTER_CRITICAL(&s_diagnostic_mux);
@@ -200,6 +243,7 @@ static void stream_task(void *unused) {
                 rmlink_capture_stream_lost(generation); close(fd); continue;
             }
             uint32_t batches=0,max_wake_us=0,max_send_us=0;uint64_t bytes=0,raw_bytes=0,last_warning=0;
+            int64_t stream_started_us=esp_timer_get_time();
 #if CONFIG_RMLINK_STREAM_DIAGNOSTICS
             esp_timer_start_periodic(s_diagnostic_timer,100000);
 #endif
@@ -240,7 +284,7 @@ static void stream_task(void *unused) {
                     s_diag.max_wake_us=max_wake_us;s_diag.send_started=before_send;
                     portEXIT_CRITICAL(&s_diagnostic_mux);
                 }
-                bool sent=!used || exact(fd,batch,used,true);
+                bool sent=!used || (realtime?realtime_send(fd,generation,batch,used,stream_started_us):exact(fd,batch,used,true));
                 uint32_t send_us=(uint32_t)(esp_timer_get_time()-before_send);
                 if(used) {
                     portENTER_CRITICAL(&s_diagnostic_mux);
