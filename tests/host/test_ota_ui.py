@@ -57,7 +57,7 @@ class OtaUiTests(unittest.TestCase):
         return dict(state='aborted')
 
     def test_information_page_enter_installs_and_shows_every_stage(self):
-        with patch.object(self.terminal, 'key', return_value='enter'), patch('rmlink_connector.cli.time.sleep'):
+        with patch.object(self.terminal, 'key', return_value='enter'), patch('rmlink_connector.tui.time.sleep'):
             result = upgrade_firmware(self.controller, self.terminal, file=self.path)
         text = self.output.getvalue()
         self.assertIn('Enter 确认安装并重启 RMLink', text)
@@ -93,9 +93,9 @@ class OtaUiTests(unittest.TestCase):
         self.assertEqual(bytes(self.uploaded),self.data)
 
     def test_import_route_keeps_information_pause_and_needs_one_install_enter(self):
-        with patch.object(self.terminal, 'menu', side_effect=['i', None]) as menu, patch.object(
+        with patch.object(self.terminal, 'menu', side_effect=['4', None]) as menu, patch.object(
                 self.terminal, 'prompt', return_value=str(self.path)), patch.object(
-                self.terminal, 'key', side_effect=['enter', 'enter']) as key, patch('rmlink_connector.cli.time.sleep'):
+                self.terminal, 'key', side_effect=['enter', 'enter']) as key, patch('rmlink_connector.tui.time.sleep'):
             ui_action(4, self.controller, self.terminal)
         self.assertEqual(key.call_count, 2)  # Install confirmation, then success-page return.
         self.assertEqual(menu.call_count, 2)  # No second hidden install menu.

@@ -1,4 +1,4 @@
-name: RMLink OTA firmware
+name: RMLink release
 on:
   push:
     tags: ['v*']
@@ -6,15 +6,21 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish a test Release only after hardware qualification'
+        description: 'Publish OTA firmware and Windows installer to the tag Release'
         type: boolean
         default: false
+      prerelease:
+        description: 'Mark the published Release as a pre-release (testing channel)'
+        type: boolean
+        default: true
 permissions:
   contents: write
 jobs:
   firmware:
     runs-on: ubuntu-latest
     container: espressif/idf:v5.1.2
+    env:
+      RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease == false && 'stable' || 'testing' }}
     steps:
       - uses: actions/checkout@v4
       - name: Build hardware profiles with the official rollback bootloader
@@ -24,17 +30,30 @@ jobs:
           # Match the manager that generated the checked-in v2 lock file.
           # The original IDF 5.1.2 image bundles a v1-only manager.
           python -m pip install 'idf-component-manager==2.4.11'
-          for profile in safe target target-psram; do
+          profiles=(rmlink-v1)
+          if [ "$RELEASE_CHANNEL" = testing ]; then profiles+=(safe target target-psram); fi
+          for profile in "${profiles[@]}"; do
             defaults='sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.rmlink.defaults;sdkconfig.rmlink-core0.defaults'
-            if [ "$profile" != safe ]; then defaults="$defaults;sdkconfig.rmlink-target.defaults"; fi
-            if [ "$profile" = target-psram ]; then defaults="$defaults;sdkconfig.rmlink-psram.defaults"; fi
             build="$GITHUB_WORKSPACE/artifacts/build/ota-$profile"
+            mkdir -p "$build"
+            if [ "$profile" != safe ]; then defaults="$defaults;sdkconfig.rmlink-target.defaults"; fi
+            if [ "$profile" = target-psram ] || [ "$profile" = rmlink-v1 ]; then
+              defaults="$defaults;sdkconfig.rmlink-psram.defaults"
+            fi
+            if [ "$profile" = rmlink-v1 ]; then
+              printf 'CONFIG_RMLINK_STREAM_IP_TOS=160\n' > "$build/sdkconfig.stream-priority.defaults"
+              defaults="$defaults;sdkconfig.rmlink-v1.defaults;$build/sdkconfig.stream-priority.defaults"
+            fi
             idf.py -C firmware -B "$build" -D IDF_TARGET=esp32s3 -D RMLINK_DAP_PACKET_SIZE=512 -D "SDKCONFIG=$build/sdkconfig" -D "SDKCONFIG_DEFAULTS=$defaults" build
           done
       - name: Validate images and build one OTA manifest
         shell: bash
         run: |
-          python3 scripts/package_ota.py --build artifacts/build/ota-safe --build artifacts/build/ota-target --build artifacts/build/ota-target-psram --output artifacts/ota-release --channel testing
+          builds=(--build artifacts/build/ota-rmlink-v1)
+          if [ "$RELEASE_CHANNEL" = testing ]; then
+            builds+=(--build artifacts/build/ota-safe --build artifacts/build/ota-target --build artifacts/build/ota-target-psram)
+          fi
+          python3 scripts/package_ota.py "${builds[@]}" --output artifacts/ota-release --channel "$RELEASE_CHANNEL"
           python3 - <<'PY'
           import json, os
           from pathlib import Path
@@ -42,15 +61,82 @@ jobs:
           if os.environ['GITHUB_REF_TYPE']=='tag' and os.environ['GITHUB_REF_NAME']!='v'+manifest['version']:
               raise SystemExit('Git tag and firmware version differ')
           PY
+          cd artifacts/ota-release
+          for image in *.bin; do sha256sum -- "$image" > "$image.sha256"; done
       - uses: actions/upload-artifact@v4
         with:
           name: rmlink-ota-firmware
           path: artifacts/ota-release/*
-      - name: Publish OTA assets to the versioned Release
-        if: github.ref_type == 'tag' && github.event_name == 'workflow_dispatch' && inputs.publish
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify tag matches host client version
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = 'host'
+          $version = python -c "import rmlink_connector; print(rmlink_connector.__version__)"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+              throw "Git tag ($env:GITHUB_REF_NAME) and client version (v$version) differ"
+          }
+      - name: Install Arm GNU toolchain and Inno Setup
+        shell: pwsh
+        run: |
+          $toolchain = 'arm-gnu-toolchain-13.3.rel1-mingw-w64-i686-arm-none-eabi'
+          $base = 'https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu/13.3.rel1/binrel'
+          $zip = Join-Path $env:RUNNER_TEMP "$toolchain.zip"
+          curl.exe --fail --location --retry 3 --silent --show-error --output $zip "$base/$toolchain.zip"
+          if ($LASTEXITCODE -ne 0) { throw 'Arm GNU Toolchain download failed' }
+          if ((Get-FileHash $zip).Hash -ne 'e46fda043c0ce83582bc8db4b3ef85f77f4beb7333344c2f4193c17e1167a095') {
+              throw 'Arm GNU Toolchain archive SHA256 differs'
+          }
+          tar.exe -xf $zip -C $env:RUNNER_TEMP
+          if ($LASTEXITCODE -ne 0) { throw 'Arm GNU Toolchain extraction failed' }
+          $armBin = Join-Path $env:RUNNER_TEMP "$toolchain\bin"
+          if (-not (Test-Path (Join-Path $armBin 'arm-none-eabi-gcc.exe'))) { throw 'Missing Arm compiler' }
+          $armBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          choco upgrade -y --no-progress innosetup
+          if ($LASTEXITCODE -notin @(0, 1641, 3010)) { throw 'Inno Setup installation failed' }
+          $isccBin = 'C:\Program Files (x86)\Inno Setup 6'
+          if (Test-Path -LiteralPath (Join-Path $isccBin 'ISCC.exe')) {
+              $isccBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          exit 0
+      - name: Build connector binaries and Windows installer
+        shell: pwsh
+        run: |
+          .\scripts\Build-Connector.ps1 -Python python.exe
+          # The bundled algorithms must agree with the catalogue compiled into the firmware.
+          git diff --exit-code -- host/algorithms/targets.json firmware/components/debug_probe/*.inc
+          if ($LASTEXITCODE -ne 0) { throw 'Generated flash algorithms differ from the tagged source' }
+          python scripts\build_windows_installer.py --output artifacts\installer-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rmlink-windows-installer
+          path: artifacts/installer-release/*
+
+  publish:
+    needs: [firmware, windows-installer]
+    if: github.ref_type == 'tag' && github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: rmlink-ota-firmware
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: rmlink-windows-installer
+          path: release-assets
+      - name: Publish OTA firmware and Windows installer to the versioned Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/ota-release/*
-          prerelease: true
-          make_latest: false
-          name: RMLink ${{ github.ref_name }} 测试版
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          prerelease: ${{ inputs.prerelease }}
+          make_latest: ${{ !inputs.prerelease }}
+          name: RMLink ${{ github.ref_name }}${{ inputs.prerelease && ' 测试版' || '' }}

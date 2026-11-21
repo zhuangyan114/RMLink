@@ -1,5 +1,10 @@
 param([string]$Python = 'D:\ESP32\ESP32idf\Espressif\python_env\idf5.1_py3.11_env\Scripts\python.exe')
 $ErrorActionPreference = 'Stop'
+if (-not (Test-Path -LiteralPath $Python)) {
+    $foundPython = Get-Command 'python' -ErrorAction SilentlyContinue
+    if (-not $foundPython) { throw "Python executable not found at '$Python' or on PATH" }
+    $Python = $foundPython.Source
+}
 $root = Split-Path $PSScriptRoot -Parent
 $venv = Join-Path $root 'artifacts\tools\connector-build-venv'
 $build = Join-Path $root 'artifacts\build\connector'
@@ -18,7 +23,7 @@ foreach ($retiredName in @('Driver.ps1','usbip-win2-LICENSE.txt')) {
         Remove-Item -LiteralPath $retiredFile
     }
 }
-& (Join-Path $PSScriptRoot 'Build-FlashAlgorithm.ps1')
+& (Join-Path $PSScriptRoot 'Build-FlashAlgorithm.ps1') -Python $pythonExe
 if ($LASTEXITCODE -ne 0) { throw 'Flash algorithm build failed' }
 & $pythonExe -m pip freeze | Set-Content -Encoding utf8 (Join-Path $build 'build-requirements.txt')
 & $pythonExe -m PyInstaller --noconfirm --clean --onefile --console --name RMLinkConnector --add-data "$(Join-Path $root 'artifacts\build\target-pack');rmlink_algorithms" --paths (Join-Path $root 'host') --distpath (Join-Path $build 'dist') --workpath (Join-Path $build 'work') --specpath (Join-Path $build 'spec') (Join-Path $root 'host\connector_entry.py')

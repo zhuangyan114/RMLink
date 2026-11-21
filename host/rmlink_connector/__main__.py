@@ -33,7 +33,8 @@ async def serve(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='RMLink connection service development tool')
+    parser = argparse.ArgumentParser(
+        description='RMLink background connector service (use `rmlink` for interactive/CLI management)')
     parser.add_argument('--state-dir')
     parser.add_argument('--api-port', type=int, default=3243)
     parser.add_argument('command', choices=['serve', 'status', 'devices', 'pair', 'stop','inspect-recording'])

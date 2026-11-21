@@ -20,8 +20,8 @@ WORDMARK = (
     '██      ██  ██      ██  ██████████  ██████  ██      ██  ██      ██',
 )
 COMPACT_WORDMARK = 'R M L I N K'
-MENU = ('设备管理', 'Wi-Fi 配置', '连接管理', '实时监控',
-        '固件升级', '诊断与日志', '设置')
+MENU = ('设备管理', '连接与通道', 'Wi-Fi 与热点',
+        '实时监控', '固件/驱动升级', '服务与诊断')
 ESCAPE = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 MOUSE_ON = '\x1b[?1000h\x1b[?1006h'
 MOUSE_OFF = '\x1b[?1000l\x1b[?1006l'
@@ -276,19 +276,19 @@ class Terminal:
             if self.vt:
                 self.stream.write('\x1b[?25l' + (MOUSE_ON if self.mouse_vt else '')); self.stream.flush()
 
-    def menu(self, title, options, selected=0, description=''):
-        options = [*options, (None, '返回上一级')]
+    def menu(self, title, options, selected=0, description='', notice='', notice_role='good', back_label='返回上一级'):
+        options = [*options, (None, back_label)]
         selected = min(max(0, selected), len(options) - 1)
         while True:
-            self.draw(menu_rows(title, options, selected, self.size(), description))
+            self.draw(menu_rows(title, options, selected, self.size(), description, notice, notice_role))
             key = self.key()
             if not key:
                 continue
             if key in ('q', '\x1b'):
                 return None
-            if key in ('up', 'left'):
+            if key == 'up':
                 selected = (selected - 1) % len(options)
-            elif key in ('down', 'right'):
+            elif key == 'down':
                 selected = (selected + 1) % len(options)
             elif key == 'enter':
                 return options[selected][0]
@@ -302,27 +302,45 @@ def wordmark_rows(width, height):
     return [[('  ' + row[:split], 'brand_dim'), (row[split:], 'brand')] for row in rows]
 
 
-def menu_rows(title, options, selected, size, description=''):
+def menu_rows(title, options, selected, size, description='', notice='', notice_role='good'):
     lines = [(f'  {title}', 'strong'), ('', None)]
     if description:
-        lines += [('  ' + description, 'muted'), ('', None)]
+        for row in str(description).splitlines():
+            lines.append(('  ' + row, 'muted'))
+        lines.append(('', None))
+    if notice:
+        lines += [('  ' + notice, notice_role), ('', None)]
     lines = wordmark_rows(size.columns - 2, size.lines - len(lines) - len(options) - 4) + lines
     visible = max(1, size.lines - len(lines) - 4)
     offset = max(0, min(selected - visible + 1, len(options) - visible))
+    action_keys = [opt[0] for opt in options if opt[0] is not None]
+    show_keys = bool(action_keys) and all(isinstance(k, str) and len(k) == 1 for k in action_keys)
     for index in range(offset, min(len(options), offset + visible)):
-        label = options[index][1]
-        lines.append(Control(f'  {"›" if index == selected else " "} {label}',
-                             'selected' if index == selected else None,
-                             options[index][0] if options[index][0] is not None else '\x1b'))
+        key, label = options[index]
+        marker = '›' if index == selected else ' '
+        if show_keys:
+            prefix = f'{key}  ' if key is not None else '   '
+            text = f'  {marker} {prefix}{label}'
+        else:
+            text = f'  {marker} {label}'
+        lines.append(Control(text, 'selected' if index == selected else None,
+                             key if key is not None else '\x1b'))
     if len(options) > visible:
         lines.append((f'  {selected + 1} / {len(options)}', 'muted'))
-    lines += [[('  ↑↓选择 Enter打开  ' if size.columns < 48 else '  ↑↓ 选择  Enter 打开  ', 'muted'),
+    if size.columns < 48:
+        hint = '  ↑↓选择 Enter打开  '
+    elif show_keys:
+        hint = '  ↑↓ 选择  Enter 打开  快捷键直达  '
+    else:
+        hint = '  ↑↓ 选择  Enter 打开  '
+    lines += [[(hint, 'muted'),
                Control('q 返回' if size.columns < 48 else 'q / Esc 返回', 'muted', '\x1b')],
               ('  左键打开  滚轮选择  右键返回', 'muted')]
     return lines
 
 
-def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=88, message='', monitor=False, height=28):
+def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=88, message='', monitor=False,
+              height=28, default_device=None):
     width = min(max(24, width - 4), 78)
     lines = [('  设备控制台', 'muted')]
     version = status.get('version', '--') if status else '--'
@@ -330,18 +348,30 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
     lines += [(f'  后台服务  {"运行中" if status else "未启动"}    ·    v{version}', 'good' if status else 'warning')]
     if device:
         name = device.get('alias') or device.get('hostname') or device['device_id']
+        is_default = bool(default_device and device['device_id'] == default_device.lower())
+        title_suffix = '  ·  默认' if is_default else ''
         pref = device.get('preferred_transport') or device.get('transport') or 'wifi'
         active = device.get('active_transport') or device.get('transport')
         if pref == 'auto':
             transport_text = f'自动 · {"USB" if active == "usb" else "Wi-Fi"}' if device.get('connected') else '自动'
         else:
             transport_text = 'USB' if (active if device.get('connected') else pref) == 'usb' else 'Wi-Fi'
-        lines += [(f'  当前设备  {name}', 'strong'),
+        wifi_info = ''
+        board_link = device.get('board_link')
+        if isinstance(board_link, dict) and board_link.get('wifi_enabled') is not None:
+            wifi_info = f'  ·  Wi-Fi {"开" if board_link["wifi_enabled"] else "关"}'
+        lines += [(f'  当前设备  {name}{title_suffix}', 'strong'),
                   (f'  {device["device_id"]}  ·  {transport_text}  ·  '
-                   f'{"在线" if device.get("connected") else "离线"}', None),
+                   f'{"在线" if device.get("connected") else "离线"}{wifi_info}', None),
                   (f'  目标占用  {"调试会话" if device.get("owner") else "空闲"}    固件  {device.get("firmware", "--")}', 'muted')]
     else:
-        lines += [('  尚未选择设备', 'strong'), ('  按 1 发现并配对，或按 2 通过 USB 配置 Wi-Fi', 'muted'), ('', None)]
+        count = len(status.get('devices', [])) if status else 0
+        if count > 0:
+            lines += [(f'  已发现 {count} 台设备，尚未选定', 'strong'),
+                      ('  按 1 选择设备，或直接进入功能自动选择', 'muted'), ('', None)]
+        else:
+            lines += [('  尚未发现设备', 'strong'),
+                      ('  请连接 USB&OTG 或开启 2.4 GHz 热点，按 1 刷新', 'muted'), ('', None)]
     traffic = (metrics or {}).get('traffic') or {}
     rates = rates or {}
     rssi = (metrics or {}).get('rssi_dbm')
@@ -375,11 +405,15 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
                               ('    r 刷新    统计不申请目标控制权', 'muted')]]
     else:
         if width >= 68:
-            for i in range(4):
+            rows_per_col = (len(MENU) + 1) // 2
+            for i in range(rows_per_col):
                 left = ('›' if selected == i else ' ') + f' {i + 1}  {MENU[i]}'
-                right = (('›' if selected == i + 4 else ' ') + f' {i + 5}  {MENU[i + 4]}') if i + 4 < len(MENU) else ''
-                lines.append([Control('  ' + pad(left, 32), 'selected' if selected == i else None, str(i + 1)),
-                              Control(right, 'selected' if selected == i + 4 else None, str(i + 5))])
+                right_idx = i + rows_per_col
+                right = (('›' if selected == right_idx else ' ') + f' {right_idx + 1}  {MENU[right_idx]}') if right_idx < len(MENU) else ''
+                row_controls = [Control('  ' + pad(left, 32), 'selected' if selected == i else None, str(i + 1))]
+                if right:
+                    row_controls.append(Control(right, 'selected' if selected == right_idx else None, str(right_idx + 1)))
+                lines.append(row_controls)
         else:
             for i, label in enumerate(MENU):
                 lines.append(Control(f'  {"›" if selected == i else " "} {i + 1}  {label}',

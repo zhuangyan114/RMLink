@@ -42,12 +42,12 @@ class ConsoleMouseTests(unittest.TestCase):
         controller = MagicMock()
         controller.runtime.status.return_value = None
         with patch.object(self.terminal, 'screen', return_value=contextlib.nullcontext()), patch(
-                'rmlink_connector.cli.ui_action') as action:
+                'rmlink_connector.tui.ui_action') as action:
             with patch.object(self.terminal, '_read_key', side_effect=lambda timeout:
                               self.mouse_action('6') if action.call_count == 0 else 'q'):
                 self.assertEqual(shell(controller, self.terminal), 0)
         action.assert_called_once_with(5, controller, self.terminal)
-        self.assertIn('› 6  诊断与日志', self.terminal.stream.getvalue())
+        self.assertIn('› 6  服务与诊断', self.terminal.stream.getvalue())
 
     def test_geometry_uses_cells_and_does_not_activate_background_or_hidden_rows(self):
         self.terminal.size = lambda: os.terminal_size((14, 4))

@@ -12,6 +12,10 @@
 
 ## 修改记录
 
+- 2026-11-21 · Bug · [修复控制台退出后 Windows 安装向导未打开](2026-11-21-windows-installer-handoff.md)
+
+- 2026-11-21 · 功能 · [从 GitHub 更新 Windows 客户端](2026-11-21-windows-installer-update.md)
+
 - 2026-11-21 · 重构 · [统一上位机与板端模式切换逻辑并升级至 0.3.5](2026-11-21-transport-mode-switching.md)
 
 - 2026-11-14 · Bug · [Orbit 断流后重新勾选 Timeline 仍为 0 Hz](2026-11-14-timeline-zero-retry.md)

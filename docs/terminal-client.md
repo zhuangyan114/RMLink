@@ -4,9 +4,10 @@
 
 ## 启动与界面操作
 
-装好后在开始菜单点开 **RMLink**，或者在终端里直接运行 `rmlink` 进入主菜单。主菜单有七个入口：**设备管理**、**Wi-Fi 配置**、**连接管理**、**实时监控**、**固件升级**、**诊断与日志**、**设置**。
+装好后在开始菜单点开 **RMLink**，或者在终端里直接运行 `rmlink` 进入主菜单。主菜单按使用流程组织为六个入口：**设备管理**、**连接与通道**、**Wi-Fi 与热点**、**实时监控**、**固件/驱动升级**、**服务与诊断**。
 
-- **键盘操作**：方向键移动焦点，`Enter` 进入或确认，也支持数字快捷键；`q` 或 `Esc` 返回上一级（首页按 `q` 或 `Ctrl+C` 退出界面）。需要颜色关闭时可用 `--no-color` 或环境变量 `NO_COLOR`。
+- **以当前设备为中心**：进入**设备管理**可扫描并切换设备、配对/取消配对、查看设备信息、修改别名或设为默认设备；存在多台设备且尚未选定时，进入其他设备相关功能会自动弹出设备选择器。
+- **键盘操作**：方向键移动焦点，`Enter` 进入或确认，菜单项前显示的数字/字母快捷键可一键直达；`q` 或 `Esc` 返回上一级（首页按 `q` 或 `Ctrl+C` 退出界面）。取消配对、重启后台服务和固件升级均有显式二次确认；表单输入留空回车或按 `Ctrl+C` 可直接取消。需要颜色关闭时可用 `--no-color` 或环境变量 `NO_COLOR`。
 - **鼠标操作**：支持左键点击菜单和底部按钮、滚轮翻页或滚动日志、右键返回上一级。输入 Wi-Fi 名称、密码或路径等文字表单时会自动暂停鼠标捕获（密码全程隐藏显示）；需要复制文字时可按住 `Shift` 拖选。
 
 > 鼠标和交互界面已在 Windows Terminal / PowerShell 5.1 ConPTY 下测试；传统旧版 `conhost` 控制台和 Linux / macOS 终端暂未实测。
@@ -21,13 +22,15 @@ rmlink
 
 ## 常用命令行
 
-所有子命令都支持 `--json`（方便脚本解析）、`--device <完整 MAC>`（多设备共存时指定目标）和 `--no-color`：
+所有子命令都支持 `--json`（方便脚本解析）和 `--no-color`；涉及目标设备的子命令支持 `--device <完整 MAC>`（多设备共存时指定目标，`--device` 与位置参数不能同时指向不同设备）。`wifi`、`firmware`、`service`、`config` 需显式指定二级操作：
 
 ```powershell
 rmlink devices                              # 列出已发现和已配对设备
 rmlink pair <设备ID>                        # 配对设备
+rmlink config show                          # 查看当前默认设备与固件仓库设置
 rmlink config default <设备ID>              # 设为默认设备
 rmlink config alias "工作台"                # 设置设备别名
+rmlink config repo owner/repo               # 设置默认 GitHub 固件仓库
 rmlink wifi status                          # 查询板端 Wi-Fi 状态（含开启状态）
 rmlink wifi hotspot                         # 读取本机当前开启的 2.4 GHz 热点信息
 rmlink wifi configure --ssid "热点名称"     # 通过 USB 下发热点凭据（交互隐藏输密码）
@@ -45,6 +48,9 @@ rmlink service autostart on                 # 开启登录后自动启动后台�
 rmlink firmware status                      # 查看设备当前固件与 OTA 分区状态
 rmlink firmware inspect .\rmlink.bin        # 离线检查固件镜像与硬件指纹
 rmlink firmware update --latest --yes       # 从 GitHub 升级最新正式固件（加 --prerelease 查测试版）
+rmlink update check                         # 检查 GitHub 最新控制台与驱动安装包版本
+rmlink update download                      # 下载并校验最新 Windows 安装包到本地
+rmlink update install --yes                 # 下载校验并启动中文安装向导（加 --silent 静默覆盖）
 ```
 
 ### 几条使用边界
