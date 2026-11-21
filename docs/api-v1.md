@@ -93,6 +93,7 @@
 
 - **缓存烧录（`POST/GET .../sessions/{id}/flash`）**：`action=begin/chunk/commit/cancel`，支持 `backend=auto/host/probe` 与 `verify_on_host`。`probe` 路径先把镜像完整传到 ESP32，再由探针自主加载目标 RAM 算法完成擦除、编程、全镜像比对并复位运行（支持统一算法包覆盖的四款 STM32）。`cancel` 触发有界取消，已发出的写入不回退也不重放。详见 [缓存烧录协议](buffered-flash-protocol.md)。
 - **设备健康（`GET /v1/devices/{id}/health`）**：免会话查询内部 RAM / PSRAM 余量、请求 SWD 时钟、最近采集 IO 错误及只读 `WDATAERR` 恢复统计（`read_fault_recovery`）。
+- **RGB 只读诊断**：通过原始 `/dap` 接口发送 `8011`（`0x80/17`），支持的固件返回 `80 11 00` 加 20 字节快照。载荷偏移 `0..3` 为版本 `1`、UI 是否启用、初始化是否已返回、保留字节；偏移 `4/8/12` 分别是初始化错误码、最近一次灯光发送错误码、成功完成的灯光帧数（均为 `u32 LE`）；偏移 `16..19` 为最后成功发送的颜色（`0=灭/1=红/2=绿/3=蓝/4=黄`）、USB mounted、灯 GPIO、按键 GPIO。查询不获取目标控制权；发送成功仅表示 RMT 传输完成，不能代替灯珠 DIN 波形和供电测量。旧固件可返回不支持状态。
 - **服务端录制（`POST/GET .../sessions/{id}/recordings`）**：生成保存在 `%USERPROFILE%\.rmlink\recordings` 的 `RMLR v1` 文件。`strict=true` 时只要出现序号缺口、partial 或预算超限就立刻标失败并停采；`strict=false` 允许带缺口继续录制。停止时需调 `action=stop` 写入文件尾并 `fsync`。可用 `RMLinkConnector.exe inspect-recording <文件>` 或 `scripts/inspect_recording.py` 离线校验每帧 CRC 与文件摘要。
 
 ## 公开 SDK 入口

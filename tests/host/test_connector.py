@@ -54,6 +54,13 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         await self.broker.submit('a', [b'\x02\x01'])
         self.assertEqual(await self.broker.submit('b', [b'\x00\xff']), [b'\x00\x02\x40\x00'])
 
+    async def test_rgb_diagnostics_do_not_claim_or_disturb_target_owner(self):
+        await self.broker.submit('a', [b'\x02\x01'])
+        before=len(self.transport.requests)
+        self.assertEqual(await self.broker.submit('b',[b'\x80\x11']),[b'\xff'])
+        self.assertEqual(self.transport.requests[before:],[b'\x80\x11'])
+        self.assertEqual(self.broker.owner,'a')
+
     async def test_preconnect_clock_reserves_session_and_denies_foreign_changes(self):
         clock = b'\x11' + (2000000).to_bytes(4, 'little')
         self.assertEqual(await self.broker.submit('a', [clock]), [b'\x11\x00'])

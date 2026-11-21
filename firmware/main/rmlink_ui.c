@@ -99,6 +99,11 @@ static enum ui_color ui_step(ui_state_t *state, uint32_t now_ms, bool pressed,
 #include "rmlink_network.h"
 
 static atomic_bool s_usb_connected;
+static atomic_bool s_ui_initialized;
+static atomic_int s_ui_init_error;
+static atomic_int s_led_error;
+static atomic_uint s_led_frames;
+static atomic_uint s_led_color;
 static rmt_channel_handle_t s_led_channel;
 static rmt_encoder_handle_t s_led_encoder;
 static rmt_symbol_word_t s_led_frame[25];
@@ -106,6 +111,18 @@ static rmt_symbol_word_t s_led_frame[25];
 void rmlink_ui_usb_connected(bool connected)
 {
     atomic_store(&s_usb_connected, connected);
+}
+
+void rmlink_ui_diagnostics(uint8_t output[20])
+{
+    const uint32_t values[] = {
+        (uint32_t)atomic_load(&s_ui_init_error),
+        (uint32_t)atomic_load(&s_led_error), atomic_load(&s_led_frames),
+    };
+    output[0]=1;output[1]=1;output[2]=atomic_load(&s_ui_initialized);output[3]=0;
+    for(unsigned j=0;j<3;j++)for(unsigned i=0;i<4;i++)output[4+j*4+i]=values[j]>>(8*i);
+    output[16]=atomic_load(&s_led_color);output[17]=atomic_load(&s_usb_connected);
+    output[18]=CONFIG_RMLINK_UI_LED_GPIO;output[19]=CONFIG_RMLINK_UI_KEY_GPIO;
 }
 
 /* Run attachment and endpoint cleanup on TinyUSB's own task. */
@@ -138,9 +155,14 @@ static esp_err_t show_color(enum ui_color color)
     s_led_frame[24] = (rmt_symbol_word_t) { .duration0 = 1500, .duration1 = 1500 };
     rmt_transmit_config_t config = {0};
     esp_err_t err = rmt_transmit(s_led_channel, s_led_encoder, s_led_frame, sizeof(s_led_frame), &config);
-    if (err != ESP_OK) return err;
     /* The frame buffer stays owned by this transfer until completion. */
-    return rmt_tx_wait_all_done(s_led_channel, -1);
+    if (err == ESP_OK) err = rmt_tx_wait_all_done(s_led_channel, -1);
+    atomic_store(&s_led_error, err);
+    if (err == ESP_OK) {
+        atomic_fetch_add(&s_led_frames, 1);
+        atomic_store(&s_led_color, color);
+    }
+    return err;
 }
 
 static void ui_task(void *unused)
@@ -167,7 +189,7 @@ static void ui_task(void *unused)
     }
 }
 
-esp_err_t rmlink_ui_init(void)
+static esp_err_t ui_hardware_init(void)
 {
     gpio_config_t key = {
         .pin_bit_mask = 1ULL << CONFIG_RMLINK_UI_KEY_GPIO,
@@ -204,8 +226,21 @@ cleanup_channel:
     s_led_channel = NULL;
     return err;
 }
+
+esp_err_t rmlink_ui_init(void)
+{
+    esp_err_t err = ui_hardware_init();
+    atomic_store(&s_ui_init_error, err);
+    atomic_store(&s_ui_initialized, true);
+    return err;
+}
 #endif
 #elif !defined(RMLINK_UI_HOST_TEST)
 esp_err_t rmlink_ui_init(void) { return ESP_OK; }
 void rmlink_ui_usb_connected(bool connected) { (void)connected; }
+void rmlink_ui_diagnostics(uint8_t output[20])
+{
+    for(unsigned i=0;i<20;i++)output[i]=0;
+    output[0]=1;
+}
 #endif

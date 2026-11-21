@@ -35,6 +35,7 @@
 #include "rmlink_transport_bench.h"
 #include "rmlink_stream.h"
 #include "rmlink_swd_timing.h"
+#include "rmlink_ui.h"
 #endif
 
 #define WIFI_RECONNECT_GRACE_US 1000000LL
@@ -477,6 +478,13 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         out[2]=0;out[3]=1;
         for(unsigned j=0;j<7;j++)for(unsigned i=0;i<4;i++)out[4+j*4+i]=values[j]>>(8*i);
         return 32;
+#else
+        out[2]=2;return 3;
+#endif
+    }
+    if (r[1] == 17) { /* RGB initialization and completed LED transfers; read-only. */
+#ifndef RMLINK_NETWORK_HOST_TEST
+        out[2]=0;rmlink_ui_diagnostics(out+3);return 23;
 #else
         out[2]=2;return 3;
 #endif

@@ -88,7 +88,8 @@ class Connector:
                         saved['firmware']=device.firmware;self.state.save()
                     self.brokers[key] = fresh
                     self.connection_errors.pop(key, None)
-                except (OSError, TimeoutError, ValueError, ConnectionError) as exc:
+                except (OSError, TimeoutError, ValueError, ConnectionError, RuntimeError) as exc:
+                    # A missing/busy WinUSB interface must not stop later paired probes.
                     self.connection_errors[key] = f'{type(exc).__name__}: {exc}'
                     await fresh.close(); continue
 

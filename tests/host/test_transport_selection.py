@@ -43,3 +43,32 @@ class SelectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_transport_never_closes_probe(self):
         with self.assertRaises(ValueError):await self.connector.route('POST','/v1/transport',{'device_id':ID,'transport':'auto'})
         self.assertFalse(self.probe.closed)
+
+
+class RefreshTests(unittest.IsolatedAsyncioTestCase):
+    async def test_missing_usb_probe_does_not_block_later_paired_probe(self):
+        missing='001122334455'
+        attempted=[];transports=[]
+        class UsbProbe(Probe):
+            def __init__(self,serial):
+                super().__init__();self.serial=serial;transports.append(self)
+            async def connect(self):
+                attempted.append(self.serial)
+                if self.serial==missing.upper():
+                    raise RuntimeError('No available RMLink WinUSB interface')
+        async def discover(**kwargs):return {}
+        with tempfile.TemporaryDirectory() as directory:
+            connector=Connector(State(directory))
+            for key in (missing,ID):
+                device=Device(key,'model','0.0.0.0',3241,'0.3.4')
+                connector.state.data['paired'][key]=dict(device.as_dict(),transport='usb',auto_connect=True)
+            try:
+                with patch('rmlink_connector.service.discover',discover),patch('rmlink_connector.service.UsbTransport',UsbProbe):
+                    await connector.refresh()
+                self.assertEqual(attempted,[missing.upper(),ID.upper()])
+                self.assertIn('RuntimeError',connector.connection_errors[missing])
+                self.assertTrue(transports[0].closed)
+                self.assertNotIn(missing,connector.brokers)
+                self.assertIn(ID,connector.brokers)
+                self.assertNotIn(ID,connector.connection_errors)
+            finally:await connector.close()
