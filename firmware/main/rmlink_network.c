@@ -52,6 +52,7 @@ static atomic_uint s_revision;
 static atomic_bool s_up;
 static atomic_bool s_enabled = true;
 static atomic_bool s_tcp_network_live;
+static atomic_bool s_tcp_client_connected;
 /* Only an expired grace period or changed IP invalidates existing sockets. */
 static atomic_uint s_network_generation;
 static atomic_bool s_connecting;
@@ -63,6 +64,25 @@ static atomic_llong s_reconnect_deadline;
 static uint32_t s_ip_address;
 static uint8_t s_bssid[6];
 static bool s_associated;
+#ifndef RMLINK_NETWORK_HOST_TEST
+static esp_timer_handle_t s_wifi_disable_timer;
+static atomic_uint s_wifi_disable_seq;
+static atomic_uint s_wifi_disable_armed_seq;
+
+static void wifi_disable_cancel(void)
+{
+    atomic_fetch_add(&s_wifi_disable_seq, 1);
+    if (s_wifi_disable_timer) esp_timer_stop(s_wifi_disable_timer);
+}
+
+static void wifi_disable_expired(void *unused)
+{
+    (void)unused;
+    if (atomic_load(&s_wifi_disable_seq) == atomic_load(&s_wifi_disable_armed_seq)) {
+        rmlink_network_set_enabled(false);
+    }
+}
+#endif
 
 void __real_esp_netif_action_disconnected(void *netif, esp_event_base_t base,
                                         int32_t id, void *data);
@@ -122,10 +142,25 @@ bool rmlink_network_is_connected(void)
     return atomic_load(&s_enabled) && atomic_load(&s_up);
 }
 
+bool rmlink_network_is_enabled(void)
+{
+    return atomic_load(&s_enabled);
+}
+
+bool rmlink_network_has_client(void)
+{
+    return atomic_load(&s_enabled) && atomic_load(&s_tcp_client_connected);
+}
+
 void rmlink_network_set_enabled(bool enabled)
 {
+#ifndef RMLINK_NETWORK_HOST_TEST
+    wifi_disable_cancel();
+#endif
     if (atomic_exchange(&s_enabled, enabled) == enabled) return;
     /* Invalidate the previous connection before the manager handles its wakeup. */
+    if (s_reconnect_timer) esp_timer_stop(s_reconnect_timer);
+    atomic_store(&s_reconnect_deadline, 0);
     atomic_store(&s_up, false);
     atomic_store(&s_tcp_network_live, false);
     atomic_fetch_add(&s_network_generation, 1);
@@ -375,6 +410,7 @@ static void tcp_task(void *arg)
                 close(client); continue;
             }
             rmlink_tcp_session_open(session);
+            atomic_store(&s_tcp_client_connected, true);
             unsigned received_requests=0;
             const char *end_reason="network or sender closed";
             while (network_current(network_generation) && !atomic_load(&connection.closing)) {
@@ -393,6 +429,7 @@ static void tcp_task(void *arg)
             }
             ESP_LOGI("rmlink_wifi", "TCP session end: %s, requests=%u errno=%d",end_reason,received_requests,errno);
             atomic_store(&connection.closing, true);
+            atomic_store(&s_tcp_client_connected, false);
             shutdown(client, SHUT_RDWR);
             /* Invalidate/abort then drain the executor before freeing callback context. */
             rmlink_transport_closed(RMLINK_TCP, session);
@@ -507,6 +544,53 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         }
         out[5] = (uint8_t)rssi; memcpy(out + 6, &ip.ip.addr, 4); return 10;
     }
+    if (r[1] == 18) { /* Read-only link & mode status snapshot; no target access. */
+        bool usb_mounted = rmlink_ui_usb_is_connected();
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        uint8_t owner_transport = rmlink_active_owner_transport();
+        uint8_t busy_flags = rmlink_busy_flags();
+        bool usb_active = usb_mounted && rmlink_usb_client_active();
+#else
+        uint8_t owner_transport = 0;
+        uint8_t busy_flags = 0;
+        bool usb_active = false;
+#endif
+        uint8_t active_transport = owner_transport ? owner_transport
+            : (usb_active ? RMLINK_USB : (rmlink_network_has_client() ? RMLINK_TCP : 0));
+        out[2] = 0;
+        out[3] = 1; /* schema 1 */
+        out[4] = atomic_load(&s_enabled) ? 1 : 0;
+        out[5] = s_config.ssid[0] != 0 ? 1 : 0;
+        out[6] = rmlink_network_is_connected() ? 1 : 0;
+        out[7] = usb_mounted ? 1 : 0;
+        out[8] = active_transport;
+        out[9] = owner_transport;
+        out[10] = busy_flags;
+        out[11] = 0x03; /* dual-link aware + Wi-Fi toggle supported */
+        return 12;
+    }
+    if (r[1] == 19) { /* Set Wi-Fi enable state; allowed over USB or TCP when idle. */
+        if (!s_manager) { out[2] = 2; return 3; }
+        if (len != 3 || r[2] > 1) { out[2] = 1; return 3; }
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        if (owner->session || rmlink_busy_flags()) { out[2] = 3; return 3; }
+#else
+        if (owner->session) { out[2] = 3; return 3; }
+#endif
+        bool enable = r[2] != 0;
+        wifi_disable_cancel();
+        if (!enable && transport == RMLINK_TCP) {
+            unsigned seq = atomic_fetch_add(&s_wifi_disable_seq, 1) + 1;
+            atomic_store(&s_wifi_disable_armed_seq, seq);
+            if (!s_wifi_disable_timer || esp_timer_start_once(s_wifi_disable_timer, 150000) != ESP_OK) {
+                rmlink_network_set_enabled(false);
+            }
+        } else {
+            rmlink_network_set_enabled(enable);
+        }
+        out[2] = 0;
+        return 3;
+    }
     if (transport != RMLINK_USB || !s_manager) { out[2] = 2; return 3; }
     if (r[1] == 8) { /* Explicit USB arming; expires automatically, never claims SWD. */
         if (len < 4 || owner->session) return 3;
@@ -515,6 +599,7 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         return 3;
     }
     if (r[1] == 5) { /* Network-only reconnect, useful for recovery acceptance. */
+        if (!atomic_load(&s_enabled)) { out[2] = 1; return 3; }
         out[2] = esp_wifi_disconnect() == ESP_OK ? 0 : 1;
         return 3;
     }
@@ -545,6 +630,8 @@ size_t rmlink_vendor_command(uint8_t transport, const uint8_t *r, size_t len,
         nvs_close(nvs);
         if (err != ESP_OK) return 3;
         portENTER_CRITICAL(&s_config_mux); s_config = s_staged; portEXIT_CRITICAL(&s_config_mux);
+        wifi_disable_cancel();
+        atomic_store(&s_enabled, true);
         atomic_fetch_add(&s_revision, 1); xTaskNotifyGive(s_manager);
         memset(&s_staged, 0, sizeof(s_staged)); s_staged.version = 1;
         memset(s_field_set, 0, sizeof(s_field_set)); memset(s_received, 0, sizeof(s_received));
@@ -570,6 +657,8 @@ esp_err_t rmlink_network_init(void)
     if (!s_sta) return ESP_ERR_NO_MEM;
     esp_timer_create_args_t recovery = { .callback = reconnect_expired, .name = "wifi_recover" };
     ESP_RETURN_ON_ERROR(esp_timer_create(&recovery, &s_reconnect_timer), "rmlink_wifi", "recovery timer");
+    esp_timer_create_args_t wifi_disable = { .callback = wifi_disable_expired, .name = "wifi_disable" };
+    ESP_RETURN_ON_ERROR(esp_timer_create(&wifi_disable, &s_wifi_disable_timer), "rmlink_wifi", "disable timer");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(RMLINK_WIFI_RECOVERY_EVENT, 0, wifi_event, NULL), "rmlink_wifi", "recovery events");
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), "rmlink_wifi", "wifi init");
@@ -606,6 +695,8 @@ esp_err_t rmlink_network_init(void)
 #include "rmlink_network.h"
 esp_err_t rmlink_network_init(void) { return ESP_OK; }
 bool rmlink_network_is_connected(void) { return false; }
+bool rmlink_network_is_enabled(void) { return false; }
+bool rmlink_network_has_client(void) { return false; }
 void rmlink_network_set_enabled(bool enabled) { (void)enabled; }
 bool rmlink_network_wait_for_link(void) { return false; }
 #endif

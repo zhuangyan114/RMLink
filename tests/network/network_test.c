@@ -178,6 +178,17 @@ int main(void)
     reassociate(&access_point);
     wifi_event(NULL, IP_EVENT, IP_EVENT_STA_GOT_IP, &late_ip);
     assert(rmlink_network_is_connected());
+
+    /* Disabling Wi-Fi during the reassociation grace period immediately cancels timer and deadline. */
+    generation = online();
+    disconnect();
+    assert(timer.active && atomic_load(&s_reconnect_deadline) > 0);
+    rmlink_network_set_enabled(false);
+    assert(!rmlink_network_is_enabled() && !timer.active && atomic_load(&s_reconnect_deadline) == 0);
+    atomic_store(&s_tcp_client_connected, true);
+    assert(!rmlink_network_has_client());
+    rmlink_network_set_enabled(true);
+    assert(rmlink_network_is_enabled() && rmlink_network_has_client());
     puts("Wi-Fi recovery tests passed (reassociation, expiry, event races, manual mode selection)");
     return 0;
 }

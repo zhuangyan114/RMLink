@@ -3,102 +3,135 @@
 #include <stdint.h>
 
 #ifndef RMLINK_UI_HOST_TEST
+#include <stdatomic.h>
 #include "sdkconfig.h"
 #include "rmlink_ui.h"
+
+static atomic_bool s_usb_connected;
+
+void rmlink_ui_usb_connected(bool connected)
+{
+    atomic_store(&s_usb_connected, connected);
+}
+
+bool rmlink_ui_usb_is_connected(void)
+{
+    return atomic_load(&s_usb_connected);
+}
 #endif
 
 #if CONFIG_RMLINK_UI_ENABLED
-enum ui_mode { UI_AUTO, UI_WIFI, UI_USB };
-enum ui_phase { UI_NORMAL, UI_CONFIGURE, UI_CONNECTING };
 enum ui_color { UI_OFF, UI_RED, UI_GREEN, UI_BLUE, UI_YELLOW };
+enum ui_feedback { UI_FEEDBACK_NONE, UI_FEEDBACK_ACK, UI_FEEDBACK_BUSY };
 
 typedef struct {
-    enum ui_mode mode;
-    enum ui_mode choice;
-    enum ui_phase phase;
     bool raw_pressed;
     bool pressed;
     bool long_press_sent;
     uint32_t raw_changed_ms;
     uint32_t pressed_ms;
+    enum ui_feedback feedback;
+    uint32_t feedback_started_ms;
     uint8_t pattern;
     uint32_t pattern_started_ms;
 } ui_state_t;
 
-static void enter_configuration(ui_state_t *state, bool usb_connected)
+static void trigger_long_press(ui_state_t *state, uint32_t now_ms, bool busy, bool *toggle_wifi)
 {
-    state->phase = UI_CONFIGURE;
-    state->choice = state->mode;
-    if (state->mode == UI_AUTO) state->choice = usb_connected ? UI_USB : UI_WIFI;
     state->long_press_sent = true;
+    state->feedback_started_ms = now_ms;
+    if (busy) {
+        state->feedback = UI_FEEDBACK_BUSY;
+    } else {
+        state->feedback = UI_FEEDBACK_ACK;
+        if (toggle_wifi) *toggle_wifi = true;
+    }
 }
 
 static enum ui_color ui_step(ui_state_t *state, uint32_t now_ms, bool pressed,
-                             bool wifi_connected, bool usb_connected)
+                             bool wifi_enabled, bool wifi_connected,
+                             bool usb_mounted, uint8_t active_transport,
+                             bool busy, bool *toggle_wifi)
 {
+    (void)wifi_enabled;
+    if (toggle_wifi) *toggle_wifi = false;
     if (pressed != state->raw_pressed) {
         state->raw_pressed = pressed;
         state->raw_changed_ms = now_ms;
     }
-    if (state->pressed != pressed && now_ms - state->raw_changed_ms >= 30) {
+    if (state->pressed != pressed && (uint32_t)(now_ms - state->raw_changed_ms) >= 30u) {
         state->pressed = pressed;
         if (pressed) {
             state->pressed_ms = state->raw_changed_ms;
             state->long_press_sent = false;
-        } else if (!state->long_press_sent) {
+        } else if (!state->long_press_sent &&
+                   (uint32_t)(state->raw_changed_ms - state->pressed_ms) >= 2000u) {
             /* Include a release sampled exactly at the two-second boundary. */
-            if (state->raw_changed_ms - state->pressed_ms >= 2000) {
-                enter_configuration(state, usb_connected);
-            } else if (state->phase != UI_NORMAL) {
-                state->choice = state->choice == UI_WIFI ? UI_USB : UI_WIFI;
-                state->mode = state->choice;
-                state->phase = UI_CONNECTING;
-            }
+            trigger_long_press(state, now_ms, busy, toggle_wifi);
         }
     }
     if (state->pressed && pressed && !state->long_press_sent &&
-        now_ms - state->pressed_ms >= 2000) {
-        enter_configuration(state, usb_connected);
+        (uint32_t)(now_ms - state->pressed_ms) >= 2000u) {
+        trigger_long_press(state, now_ms, busy, toggle_wifi);
     }
 
-    bool connected = state->mode == UI_USB ? usb_connected : wifi_connected;
-    if (state->mode == UI_AUTO) connected = wifi_connected || usb_connected;
-    if (state->phase == UI_CONNECTING && connected) state->phase = UI_NORMAL;
+    if (state->feedback == UI_FEEDBACK_BUSY && (uint32_t)(now_ms - state->feedback_started_ms) >= 1000u) {
+        state->feedback = UI_FEEDBACK_NONE;
+    } else if (state->feedback == UI_FEEDBACK_ACK && (uint32_t)(now_ms - state->feedback_started_ms) >= 500u) {
+        state->feedback = UI_FEEDBACK_NONE;
+    }
 
     enum ui_color color;
-    bool blink = true;
-    if (state->phase == UI_CONFIGURE) {
+    uint32_t period_ms = 0;
+    uint8_t pattern;
+    if (state->feedback == UI_FEEDBACK_BUSY) {
         color = UI_YELLOW;
-    } else if (state->phase == UI_CONNECTING) {
-        color = state->mode == UI_USB ? UI_BLUE : UI_GREEN;
-    } else if (connected) {
-        color = state->mode == UI_USB || (state->mode == UI_AUTO && usb_connected) ? UI_BLUE : UI_GREEN;
-        blink = false;
+        period_ms = 200u;
+        pattern = (uint8_t)color | 0x40u;
+    } else if (state->feedback == UI_FEEDBACK_ACK) {
+        color = UI_YELLOW;
+        pattern = (uint8_t)color;
+    } else if (active_transport == 1) {
+        color = UI_BLUE;
+        pattern = (uint8_t)color;
+    } else if (active_transport == 2) {
+        color = UI_GREEN;
+        pattern = (uint8_t)color;
+    } else if (usb_mounted) {
+        color = UI_BLUE;
+        period_ms = 1000u;
+        pattern = (uint8_t)color | 0x80u;
+    } else if (wifi_connected) {
+        color = UI_GREEN;
+        period_ms = 1000u;
+        pattern = (uint8_t)color | 0x80u;
     } else {
         color = UI_RED;
+        period_ms = 1000u;
+        pattern = (uint8_t)color | 0x80u;
     }
-    uint8_t pattern = (uint8_t)color | (blink ? 0x80 : 0);
     if (pattern != state->pattern) {
         state->pattern = pattern;
         state->pattern_started_ms = now_ms;
     }
-    return blink && (now_ms - state->pattern_started_ms) % 1000 >= 500 ? UI_OFF : color;
+    if (period_ms && (uint32_t)(now_ms - state->pattern_started_ms) % period_ms >= period_ms / 2u) {
+        return UI_OFF;
+    }
+    return color;
 }
 
 #ifndef RMLINK_UI_HOST_TEST
-#include <stdatomic.h>
 #include "driver/gpio.h"
 #include "driver/rmt_tx.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "tusb.h"
-#include "device/usbd_pvt.h"
-#include "eub_vendord.h"
 #include "rmlink_network.h"
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+#include "rmlink_executor.h"
+#endif
 
-static atomic_bool s_usb_connected;
 static atomic_bool s_ui_initialized;
 static atomic_int s_ui_init_error;
 static atomic_int s_led_error;
@@ -107,11 +140,6 @@ static atomic_uint s_led_color;
 static rmt_channel_handle_t s_led_channel;
 static rmt_encoder_handle_t s_led_encoder;
 static rmt_symbol_word_t s_led_frame[25];
-
-void rmlink_ui_usb_connected(bool connected)
-{
-    atomic_store(&s_usb_connected, connected);
-}
 
 void rmlink_ui_diagnostics(uint8_t output[20])
 {
@@ -123,17 +151,6 @@ void rmlink_ui_diagnostics(uint8_t output[20])
     for(unsigned j=0;j<3;j++)for(unsigned i=0;i<4;i++)output[4+j*4+i]=values[j]>>(8*i);
     output[16]=atomic_load(&s_led_color);output[17]=atomic_load(&s_usb_connected);
     output[18]=CONFIG_RMLINK_UI_LED_GPIO;output[19]=CONFIG_RMLINK_UI_KEY_GPIO;
-}
-
-/* Run attachment and endpoint cleanup on TinyUSB's own task. */
-static void apply_usb_mode(void *context)
-{
-    if ((uintptr_t)context) {
-        tud_connect();
-    } else {
-        atomic_store(&s_usb_connected, false);
-        eub_vendord_disconnect();
-    }
 }
 
 static esp_err_t show_color(enum ui_color color)
@@ -171,14 +188,26 @@ static void ui_task(void *unused)
     ui_state_t state = {0};
     enum ui_color shown = UI_RED;
     for (;;) {
-        enum ui_mode previous_mode = state.mode;
+        bool wifi_enabled = rmlink_network_is_enabled();
+        bool wifi_connected = rmlink_network_is_connected();
+        bool usb_mounted = rmlink_ui_usb_is_connected();
+#if CONFIG_DEBUG_PROBE_IFACE_SWD
+        uint8_t owner = rmlink_active_owner_transport();
+        uint8_t active_transport = owner ? owner
+            : ((usb_mounted && rmlink_usb_client_active()) ? RMLINK_USB : (rmlink_network_has_client() ? RMLINK_TCP : 0));
+        bool busy = rmlink_busy_flags() != 0;
+#else
+        uint8_t active_transport = rmlink_network_has_client() ? 2 : 0;
+        bool busy = false;
+#endif
+        bool toggle_wifi = false;
         enum ui_color color = ui_step(&state, (uint32_t)(esp_timer_get_time() / 1000),
             gpio_get_level(CONFIG_RMLINK_UI_KEY_GPIO) == 0,
-            rmlink_network_is_connected(), atomic_load(&s_usb_connected));
-        if (state.mode != previous_mode) {
-            rmlink_network_set_enabled(state.mode != UI_USB);
-            usbd_defer_func(apply_usb_mode, (void *)(uintptr_t)(state.mode != UI_WIFI), false);
-            ESP_LOGI("rmlink_ui", "Selected %s mode", state.mode == UI_USB ? "USB" : "Wi-Fi");
+            wifi_enabled, wifi_connected, usb_mounted, active_transport, busy, &toggle_wifi);
+        if (toggle_wifi) {
+            bool next_enabled = !wifi_enabled;
+            rmlink_network_set_enabled(next_enabled);
+            ESP_LOGI("rmlink_ui", "Wi-Fi %s by user key", next_enabled ? "enabled" : "disabled");
         }
         if (color != shown) {
             esp_err_t err = show_color(color);
@@ -237,7 +266,6 @@ esp_err_t rmlink_ui_init(void)
 #endif
 #elif !defined(RMLINK_UI_HOST_TEST)
 esp_err_t rmlink_ui_init(void) { return ESP_OK; }
-void rmlink_ui_usb_connected(bool connected) { (void)connected; }
 void rmlink_ui_diagnostics(uint8_t output[20])
 {
     for(unsigned i=0;i<20;i++)output[i]=0;

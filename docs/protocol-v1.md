@@ -36,13 +36,15 @@ TCP 接收器支持粘包与拆包；帧头非法直接关闭连接。单次部�
 | :---: | --- | --- |
 | `0` | `80 00` | 返回 17 字节设备信息（布局见下表） |
 | `2` | `80 02 field offset total chunkLength data...` | 暂存 Wi-Fi 参数分片：`field=0` 为 SSID，`1` 为密码（仅 USB） |
-| `3` | `80 03` | 校验两端点字段完整后写入 NVS，并通知 STA 任务重连（仅 USB） |
+| `3` | `80 03` | 校验两端点字段完整后写入 NVS，自动恢复启用 Wi-Fi 并通知 STA 任务重连（仅 USB） |
 | `4` | `80 04` | 返回 10 字节：`[80, 04, 00, configured, connected, rssi, ip0..ip3]`（`rssi` 为 int8） |
-| `5` | `80 05` | 主动断开 STA 触发自动重连（仅 USB，用于验证恢复） |
+| `5` | `80 05` | 主动断开 STA 触发自动重连（仅 USB 且 Wi-Fi 已启用时有效，用于验证恢复） |
 | `6` | `80 06` | 返回 15 字节：前缀 + 启动微秒数（u64 LE）+ ESP-IDF reset reason（u32 LE） |
 | `7` | `80 07 seqLE32` | 返回当前传输容量的诊断包（前缀 + 原 `seq` + 确定性填充），不访问目标 |
 | `8` | `80 08 secLE16` | 仅 USB 且无目标占用时有效：`0` 关闭端口 `3242` 测试服务，`1..300` 临时开启对应秒数 |
 | `9` | `80 09` | 返回 9 字节：`[80, 09, 00]` + 6 字节 STA MAC（USB / TCP 均只读可用） |
+| `18` | `80 12` | 返回 12 字节只读链路状态：`[80, 12, 00, schema=1, wifi_enabled, wifi_configured, wifi_connected, usb_mounted, active_transport, owner_transport, busy_flags, capabilities]`（`active/owner`: `0` 无/`1` USB/`2` TCP；`busy_flags`: `bit0` owner/`bit1` flash/`bit2` ota；`capabilities`: `bit0` 双通保底、`bit1` 支持 `0x80/19`） |
+| `19` | `80 13 enable` | 仅空闲时（无 owner/flash/ota）开关板端 Wi-Fi（`0` 关闭、`1` 开启；USB 常开不断开；通过 TCP 关闭时延迟 150 ms 生效以便先回传 ACK；忙时返回 `status=3`） |
 
 `0x80 00` 信息布局：
 

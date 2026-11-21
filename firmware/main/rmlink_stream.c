@@ -163,7 +163,7 @@ typedef struct {int fd;uint32_t generation;} realtime_socket_t;
 static int64_t realtime_now(void *context) {(void)context;return esp_timer_get_time();}
 static bool realtime_live(void *context) {
     realtime_socket_t *socket=context;
-    return rmlink_capture_stream_live(socket->generation);
+    return rmlink_network_is_enabled() && rmlink_capture_stream_live(socket->generation);
 }
 static int realtime_write(void *context,const uint8_t *data,size_t size) {
     realtime_socket_t *socket=context;
@@ -203,6 +203,7 @@ static bool realtime_send(int fd,uint32_t generation,uint8_t *data,size_t size,i
 static void stream_task(void *unused) {
     s_stream_task=xTaskGetCurrentTaskHandle();
     for(;;) {
+        while(!rmlink_network_is_enabled() || !rmlink_network_is_connected()) vTaskDelay(pdMS_TO_TICKS(250));
         int listener=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP), reuse=1;
         if(listener<0) { vTaskDelay(pdMS_TO_TICKS(1000)); continue; }
         setsockopt(listener,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
@@ -210,7 +211,12 @@ static void stream_task(void *unused) {
         if(bind(listener,(struct sockaddr*)&addr,sizeof(addr)) || listen(listener,1)) {
             close(listener); vTaskDelay(pdMS_TO_TICKS(1000)); continue;
         }
-        for(;;) {
+        while(rmlink_network_is_enabled()) {
+            fd_set lfds; FD_ZERO(&lfds); FD_SET(listener, &lfds);
+            struct timeval lpoll = { .tv_usec = 250000 };
+            int lready = select(listener + 1, &lfds, NULL, NULL, &lpoll);
+            if(lready < 0) break;
+            if(lready == 0) continue;
             int fd=accept(listener,NULL,NULL); if(fd<0) break;
             struct timeval timeout={.tv_sec=2};
             setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
@@ -247,7 +253,7 @@ static void stream_task(void *unused) {
 #if CONFIG_RMLINK_STREAM_DIAGNOSTICS
             esp_timer_start_periodic(s_diagnostic_timer,100000);
 #endif
-            while(rmlink_capture_stream_live(generation)) {
+            while(rmlink_network_is_enabled() && rmlink_capture_stream_live(generation)) {
                 uint8_t batch[4096];size_t used=rmlink_capture_take(batch,sizeof(batch),10);
                 /* Drain an existing backlog before delaying. Waiting another
                  * 8 ms for an already full batch caps recovery throughput and

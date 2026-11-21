@@ -15,6 +15,7 @@
 #include "freertos/ringbuf.h"
 #include "esp_log.h"
 #include "esp_check.h"
+#include "esp_timer.h"
 #include "debug_probe.h"
 #include "rmlink_executor.h"
 #include "DAP_config.h"
@@ -47,7 +48,28 @@ static rmlink_owner_t s_owner;
 static atomic_uint s_tcp_session;
 static portMUX_TYPE s_active_mux = portMUX_INITIALIZER_UNLOCKED;
 static rmlink_owner_t s_active;
+static atomic_uchar s_owner_transport;
+static atomic_uchar s_busy_flags;
+static atomic_llong s_usb_last_activity_us;
 static void capture_wake(void) { if (s_executor) xTaskNotifyGive(s_executor); }
+
+static void update_runtime_state(void)
+{
+    atomic_store(&s_owner_transport, s_owner.transport);
+    uint8_t busy = (s_owner.session ? 1u : 0u) |
+                   (rmlink_flash_busy() ? 2u : 0u) |
+                   (rmlink_ota_busy() ? 4u : 0u);
+    atomic_store(&s_busy_flags, busy);
+}
+
+uint8_t rmlink_active_owner_transport(void) { return atomic_load(&s_owner_transport); }
+uint8_t rmlink_busy_flags(void) { return atomic_load(&s_busy_flags); }
+bool rmlink_usb_client_active(void)
+{
+    if (atomic_load(&s_owner_transport) == RMLINK_USB) return true;
+    int64_t last = atomic_load(&s_usb_last_activity_us);
+    return last > 0 && esp_timer_get_time() - last <= 12000000LL;
+}
 
 void rmlink_abort(uint8_t transport, uint32_t session)
 {
@@ -76,7 +98,7 @@ static size_t process(const request_t *job, uint8_t *out)
         return rmlink_ota_command(job->transport,job->session,r,job->len,out,&s_owner,
             !rmlink_flash_busy() && rmlink_capture_raw_allowed());
     if (rmlink_ota_busy() && r[0] != 0 && r[0] != 1 &&
-        !(r[0] == 0x80 && job->len >= 2 && (r[1] == 0 || r[1] == 4 || r[1] == 6 || r[1] == 9)))
+        !(r[0] == 0x80 && job->len >= 2 && (r[1] == 0 || r[1] == 4 || r[1] == 6 || r[1] == 9 || r[1] == 18)))
         return rmlink_dap_error(r[0],out);
     if (r[0] == 0x82) {
         size_t n = rmlink_flash_command(job->transport, job->session, r, job->len, out,
@@ -167,6 +189,7 @@ static void swd_task(void *arg)
             portENTER_CRITICAL(&s_active_mux);
             memset(&s_active, 0, sizeof(s_active));
             portEXIT_CRITICAL(&s_active_mux);
+            update_runtime_state();
             if (!sampled) ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
             continue;
         }
@@ -177,6 +200,7 @@ static void swd_task(void *arg)
         if (job.close) {
             rmlink_ota_closed(job.transport,job.session);
             rmlink_vendor_transport_closed(job.transport);
+            if (job.transport == RMLINK_USB) atomic_store(&s_usb_last_activity_us, 0);
             DAP_TransferBeginBounded(2000);
             rmlink_flash_closed(job.transport, job.session);
             rmlink_capture_closed(job.transport, job.session);
@@ -185,12 +209,15 @@ static void swd_task(void *arg)
                 const uint8_t disconnect[] = {3};
                 DAP_ProcessCommand(disconnect, out);
             }
+            update_runtime_state();
             if (job.done) xSemaphoreGive(job.done);
             continue;
         }
         memset(out, 0, sizeof(out));
         bool stale = !session_live(&job);
         if (stale && !job.done) continue;
+        if (!stale && job.transport == RMLINK_USB)
+            atomic_store(&s_usb_last_activity_us, esp_timer_get_time());
         /* A synchronous caller must always be released, including after USB reset. */
         bool transfer = !stale && (job.request[0] == 5 || job.request[0] == 6 || job.request[0] == 0x81 || job.request[0] == 0x82);
         if (transfer) {
@@ -207,6 +234,7 @@ static void swd_task(void *arg)
             memset(&s_active, 0, sizeof(s_active));
             portEXIT_CRITICAL(&s_active_mux);
         }
+        update_runtime_state();
         size_t capacity = job.transport == RMLINK_USB ? RMLINK_USB_PACKET_SIZE : RMLINK_PACKET_SIZE;
         if (!n || n > capacity) n = rmlink_dap_error(job.request[0], out);
         if (job.done) {

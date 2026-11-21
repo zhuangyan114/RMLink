@@ -7,10 +7,11 @@ import struct
 import time
 
 from rmlink_native_usb import UsbClient
+from .diagnostics import decode_link_status
 from .discovery import Device
 from .target import TargetAccessError
 from .ota import FirmwareUpdates
-from .firmware import repository_name
+from .firmware import FirmwareError, repository_name
 
 
 class ManagementError(ValueError):
@@ -65,15 +66,15 @@ class Management:
         return saved
 
     async def scan_usb(self):
-        def scan():
-            found, excluded = [], []
+        def scan(excluded):
+            found, seen = [], list(excluded)
             for _ in range(16):
                 try:
-                    client = UsbClient(bcd_device=0x0002, exclude_serials=excluded)
+                    client = UsbClient(bcd_device=0x0002, exclude_serials=seen)
                 except RuntimeError:
                     break  # Includes no free physical interface. Never open a second owner.
                 with client:
-                    excluded.append(client.serial)
+                    seen.append(client.serial)
                     identity, info, network = client.exchange_many([b'\x80\x09', b'\x80\x00', b'\x80\x04'])
                     if len(identity) != 9 or identity[:3] != b'\x80\x09\x00' or len(info) != 17 or info[:4] != b'\x80\x00\x00\x01':
                         continue
@@ -85,12 +86,90 @@ class Management:
         if os.name != 'nt':
             return dict(devices=[], supported=False)
         async with self.connector.refresh_lock:
-            rows = await asyncio.to_thread(scan)
+            rows, excluded = [], []
+            for key, broker in list(self.connector.brokers.items()):
+                if broker.failed or not getattr(broker.transport, 'native_usb', False):
+                    continue
+                serial = (getattr(broker.transport, 'serial', None)
+                          or self.connector.usb_serials.get(key)
+                          or self.connector.state.data['paired'].get(key, {}).get('usb_serial', key.upper()))
+                try:
+                    identity, info, network = await broker.submit('usb-scan', [b'\x80\x09', b'\x80\x00', b'\x80\x04'], 'background')
+                    if len(identity) != 9 or identity[:3] != b'\x80\x09\x00' or len(info) != 17 or info[:4] != b'\x80\x00\x00\x01':
+                        continue
+                    rows.append(dict(device_id=key, hostname='rmlink-' + key[-6:] + '.local',
+                                     address=network_status(network)['ip'], port=3241,
+                                     firmware='.'.join(map(str, info[4:7])), usb_serial=serial))
+                    excluded.append(serial)
+                except (OSError, TimeoutError, ConnectionError, RuntimeError):
+                    pass
+            rows.extend(await asyncio.to_thread(scan, excluded))
+            state_dirty = False
             for row in rows:
                 key = row['device_id']
+                existing = self.connector.devices.get(key)
+                saved = self.connector.state.data['paired'].get(key)
+                address = row['address']
+                if address in ('', '0.0.0.0'):
+                    fallback = existing.address if existing else (saved.get('address', '') if saved else '')
+                    if fallback and fallback != '0.0.0.0':
+                        address = fallback
+                elif saved and saved.get('address') != address:
+                    saved['address'] = address
+                    state_dirty = True
+                row['address'] = address
                 self.connector.devices[key] = Device(**{k: row[k] for k in Device.__dataclass_fields__})
                 self.connector.usb_serials[key] = row['usb_serial']
+            if state_dirty:
+                self.connector.state.save()
             return dict(devices=rows, supported=True)
+
+    async def set_wifi_enabled(self, key, enabled):
+        c = self.connector
+        if type(enabled) is not bool:
+            raise ManagementError('Wi-Fi 开关参数必须为布尔值')
+        async with c.refresh_lock:
+            self.idle(key)
+            if key in self.firmware.uploads:
+                raise FirmwareError('设备正在升级固件，请先完成或取消升级')
+            c.switching.add(key)
+            try:
+                cmd = bytes([0x80, 19, int(enabled)])
+                broker = c.brokers.get(key)
+                if broker and not broker.failed:
+                    reply = (await broker.submit('link-mode', [cmd], 'background'))[0]
+                    if len(reply) >= 3 and reply[:2] == b'\x80\x13':
+                        if reply[2] == 0:
+                            if key in c.board_links and c.board_links[key] is not None:
+                                c.board_links[key]['wifi_enabled'] = enabled
+                            if not enabled and not getattr(broker.transport, 'native_usb', False):
+                                c.brokers.pop(key, None)
+                                c.board_links.pop(key, None)
+                                await broker.close()
+                                saved = c.state.data['paired'].get(key, {})
+                                if saved.get('auto_connect', True):
+                                    await c._refresh()
+                            return dict(wifi_enabled=enabled,
+                                        message='已开启板端 Wi-Fi' if enabled else '已关闭板端 Wi-Fi')
+                        if reply[2] == 3:
+                            raise TargetAccessError('设备存在活动目标会话或忙状态，请先结束操作', 'TargetBusy')
+                    raise ManagementError('当前固件不支持远程开关 Wi-Fi，请升级固件至 0.3.5 或更高版本')
+                serial = c.usb_serials.get(key) or c.state.data['paired'].get(key, {}).get('usb_serial', key.upper())
+                def write():
+                    with UsbClient(bcd_device=0x0002, serial=serial) as client:
+                        if client.exchange(b'\x80\x09') != b'\x80\x09\x00' + bytes.fromhex(key):
+                            raise ConnectionError('USB 设备身份不匹配')
+                        reply = client.exchange(cmd)
+                        if len(reply) >= 3 and reply[:2] == b'\x80\x13':
+                            if reply[2] == 0:
+                                return dict(wifi_enabled=enabled,
+                                            message='已开启板端 Wi-Fi' if enabled else '已关闭板端 Wi-Fi')
+                            if reply[2] == 3:
+                                raise TargetAccessError('设备存在活动目标会话或忙状态，请先结束操作', 'TargetBusy')
+                        raise ManagementError('当前固件不支持远程开关 Wi-Fi，请升级固件至 0.3.5 或更高版本')
+                return await asyncio.to_thread(write)
+            finally:
+                c.switching.discard(key)
 
     async def configure_wifi(self, key, body):
         c = self.connector
@@ -184,6 +263,7 @@ class Management:
                     return dict(device_id=key, connected=key in c.brokers and not c.brokers[key].failed,
                                 error=c.connection_errors.get(key))
                 broker = c.brokers.pop(key, None)
+                c.board_links.pop(key, None)
                 if broker:
                     await broker.close()
                 if path == '/v1/disconnect':
@@ -207,17 +287,31 @@ class Management:
             if method == 'POST' and action == 'firmware':
                 return await self.firmware.route(key, body)
             if method == 'POST' and action == 'wifi':
+                if 'enabled' in body and 'ssid' not in body and 'password' not in body:
+                    if set(body) != {'enabled'}:
+                        raise ManagementError('不支持的 Wi-Fi 配置参数')
+                    return await self.set_wifi_enabled(key, body['enabled'])
                 return await self.configure_wifi(key, body)
             if method == 'GET' and action == 'wifi':
                 broker = c.brokers.get(key)
                 if broker and not broker.failed:
-                    return network_status((await broker.submit('network-status', [b'\x80\x04'], 'background'))[0])
+                    replies = await broker.submit('network-status', [b'\x80\x04', b'\x80\x12'], 'background')
+                    status = network_status(replies[0])
+                    link = decode_link_status(replies[1])
+                    if link is not None:
+                        c.board_links[key] = link
+                    status['wifi_enabled'] = link['wifi_enabled'] if link is not None else None
+                    return status
                 def read():
-                    serial = c.usb_serials.get(key, key.upper())
+                    serial = c.usb_serials.get(key) or c.state.data['paired'].get(key, {}).get('usb_serial', key.upper())
                     with UsbClient(bcd_device=0x0002, serial=serial) as client:
                         if client.exchange(b'\x80\x09') != b'\x80\x09\x00' + bytes.fromhex(key):
                             raise ConnectionError('USB 设备身份不匹配')
-                        return network_status(client.exchange(b'\x80\x04'))
+                        net, link_raw = client.exchange_many([b'\x80\x04', b'\x80\x12'])
+                        status = network_status(net)
+                        link = decode_link_status(link_raw)
+                        status['wifi_enabled'] = link['wifi_enabled'] if link is not None else None
+                        return status
                 return await asyncio.to_thread(read)
         raise ManagementError('不支持的设备管理操作')
 

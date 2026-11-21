@@ -305,3 +305,34 @@ class TerminalClientTests(unittest.TestCase):
             self.assertEqual(main(['wifi', 'configure', '--ssid', '测试网络', '--password-stdin', '--json']), 0)
         self.assertEqual(call.call_args.args[2]['password'], secret)
         self.assertNotIn(secret, out.getvalue())
+
+    def test_connect_with_transport_calls_transport_route_once(self):
+        out = io.StringIO()
+        device = dict(device_id='50787d15a924')
+        with patch('rmlink_connector.local_service.LocalService.start'), patch.object(
+                Controller, 'select', return_value=device), patch.object(
+                Controller, 'call', return_value=dict(device_id='50787d15a924', transport='usb', connected=True)) as call, contextlib.redirect_stdout(out):
+            self.assertEqual(main(['connect', '--transport', 'auto', '--json']), 0)
+        call.assert_called_once_with('POST', '/v1/transport', dict(device_id='50787d15a924', transport='auto', connect=True))
+
+    def test_wifi_on_and_off_commands(self):
+        device = dict(device_id='50787d15a924')
+        for action, enabled in (('on', True), ('off', False)):
+            with self.subTest(action=action):
+                out = io.StringIO()
+                with patch('rmlink_connector.local_service.LocalService.start'), patch.object(Controller, 'scan'), patch.object(
+                        Controller, 'select', return_value=device), patch.object(
+                        Controller, 'call', return_value=dict(wifi_enabled=enabled)) as call, contextlib.redirect_stdout(out):
+                    self.assertEqual(main(['wifi', action, '--json']), 0)
+                call.assert_called_once_with('POST', '/v1/devices/50787d15a924/wifi', dict(enabled=enabled))
+
+    def test_dashboard_displays_auto_mode_active_and_offline_labels(self):
+        for device, expected in (
+            (dict(device_id='a', connected=True, preferred_transport='auto', active_transport='usb', transport='usb'), '自动 · USB'),
+            (dict(device_id='a', connected=True, preferred_transport='auto', active_transport='wifi', transport='wifi'), '自动 · Wi-Fi'),
+            (dict(device_id='a', connected=False, preferred_transport='auto', active_transport=None, transport='auto'), '自动'),
+        ):
+            with self.subTest(expected=expected):
+                rows = dashboard(dict(version='0.3.5'), device, width=88)
+                texts = [row[0] for row in rows if isinstance(row, tuple)]
+                self.assertTrue(any(expected in row for row in texts))

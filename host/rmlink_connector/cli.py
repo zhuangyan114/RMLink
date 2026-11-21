@@ -46,11 +46,13 @@ def parser():
         item = add(commands, name, help)
         item.add_argument('device_id', nargs='?', help='设备编号')
         if name == 'connect':
-            item.add_argument('--transport', choices=('usb', 'wifi'), help='选择有线 USB 或 Wi-Fi')
+            item.add_argument('--transport', choices=('auto', 'usb', 'wifi'), help='选择自动切换（USB 优先）、有线 USB 或 Wi-Fi')
     wifi = add(commands, 'wifi', '配置或查看设备 Wi-Fi')
     wifi_sub = wifi.add_subparsers(dest='action', metavar='操作')
     add(wifi_sub, 'status', '查看连接状态、IP 和信号强度')
     add(wifi_sub, 'hotspot', '检查电脑热点状态与频段，不读取密码')
+    add(wifi_sub, 'on', '开启板端 Wi-Fi')
+    add(wifi_sub, 'off', '关闭板端 Wi-Fi')
     configure = add(wifi_sub, 'configure', '通过 USB 保存 Wi-Fi 参数；密码隐藏输入')
     configure.add_argument('--ssid', help='2.4 GHz 网络名称')
     passwords = configure.add_mutually_exclusive_group()
@@ -177,7 +179,7 @@ class Controller:
         device = device or self.select()
         key = device['device_id']
         if action == 'connect' and transport:
-            self.call('POST', '/v1/transport', dict(device_id=key, transport=transport))
+            return self.call('POST', '/v1/transport', dict(device_id=key, transport=transport, connect=True))
         return self.call('POST', '/v1/' + action, dict(device_id=key))
 
     def metrics(self, device):
@@ -216,7 +218,8 @@ class Controller:
 
 LABELS = {'device_id': '设备编号', 'hostname': '设备名称', 'alias': '别名', 'address': '地址',
           'firmware': '固件', 'version': '版本', 'paired': '已配对', 'connected': '已连接',
-          'owner': '目标占用', 'transport': '传输', 'running': '服务运行中',
+          'owner': '目标占用', 'transport': '传输', 'preferred_transport': '传输偏好',
+          'active_transport': '当前通道', 'wifi_enabled': '板端 Wi-Fi 开关', 'running': '服务运行中',
           'supported': '支持', 'saved': '已保存',
           'default_device': '默认设备', 'start_at_logon': '登录自启', 'message': '说明', 'ip': 'IP',
           'configured': '已保存网络参数', 'rssi_dbm': '信号强度 / dBm', 'bytes': '字节数',
@@ -396,7 +399,9 @@ def ui_action(index, controller, terminal):
     if index == 0:
         return ui_devices(controller, terminal)
     if index == 1:
-        for choice in submenu(terminal, 'Wi-Fi 配置', [('s', '设备网络状态'), ('c', '通过 USB 配网'), ('h', '电脑热点状态')]):
+        options = [('s', '设备网络状态'), ('c', '通过 USB 配网'), ('h', '电脑热点状态'),
+                   ('o', '开启板端 Wi-Fi'), ('x', '关闭板端 Wi-Fi')]
+        for choice in submenu(terminal, 'Wi-Fi 配置', options):
             if choice == 'h':
                 view(terminal, '电脑热点', controller.hotspot())
                 continue
@@ -409,16 +414,30 @@ def ui_action(index, controller, terminal):
                 ssid = terminal.prompt('  2.4 GHz 网络名称 › ')
                 password = terminal.prompt('  密码（隐藏输入；开放网络留空） › ', secret=True)
                 view(terminal, 'Wi-Fi 配置', controller.call('POST', path, dict(ssid=ssid, password=password)))
+            elif choice in ('o', 'x'):
+                view(terminal, 'Wi-Fi 开关', controller.call('POST', path, dict(enabled=choice == 'o')))
     elif index == 2:
-        device = controller.select()
         options = [('c', '连接设备'), ('d', '断开连接'),
-                   ('1', '切换到 USB'), ('2', '切换到 Wi-Fi')]
-        for choice in submenu(terminal, '连接管理', options):
+                   ('a', '自动切换（USB 优先）'), ('1', '固定为 USB'), ('2', '固定为 Wi-Fi')]
+        selected = 0
+        while True:
+            device = controller.select()
+            pref = device.get('preferred_transport') or device.get('transport') or 'wifi'
+            active = device.get('active_transport') or (device.get('transport') if device.get('connected') else None)
+            pref_label = {'auto': '自动', 'usb': 'USB', 'wifi': 'Wi-Fi'}.get(pref, str(pref))
+            active_label = {'usb': 'USB', 'wifi': 'Wi-Fi'}.get(active, '无')
+            state_label = '在线' if device.get('connected') else '离线'
+            desc = f'{device["device_id"]}  ·  偏好 {pref_label}  ·  当前 {active_label}  ·  {state_label}'
+            choice = terminal.menu('连接管理', options, selected=selected, description=desc)
+            if choice is None:
+                return
+            selected = next(i for i, option in enumerate(options) if option[0] == choice)
             if choice in ('c', 'd'):
                 action = {'c': 'connect', 'd': 'disconnect'}[choice]
                 view(terminal, '连接管理', controller.device_action(action, device))
-            elif choice in ('1', '2'):
-                view(terminal, '连接管理', controller.device_action('connect', device, 'usb' if choice == '1' else 'wifi'))
+            elif choice in ('a', '1', '2'):
+                mode = {'a': 'auto', '1': 'usb', '2': 'wifi'}[choice]
+                view(terminal, '连接管理', controller.device_action('connect', device, mode))
     elif index == 3:
         monitor(controller, terminal)
     elif index == 4:
@@ -624,6 +643,8 @@ def run(args, controller, terminal):
         controller.scan()
         device = controller.select()
         path = f'/v1/devices/{device["device_id"]}/wifi'
+        if args.action in ('on', 'off'):
+            return controller.call('POST', path, dict(enabled=args.action == 'on'))
         if args.action != 'configure':
             return controller.call('GET', path)
         ssid = args.ssid

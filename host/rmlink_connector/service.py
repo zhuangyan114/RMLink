@@ -19,10 +19,11 @@ from .subscriptions import Subscriptions
 from .flash import FlashProgrammer, FlashJobError
 from .target_pack import PACK, PACK_TAG
 from .clock_sync import ClockSync
-from .diagnostics import decode_health,decode_performance,decode_read_recovery,decode_fault_recovery,decode_stream_diagnostics
+from .diagnostics import decode_health,decode_performance,decode_read_recovery,decode_fault_recovery,decode_stream_diagnostics,decode_link_status
 from .runtime_diagnostics import monitor_event_loop
 from .management import Management, ManagementError
 from .firmware import FirmwareError
+from rmlink_native_usb import UsbClient
 from rmlink_protocol import MAX_PACKET_SIZE, PACKET_COUNT
 
 
@@ -40,8 +41,75 @@ class Connector:
         self.clock_sync=ClockSync()
         self.switching=set()
         self.usb_serials={}
+        self.board_links={}
         self.management=Management(self)
         self.link_losses={}
+
+    def _usb_interfaces_present(self):
+        return UsbClient.has_interfaces()
+
+    async def _open_broker(self, key, saved, kind):
+        device = self.devices[key]
+        if kind == 'wifi' and device.address in ('', '0.0.0.0'):
+            raise ConnectionError('设备尚未获取到有效 Wi-Fi IP 地址')
+        serial = saved.get('usb_serial') or self.usb_serials.get(key) or key.upper()
+        transport = UsbTransport(serial) if kind == 'usb' else TcpTransport(device.address, device.port)
+        fresh = Broker(transport, key)
+        try:
+            await fresh.start()
+            replies = await fresh.submit('identity', [b'\x80\x09', b'\x80\x00', b'\x80\x12'], 'background')
+            if replies[0] != b'\x80\x09\x00' + bytes.fromhex(key):
+                raise ConnectionError('Pinned device identity mismatch')
+            info = replies[1]
+            if len(info) != 17 or info[:4] != b'\x80\x00\x00\x01' or int.from_bytes(info[15:17], 'little') != fresh.packet_size:
+                raise ConnectionError('Device metadata does not match negotiated transport')
+            # A paired record can predate a firmware update. Refresh it
+            # on this connection, without opening another TCP session.
+            device.firmware = '.'.join(str(n) for n in info[4:7])
+            if saved.get('firmware') != device.firmware:
+                saved['firmware'] = device.firmware
+                self.state.save()
+            return fresh, decode_link_status(replies[2])
+        except BaseException:
+            await fresh.close()
+            raise
+
+    async def _ensure_board_wifi_enabled(self, key, saved, broker):
+        if not broker or broker.failed or not getattr(broker.transport, 'native_usb', False):
+            return
+        link = self.board_links.get(key)
+        if link is None:
+            try:
+                link = decode_link_status((await broker.submit('link-status', [b'\x80\x12'], 'background'))[0])
+                if link is not None:
+                    self.board_links[key] = link
+            except (OSError, TimeoutError, ConnectionError, RuntimeError):
+                link = None
+        if link is not None and not link['wifi_enabled']:
+            if not link.get('wifi_configured'):
+                return
+            reply = (await broker.submit('link-mode', [b'\x80\x13\x01'], 'background'))[0]
+            if reply != b'\x80\x13\x00':
+                raise ConnectionError('设备拒绝开启 Wi-Fi，请检查是否有活动会话')
+            link['wifi_enabled'] = True
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            try:
+                net = (await broker.submit('network-status', [b'\x80\x04'], 'background'))[0]
+            except (OSError, TimeoutError, ConnectionError, RuntimeError):
+                break
+            if len(net) != 10 or net[:3] != b'\x80\x04\x00' or not net[3]:
+                break
+            if net[4]:
+                ip = '.'.join(str(b) for b in net[6:10])
+                if ip != '0.0.0.0':
+                    if key in self.devices:
+                        self.devices[key].address = ip
+                    if saved.get('address') != ip:
+                        saved['address'] = ip
+                        self.state.save()
+                    return
+            await asyncio.sleep(0.25)
 
     async def refresh(self):
         async with self.refresh_lock: await self._refresh()
@@ -53,45 +121,73 @@ class Connector:
                     if key in self.brokers and not self.brokers[key].failed}
         found = await discover(existing=existing)
         self.devices.update(found)
+        state_dirty = False
+        for key, device in found.items():
+            saved = self.state.data['paired'].get(key)
+            if saved and device.address and device.address != '0.0.0.0' and saved.get('address') != device.address:
+                saved['address'] = device.address
+                state_dirty = True
+        if state_dirty:
+            self.state.save()
         for key, saved in list(self.state.data['paired'].items()):
             if key in self.management.firmware.uploads: continue
             if key not in self.devices:
                 self.devices[key] = Device(**{k: saved[k] for k in Device.__dataclass_fields__})
-            if not saved.get('auto_connect',True):continue
+            if not saved.get('auto_connect', True): continue
+            preferred = saved.get('transport', 'wifi')
+            if preferred not in ('auto', 'usb', 'wifi'):
+                preferred = 'auto'
             broker = self.brokers.get(key)
             if broker and not broker.failed:
-                try: await broker.submit('connection-health', [b'\x80\x09'], 'background')
-                except (OSError, TimeoutError, ConnectionError): pass
+                try:
+                    replies = await broker.submit('connection-health', [b'\x80\x09', b'\x80\x12'], 'background')
+                    link = decode_link_status(replies[1])
+                    if link is not None:
+                        self.board_links[key] = link
+                except (OSError, TimeoutError, ConnectionError, RuntimeError):
+                    pass
+                if (preferred == 'auto' and not broker.failed
+                        and not getattr(broker.transport, 'native_usb', False)
+                        and not broker.owner and not broker.maintenance
+                        and key not in self.switching
+                        and not any(s['device_id'] == key for s in self.sessions.values())):
+                    link = self.board_links.get(key)
+                    usb_maybe_present = link['usb_mounted'] if link is not None else self._usb_interfaces_present()
+                    if usb_maybe_present:
+                        try:
+                            usb_broker, usb_link = await self._open_broker(key, saved, 'usb')
+                            self.brokers[key] = usb_broker
+                            if usb_link is not None:
+                                self.board_links[key] = usb_link
+                            self.connection_errors.pop(key, None)
+                            await broker.close()
+                            broker = usb_broker
+                        except (OSError, TimeoutError, ValueError, ConnectionError, RuntimeError):
+                            pass
             if broker and broker.failed:
-                self.link_losses[key]=self.link_losses.get(key,0)+1
+                self.link_losses[key] = self.link_losses.get(key, 0) + 1
                 for sid, session in list(self.sessions.items()):
-                    if session['device_id'] == key:await self.close_session(sid)
+                    if session['device_id'] == key: await self.close_session(sid)
                 await broker.close(); self.brokers.pop(key, None)
+                self.board_links.pop(key, None)
                 # A lost active session is terminal. Reconnection never replays writes.
                 broker = None
             if broker is None:
-                device = self.devices[key]
-                transport=UsbTransport(saved.get('usb_serial',key.upper())) if saved.get('transport')=='usb' else TcpTransport(device.address,device.port)
-                fresh = Broker(transport, key)
-                try:
-                    await fresh.start()
-                    replies = await fresh.submit('identity', [b'\x80\x09',b'\x80\x00'], 'background')
-                    if replies[0] != b'\x80\x09\x00' + bytes.fromhex(key):
-                        raise ConnectionError('Pinned device identity mismatch')
-                    info=replies[1]
-                    if len(info)!=17 or info[:4]!=b'\x80\x00\x00\x01' or int.from_bytes(info[15:17],'little')!=fresh.packet_size:
-                        raise ConnectionError('Device metadata does not match negotiated transport')
-                    # A paired record can predate a firmware update. Refresh it
-                    # on this connection, without opening another TCP session.
-                    device.firmware='.'.join(str(n) for n in info[4:7])
-                    if saved.get('firmware')!=device.firmware:
-                        saved['firmware']=device.firmware;self.state.save()
-                    self.brokers[key] = fresh
-                    self.connection_errors.pop(key, None)
-                except (OSError, TimeoutError, ValueError, ConnectionError, RuntimeError) as exc:
-                    # A missing/busy WinUSB interface must not stop later paired probes.
-                    self.connection_errors[key] = f'{type(exc).__name__}: {exc}'
-                    await fresh.close(); continue
+                candidates = ['usb', 'wifi'] if preferred == 'auto' else [preferred]
+                errors = []
+                for kind in candidates:
+                    try:
+                        fresh, link = await self._open_broker(key, saved, kind)
+                        self.brokers[key] = fresh
+                        if link is not None:
+                            self.board_links[key] = link
+                        self.connection_errors.pop(key, None)
+                        break
+                    except (OSError, TimeoutError, ValueError, ConnectionError, RuntimeError) as exc:
+                        # A missing/busy WinUSB interface must not stop later paired probes.
+                        errors.append(f'{kind}: {type(exc).__name__}: {exc}')
+                else:
+                    self.connection_errors[key] = '; '.join(errors)
 
     async def upkeep(self):
         while not self.stopping.is_set():
@@ -123,16 +219,31 @@ class Connector:
         return self.api.sockets[0].getsockname()[1]
 
     def snapshot(self):
+        devices = []
+        for key, d in self.devices.items():
+            paired = key in self.state.data['paired']
+            saved = self.state.data['paired'].get(key, {})
+            broker = self.brokers.get(key)
+            connected = bool(broker and not broker.failed)
+            preferred = saved.get('transport', 'wifi') if paired else 'auto'
+            if preferred not in ('auto', 'usb', 'wifi'):
+                preferred = 'auto'
+            active = ('usb' if getattr(broker.transport, 'native_usb', False) else 'wifi') if connected else None
+            devices.append(dict(
+                d.as_dict(),
+                paired=paired,
+                alias=saved.get('alias', ''),
+                auto_connect=saved.get('auto_connect', True),
+                connected=connected,
+                packet_size=broker.packet_size if key in self.brokers else None,
+                preferred_transport=preferred,
+                active_transport=active,
+                transport=active or preferred,
+                board_link=self.board_links.get(key),
+                owner=broker.owner if broker else None,
+            ))
         return {'version': __version__, 'discovery_error': self.scan_error,
-                'connection_errors': self.connection_errors,
-                'devices': [dict(d.as_dict(), paired=key in self.state.data['paired'],
-                            alias=self.state.data['paired'].get(key,{}).get('alias',''),
-                            auto_connect=self.state.data['paired'].get(key,{}).get('auto_connect',True),
-                            connected=key in self.brokers and not self.brokers[key].failed,
-                            packet_size=self.brokers[key].packet_size if key in self.brokers else None,
-                            transport=('usb' if getattr(self.brokers[key].transport,'native_usb',False) else 'wifi') if key in self.brokers else self.state.data['paired'].get(key,{}).get('transport','wifi'),
-                            owner=self.brokers[key].owner if key in self.brokers else None)
-                            for key, d in self.devices.items()]}
+                'connection_errors': self.connection_errors, 'devices': devices}
 
     async def route(self, method, path, body):
         if self.management.handles(path):return await self.management.route(method,path,body)
@@ -166,20 +277,41 @@ class Connector:
                 capture_stream=decode_stream_diagnostics(replies[4:]),device_id=key,connected=True)
         if method=='POST' and path=='/v1/transport':
             key,mode=body.get('device_id'),body.get('transport')
-            if mode not in ('usb','wifi') or key not in self.state.data['paired']:raise ValueError('Paired device and usb/wifi transport required')
+            connect=body.get('connect',True)
+            if type(connect) is not bool:
+                raise ManagementError('connect 参数必须为布尔值')
+            if mode not in ('auto','usb','wifi') or key not in self.state.data['paired']:
+                raise ManagementError('请选择已配对设备，且传输模式需为 auto、usb 或 wifi')
             async with self.refresh_lock:
                 if key in self.management.firmware.uploads: raise FirmwareError('设备正在升级固件，请先完成或取消升级')
-                broker=self.brokers.get(key)
-                if broker and broker.owner or any(s['device_id']==key for s in self.sessions.values()):
-                    raise ValueError('Close all target sessions before changing transport')
+                self.management.idle(key)
                 self.switching.add(key)
                 try:
-                    if broker:await broker.close();self.brokers.pop(key,None)
-                    self.state.data['paired'][key]['transport']=mode;self.state.save()
-                    await self._refresh()
+                    broker=self.brokers.get(key)
+                    saved=self.state.data['paired'][key]
+                    if mode=='wifi' and broker and not broker.failed and getattr(broker.transport,'native_usb',False):
+                        await self._ensure_board_wifi_enabled(key,saved,broker)
+                    conflict=(broker is not None) and (
+                        not connect or broker.failed or
+                        (mode=='wifi' and getattr(broker.transport,'native_usb',False)) or
+                        (mode=='usb' and not getattr(broker.transport,'native_usb',False))
+                    )
+                    if conflict:
+                        self.brokers.pop(key,None);self.board_links.pop(key,None)
+                        await broker.close()
+                    saved['transport']=mode
+                    saved['auto_connect']=connect
+                    self.state.save()
+                    if connect:await self._refresh()
+                    else:self.connection_errors.pop(key,None)
                 finally:self.switching.discard(key)
-            return {'device_id':key,'transport':mode,'connected':key in self.brokers,
-                'connection_error':self.connection_errors.get(key)}
+            current=self.brokers.get(key)
+            connected=bool(current and not current.failed)
+            active=('usb' if getattr(current.transport,'native_usb',False) else 'wifi') if connected else None
+            return {'device_id':key,'transport':active or mode,'preferred_transport':mode,
+                    'active_transport':active,'connected':connected,
+                    'connection_error':self.connection_errors.get(key),
+                    'board_link':self.board_links.get(key)}
         if method=='POST' and path.startswith('/v1/devices/') and path.endswith('/time-sync'):
             parts=path.split('/')
             if len(parts)!=5:raise ValueError('Clock sync route invalid')
@@ -193,7 +325,7 @@ class Connector:
             saved.update(self.devices[key].as_dict())
             if key in self.usb_serials:
                 saved['usb_serial']=self.usb_serials[key]
-                saved.setdefault('transport','usb')
+            saved.setdefault('transport','auto')
             self.state.save(); await self.refresh()
             return {'paired': key}
         if method == 'POST' and path == '/v1/sessions':

@@ -28,10 +28,11 @@ rmlink devices                              # 列出已发现和已配对设备
 rmlink pair <设备ID>                        # 配对设备
 rmlink config default <设备ID>              # 设为默认设备
 rmlink config alias "工作台"                # 设置设备别名
-rmlink wifi status                          # 查询板端 Wi-Fi 状态
+rmlink wifi status                          # 查询板端 Wi-Fi 状态（含开启状态）
 rmlink wifi hotspot                         # 读取本机当前开启的 2.4 GHz 热点信息
 rmlink wifi configure --ssid "热点名称"     # 通过 USB 下发热点凭据（交互隐藏输密码）
-rmlink connect --transport wifi             # 恢复后台连接并优先走 Wi-Fi
+rmlink wifi on / off                        # 远程开启或关闭板端 Wi-Fi（保持 USB 常开）
+rmlink connect --transport auto             # 恢复后台连接（auto=USB 优先，也可选 usb / wifi）
 rmlink disconnect                           # 释放服务对设备的占用（保留配对）
 rmlink unpair                               # 取消配对
 rmlink monitor                              # 查看实时收发速率与活动订阅
@@ -63,5 +64,5 @@ rmlink firmware update --latest --yes       # 从 GitHub 升级最新正式固�
 | `POST /v1/alias` | 修改已配对设备别名 |
 | `POST /v1/connect`、`/disconnect`、`/unpair` | 控制设备连接状态与配对 |
 | `GET /v1/devices/{id}/metrics` | 读取被动收发计数与当前订阅缓存统计 |
-| `GET / POST /v1/devices/{id}/wifi` | 查询网络状态或通过 USB 写入热点凭据 |
+| `GET / POST /v1/devices/{id}/wifi` | 查询网络状态、通过 USB 写入热点凭据或通过 `{"enabled": bool}` 开关板端 Wi-Fi |
 | `GET / POST /v1/devices/{id}/firmware` | 查询 OTA 状态，或执行分片上传（`begin/write/finish/abort`）与提交重启 |

@@ -9,7 +9,8 @@
 - `GET /v1/capabilities`：返回 API 版本、支持的目标命令、订阅类型及字段/周期上限。
 - `POST /v1/sessions`：传入 `{"device_id":"..."}` 创建租约，返回 `session_id`、`heartbeat_seconds`（5 秒）、`expiry_seconds`（30 秒）和协商的 `packet_size`。单台服务最多允许 64 个租约，每台物理探针同时只有一个控制 owner。
 - `DELETE /v1/sessions/{id}`：停止该会话名下订阅、清理本会话临时断点并释放 owner。
-- `POST /v1/transport`：传入 `{"device_id":"...","transport":"usb"|"wifi"}` 切换传输方式，仅在该设备没有活动 owner 且无未关闭租约时允许执行。偏好会持久化到配置中。
+- `POST /v1/transport`：传入 `{"device_id":"...","transport":"auto"|"usb"|"wifi","connect":true}` 切换传输偏好（`connect` 默认为 `true`；新配对设备默认 `"auto"`，有线优先、拔线回退 Wi-Fi）。仅在该设备没有活动 owner、OTA 或未关闭租约时允许执行，忙时返回 HTTP `409`（`code: "TargetBusy"`）；从有线切向 Wi-Fi 时若板端 Wi-Fi 曾被关闭且已配网，服务会先通过 `0x80/19` 重新启用并等待获取有效 IP。`/v1/status` 与 `/v1/devices` 同时返回 `preferred_transport`、`active_transport`、`transport` 及板端只读链路快照 `board_link`。
+- `GET / POST /v1/devices/{id}/wifi`：查询网络状态（含 `wifi_enabled`），或通过 USB 写入热点凭据，或仅传 `{"enabled": true|false}` 远程开关板端 Wi-Fi（空闲时可用，不拔除原生 USB）。
 
 在 Orbit 中使用 `"probe": "rmlink"` 时，如果恰好只有一台已配对在线设备可省略 `rmlinkDeviceId`，多台设备时返回 `AmbiguousDevice`。若目标已被其他会话占用，`target/connect` 返回 HTTP `409`（`code: "TargetBusy"`、`write_completion_may_be_unknown: false`），不会抢占现有会话。
 

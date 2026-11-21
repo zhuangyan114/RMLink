@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import ctypes as C
 from ctypes import wintypes as W
+import os
 import uuid
 from rmlink_protocol import MAX_PACKET_SIZE, packet_size_from_info
 
@@ -118,6 +119,26 @@ class UsbClient:
     @staticmethod
     def _check(ok):
         if not ok: raise C.WinError(C.get_last_error())
+
+    @classmethod
+    def has_interfaces(cls):
+        if os.name != 'nt':
+            return False
+        setup = C.WinDLL('setupapi', use_last_error=True)
+        setup.SetupDiGetClassDevsW.argtypes = [C.POINTER(GUID), W.LPCWSTR, W.HWND, W.DWORD]
+        setup.SetupDiGetClassDevsW.restype = W.HANDLE
+        setup.SetupDiEnumDeviceInterfaces.argtypes = [W.HANDLE, C.c_void_p, C.POINTER(GUID), W.DWORD, C.POINTER(InterfaceData)]
+        setup.SetupDiDestroyDeviceInfoList.argtypes = [W.HANDLE]
+        guid = GUID((C.c_ubyte * 16).from_buffer_copy(uuid.UUID(cls.GUID_TEXT).bytes_le))
+        devices = setup.SetupDiGetClassDevsW(C.byref(guid), None, None, 0x12)
+        if devices in (None, C.c_void_p(-1).value):
+            return False
+        try:
+            interface = InterfaceData()
+            interface.size = C.sizeof(interface)
+            return bool(setup.SetupDiEnumDeviceInterfaces(devices, None, C.byref(guid), 0, C.byref(interface)))
+        finally:
+            setup.SetupDiDestroyDeviceInfoList(devices)
 
     def _paths(self):
         guid = GUID((C.c_ubyte * 16).from_buffer_copy(uuid.UUID(self.GUID_TEXT).bytes_le))

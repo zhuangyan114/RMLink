@@ -330,8 +330,14 @@ def dashboard(status, device=None, metrics=None, rates=None, selected=0, width=8
     lines += [(f'  后台服务  {"运行中" if status else "未启动"}    ·    v{version}', 'good' if status else 'warning')]
     if device:
         name = device.get('alias') or device.get('hostname') or device['device_id']
+        pref = device.get('preferred_transport') or device.get('transport') or 'wifi'
+        active = device.get('active_transport') or device.get('transport')
+        if pref == 'auto':
+            transport_text = f'自动 · {"USB" if active == "usb" else "Wi-Fi"}' if device.get('connected') else '自动'
+        else:
+            transport_text = 'USB' if (active if device.get('connected') else pref) == 'usb' else 'Wi-Fi'
         lines += [(f'  当前设备  {name}', 'strong'),
-                  (f'  {device["device_id"]}  ·  {"USB" if device.get("transport") == "usb" else "Wi-Fi"}  ·  '
+                  (f'  {device["device_id"]}  ·  {transport_text}  ·  '
                    f'{"在线" if device.get("connected") else "离线"}', None),
                   (f'  目标占用  {"调试会话" if device.get("owner") else "空闲"}    固件  {device.get("firmware", "--")}', 'muted')]
     else:

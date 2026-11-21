@@ -61,6 +61,17 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.transport.requests[before:],[b'\x80\x11'])
         self.assertEqual(self.broker.owner,'a')
 
+    async def test_link_status_informational_and_link_control_requires_idle_link_mode_source(self):
+        self.assertEqual(await self.broker.submit('link-mode', [b'\x80\x13\x00']), [b'\xff'])
+        await self.broker.submit('a', [b'\x02\x01'])
+        before = len(self.transport.requests)
+        self.assertEqual(await self.broker.submit('b', [b'\x80\x12']), [b'\xff'])
+        self.assertEqual(self.transport.requests[before:], [b'\x80\x12'])
+        self.assertEqual(await self.broker.submit('link-mode', [b'\x80\x13\x00']), [b'\x80\xff'])
+        self.assertEqual(await self.broker.submit('other', [b'\x80\x13\x00']), [b'\x80\xff'])
+        self.assertEqual(self.transport.requests[before:], [b'\x80\x12'])
+        self.assertEqual(self.broker.owner, 'a')
+
     async def test_preconnect_clock_reserves_session_and_denies_foreign_changes(self):
         clock = b'\x11' + (2000000).to_bytes(4, 'little')
         self.assertEqual(await self.broker.submit('a', [clock]), [b'\x11\x00'])

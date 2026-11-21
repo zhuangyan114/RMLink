@@ -12,6 +12,8 @@
 
 ## 修改记录
 
+- 2026-11-21 · 重构 · [统一上位机与板端模式切换逻辑并升级至 0.3.5](2026-11-21-transport-mode-switching.md)
+
 - 2026-11-14 · Bug · [Orbit 断流后重新勾选 Timeline 仍为 0 Hz](2026-11-14-timeline-zero-retry.md)
 
 - 2026-11-14 · Bug · [采样数据流断开后允许同一控制会话重采](2026-11-14-capture-stream-retry.md)

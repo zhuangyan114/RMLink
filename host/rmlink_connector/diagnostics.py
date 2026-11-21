@@ -3,6 +3,24 @@ import statistics
 import struct
 
 
+def decode_link_status(reply):
+    if len(reply) != 12 or reply[:4] != b'\x80\x12\x00\x01':
+        return None
+    transport_names = {1: 'usb', 2: 'wifi'}
+    capabilities = reply[11]
+    return dict(
+        wifi_enabled=bool(reply[4]),
+        wifi_configured=bool(reply[5]),
+        wifi_connected=bool(reply[6]),
+        usb_mounted=bool(reply[7]),
+        active_transport=transport_names.get(reply[8]),
+        owner_transport=transport_names.get(reply[9]),
+        busy_flags=reply[10],
+        dual_link_supported=bool(capabilities & 1),
+        wifi_toggle_supported=bool(capabilities & 2),
+    )
+
+
 def decode_stream_diagnostics(replies):
     if len(replies)!=4:raise ValueError('Stream diagnostic page count')
     if len(replies[0])>=3 and replies[0][:2]==b'\x80\x0f' and replies[0][2]:

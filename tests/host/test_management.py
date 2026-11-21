@@ -1,5 +1,6 @@
 """Management must stay outside target ownership and preserve paired state."""
 import asyncio
+import os
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -124,6 +125,53 @@ class ManagementTests(unittest.IsolatedAsyncioTestCase):
         reply = await self.broker.submit('api-arbitrary', [b'\x80\x03'])
         self.assertEqual(reply, [b'\x80\xff'])
         self.assertEqual(len(accepted), before)
+
+    async def test_scan_usb_includes_active_usb_broker_and_preserves_valid_ip(self):
+        self.transport.native_usb = True
+        self.transport.serial = ID.upper()
+        self.connector.devices[ID].address = '192.168.137.77'
+        self.connector.state.data['paired'][ID]['address'] = '192.168.137.77'
+        async def exchange(packets):
+            out = []
+            for p in packets:
+                if p == b'\x80\x09': out.append(b'\x80\x09\x00' + bytes.fromhex(ID))
+                elif p == b'\x80\x00': out.append(b'\x80\x00\x00\x01\x00\x03\x05' + bytes(8) + b'\x40\x00')
+                elif p == b'\x80\x04': out.append(b'\x80\x04\x00\x01\x00\x00\x00\x00\x00\x00')
+                else: out.append(b'\xff')
+            return out
+        self.transport.exchange_many = exchange
+        with patch('rmlink_connector.management.os.name', 'nt'), patch(
+                'rmlink_connector.management.UsbClient', side_effect=RuntimeError('no extra usb')):
+            result = await self.connector.route('GET', '/v1/usb-devices', {})
+        self.assertTrue(result['supported'])
+        self.assertEqual(len(result['devices']), 1)
+        self.assertEqual(result['devices'][0]['address'], '192.168.137.77')
+        self.assertEqual(self.connector.devices[ID].address, '192.168.137.77')
+
+    async def test_wifi_status_and_remote_toggle(self):
+        self.transport.native_usb = True
+        sent = []
+        async def exchange(packets):
+            sent.extend(packets)
+            out = []
+            for p in packets:
+                if p == b'\x80\x04': out.append(b'\x80\x04\x00\x01\x01\xc4\xc0\xa8\x89\x0a')
+                elif p == b'\x80\x12': out.append(b'\x80\x12\x00\x01\x01\x01\x01\x01\x01\x00\x00\x03')
+                elif p == b'\x80\x13\x00': out.append(b'\x80\x13\x00')
+                else: out.append(b'\xff')
+            return out
+        self.transport.exchange_many = exchange
+        status = await self.connector.route('GET', f'/v1/devices/{ID}/wifi', {})
+        self.assertTrue(status['connected'])
+        self.assertTrue(status['wifi_enabled'])
+        toggled = await self.connector.route('POST', f'/v1/devices/{ID}/wifi', {'enabled': False})
+        self.assertFalse(toggled['wifi_enabled'])
+        self.assertIn(b'\x80\x13\x00', sent)
+        lease = await self.connector.route('POST', '/v1/sessions', {'device_id': ID})
+        with self.assertRaises(TargetAccessError) as err:
+            await self.connector.route('POST', f'/v1/devices/{ID}/wifi', {'enabled': True})
+        self.assertEqual(err.exception.code, 'TargetBusy')
+        await self.connector.close_session(lease['session_id'])
 
 
 class RateTests(unittest.TestCase):

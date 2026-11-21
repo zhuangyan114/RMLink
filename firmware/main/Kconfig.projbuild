@@ -21,10 +21,10 @@ menu "RMLink Configuration"
         bool "Enable WS2812 connection status and user key"
         default n
         help
-            Hold the active-low key for 2 seconds to enter mode selection.
-            A short press then switches between Wi-Fi and USB until connected.
-            Selection lasts until reboot. Startup detects either connection,
-            with USB taking display priority when both are connected.
+            Hold the active-low key for 2 seconds when idle to toggle Wi-Fi
+            without disconnecting USB. Yellow confirms the toggle (or flashes
+            fast if rejected while busy). Blue/green show active or standby USB
+            and Wi-Fi links; red flashes when no link is ready.
     config RMLINK_UI_LED_GPIO
         int "WS2812 data GPIO"
         depends on RMLINK_UI_ENABLED

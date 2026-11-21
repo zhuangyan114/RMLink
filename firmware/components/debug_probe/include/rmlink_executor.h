@@ -17,3 +17,7 @@ esp_err_t rmlink_submit_tcp(uint32_t session, const uint8_t *request, size_t len
 /* Network-provisioning hook; runs in the executor, must not access target GPIO. */
 size_t rmlink_vendor_command(uint8_t transport, const uint8_t *request, size_t len,
                              uint8_t *response, const rmlink_owner_t *owner);
+/* Thread-safe runtime state snapshots for UI and link-status commands. */
+uint8_t rmlink_active_owner_transport(void);
+uint8_t rmlink_busy_flags(void);
+bool rmlink_usb_client_active(void);
