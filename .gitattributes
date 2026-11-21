@@ -5,6 +5,9 @@
 *.md text eol=lf
 *.json text eol=lf
 *.ps1 text eol=crlf
+# The released algorithm catalogue hashes source and linker scripts as CRLF bytes.
+host/algorithms/**/algorithm.c text eol=crlf
+host/algorithms/**/algorithm.ld text eol=crlf
 # Preserve tested patch bytes; unified-diff context has required spaces/tabs.
 host/orbit/patches/*.patch -text whitespace=-blank-at-eol,-space-before-tab,cr-at-eol
 *.png binary
