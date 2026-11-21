@@ -53,7 +53,7 @@ def generate():
         values=[id,len(t['ramRegions']),len(t['sectors']),len(t['optionRegisters']),t['corePart'],t['dpIdcode'],p['idcodeAddress'],p['deviceId'],p['flashSizeRegisterAddress'],t['flashBase'],t['flashSize'],f'ramRegions_{id}',f'sectors_{id}',f'options_{id}',l['address'],l['buffer'],l['stack'],l['stackSize'],a['pageSize'],a['staticBase'],t['eraseTimeoutMs'],t['programTimeoutMs'],e['init'],e['uninit'],e['eraseSector'],e['programPage'],e.get('verify',0xffffffff),e['bkpt'],a.get('eraseChip',0xffffffff),f'code_{t["algorithm"]}',f'sizeof(code_{t["algorithm"]})']
         lines.append('    {'+','.join(f'{v}u' if isinstance(v,int) else v for v in values)+'},')
     lines.append('};')
-    (ROOT/'firmware/components/debug_probe/rmlink_target_pack_data.inc').write_text('\n'.join(lines)+'\n')
+    (ROOT/'firmware/components/debug_probe/rmlink_target_pack_data.inc').write_text('\n'.join(lines)+'\n',newline='\n')
     print(f'Shared algorithm package: {len(PACK["targets"])} targets, tag={PACK_TAG:08x}')
 
 
