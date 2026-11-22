@@ -51,14 +51,30 @@ if (Test-Path -LiteralPath $cachedConfig) {
     $streamConfig = [regex]::Replace($streamConfig, '(?m)^CONFIG_RMLINK_STREAM_IP_TOS=.*\r?\n', '')
     $streamConfig += "`nCONFIG_RMLINK_STREAM_IP_TOS=$StreamIpTos`n"
     # Apply the transport policy to existing caches too; SDKCONFIG_DEFAULTS
-    # alone never replaces an older RTO/send-buffer value.
+    # alone never replaces an older RTO/send-buffer/mDNS value.
+    $dynamicRxBuffers = if ($ImageCachePsram) { 32 } else { 16 }
     foreach ($entry in @{'CONFIG_LWIP_TCP_TMR_INTERVAL'=50; 'CONFIG_LWIP_TCP_RTO_TIME'=300;
                          'CONFIG_LWIP_TCP_SND_BUF_DEFAULT'=5744; 'CONFIG_TCP_SND_BUF_DEFAULT'=5744;
-                         'CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM'=16; 'CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM'=16;
-                         'CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM'=16}.GetEnumerator()) {
+                         'CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM'=$dynamicRxBuffers;
+                         'CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM'=16;
+                         'CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM'=16;
+                         'CONFIG_MDNS_TASK_PRIORITY'=4;
+                         'CONFIG_MDNS_ACTION_QUEUE_LEN'=8}.GetEnumerator()) {
         $streamConfig = [regex]::Replace($streamConfig, "(?m)^$($entry.Key)=.*\r?\n", '')
         $streamConfig += "`n$($entry.Key)=$($entry.Value)`n"
     }
+    $mdnsCore = 1 - $ExecutorCore
+    foreach ($choice in @(
+        @('CONFIG_MDNS_TASK_AFFINITY_NO_AFFINITY', $false),
+        @('CONFIG_MDNS_TASK_AFFINITY_CPU0', ($mdnsCore -eq 0)),
+        @('CONFIG_MDNS_TASK_AFFINITY_CPU1', ($mdnsCore -eq 1))
+    )) {
+        $key = $choice[0]
+        $line = if ($choice[1]) { "$key=y" } else { "# $key is not set" }
+        $streamConfig = [regex]::Replace($streamConfig, "(?m)^(?:# )?$key(?:=y| is not set)\r?$", $line)
+    }
+    $streamConfig = [regex]::Replace($streamConfig, '(?m)^CONFIG_MDNS_TASK_AFFINITY=.*\r?\n', '')
+    $streamConfig += "`nCONFIG_MDNS_TASK_AFFINITY=0x$mdnsCore`n"
     if ($StreamDiagnostics) {
         $streamConfig = $streamConfig.Replace('# CONFIG_RMLINK_STREAM_DIAGNOSTICS is not set', 'CONFIG_RMLINK_STREAM_DIAGNOSTICS=y')
     }

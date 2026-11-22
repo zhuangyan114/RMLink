@@ -126,16 +126,26 @@ class TargetEngine:
         await self.transfer([(8,0),(1,0x23000052),(5,address),(13,value)])
 
     async def write_range(self,address,data):
-        if address%4 or not data or len(data)%4 or address+len(data)>2**32:raise ValueError('Word-aligned write required')
+        if type(address) is not int or not isinstance(data,(bytes,bytearray)) or address<0 or not data or address+len(data)>2**32:
+            raise ValueError('Memory write range invalid')
         done=0;limit=(self.broker.packet_size-18)//5
         while done<len(data):
-            count=min((len(data)-done)//4,limit,(0x400-((address+done)&0x3ff))//4)
-            values=struct.unpack('<'+'I'*count,data[done:done+count*4])
-            try:await self.transfer([(8,0),(1,0x23000052),(5,address+done)]+[(13,v) for v in values])
+            cur=address+done;rem=len(data)-done
+            if cur%4==0 and rem>=4:
+                count=min(rem//4,limit,(0x400-(cur&0x3ff))//4)
+                csw=0x23000052;width=4
+                values=struct.unpack('<'+'I'*count,data[done:done+count*4])
+            elif cur%2==0 and rem>=2:
+                csw=0x23000051;width=2;count=1
+                values=(int.from_bytes(data[done:done+2],'little')<<((cur&2)*8),)
+            else:
+                csw=0x23000050;width=1;count=1
+                values=(data[done]<<((cur&3)*8),)
+            try:await self.transfer([(8,0),(1,csw),(5,cur)]+[(13,v) for v in values])
             except TargetAccessError as error:
-                error.completed_bytes=done+max(0,min(count,error.completed-3))*4
+                error.completed_bytes=done+max(0,min(count,error.completed-3))*width
                 raise
-            done+=count*4
+            done+=count*width
         return done
 
     async def register(self,index,value=None):
@@ -327,6 +337,15 @@ class TargetEngine:
                 raise TargetAccessError('Core state read failed: '+reply.hex(),'DapStateReadFailed')
             value=int.from_bytes(reply[3:7],'little')
             return {'dhcsr':value,'state':'Halted' if value&0x20000 else 'Running'}
+        if command=='write_memory':
+            address=body.get('address'); raw=body.get('data','')
+            if not isinstance(raw,str): raise ValueError('Hex write data required')
+            data=bytes.fromhex(raw)
+            if type(address) is not int or address<0 or not data or len(data)>4096 or address+len(data)>2**32:
+                raise ValueError('Memory write range invalid')
+            async with self.control():
+                done=await self.write_range(address,data)
+                return {'address':address,'bytes_written':done}
         async with self.control():
             if command=='run_to_address':return await self.run_to_address(body)
             if command=='read_memory':
@@ -334,12 +353,6 @@ class TargetEngine:
                 return await self.read_range(address,size)
             if command=='read_batch':
                 return await self.read_batch(body.get('reads'))
-            if command=='write_memory':
-                address=body.get('address'); data=bytes.fromhex(body.get('data',''))
-                if type(address) is not int or address<0 or address%4 or not data or len(data)%4 or len(data)>4096 or address+len(data)>2**32:
-                    raise ValueError('Aligned word write required')
-                done=await self.write_range(address,data)
-                return {'address':address,'bytes_written':done}
             if command=='state':
                 value=await self.read_word(0xe000edf0)
                 return {'dhcsr':value,'state':'Halted' if value&0x20000 else 'Running'}

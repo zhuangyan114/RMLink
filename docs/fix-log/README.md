@@ -12,6 +12,10 @@
 
 ## 修改记录
 
+- 2026-11-22 · Bug · [支持 `write_memory` 按 8/16/32 位 MEM-AP 宽度写入以修复 Watch 亚字变量写入失败（上位机 0.3.6）](2026-11-22-subword-write-memory.md)
+
+- 2026-11-22 · Bug · [修复高负载采样下 mDNS 饥饿耗尽 Wi-Fi 动态 RX 缓冲导致的无线卡顿与断联（固件 0.3.6）](2026-11-22-mdns-rx-buffer-starvation.md)
+
 - 2026-11-21 · Bug · [修复控制台退出后 Windows 安装向导未打开](2026-11-21-windows-installer-handoff.md)
 
 - 2026-11-21 · 功能 · [从 GitHub 更新 Windows 客户端](2026-11-21-windows-installer-update.md)

@@ -24,7 +24,7 @@
 | `state` | 读取 `DHCSR` 与 `Running`/`Halted`。支持 `0x81/0` bit4（`CORE_STATE`，命令 `0x81/17`）时走单次只读查询，不跨无线往返持锁 |
 | `halt` / `run` / `step` / `reset` | 均带有限状态确认；`reset` 通过 `VC_CORERESET` + `SYSRESETREQ` 停在复位态并保留现有订阅，随后 `run` 自动恢复由控制暂停的订阅 |
 | `run_to_address` | 指定 Flash 地址（支持 Thumb 位，默认先 `reset=true`），使用空闲 FPB 槽跑至入口后恢复原比较器与 `DEMCR`；无空闲槽或超时报 `409` |
-| `read_memory` / `write_memory` | 指定 `address` 与 `byte_length` / `data`（hex），单次最多 4096 B，按 1 KiB 边界自动分段；写操作按对齐字执行，未知写入不重放 |
+| `read_memory` / `write_memory` | 指定 `address` 与 `byte_length` / `data`（hex），单次最多 4096 B，按 1 KiB 边界自动分段；写操作按对齐拆分为 8/16/32 位 MEM-AP 传输，未知写入不重放 |
 | `read_batch` | `reads` 数组（`1..32` 段，总量最多 4096 B） |
 | `read_register` / `write_register` | 寄存器索引 `0..20`，要求目标处于暂停态 |
 | `set_breakpoint` / `clear_breakpoint` | Flash FPB 硬断点，仅使用空闲比较器 |

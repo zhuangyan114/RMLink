@@ -41,16 +41,31 @@ class TargetModel:
                     elif flags==1:self.csw=value
                     elif flags==5:address=value
                     elif flags==13:
-                        previous=self.memory.get(address,0)
-                        self.memory[address]=value
-                        if address==0xe000edf0:self.memory[address]=0x30000 if value&2 or value&4 else 0x10000
-                        if address==0xe000ed30:self.memory[address]=previous&~value
-                        if address==0xe000edf0 and value==0xa05f0001 and getattr(self,'halt_on_run',False):
-                            self.memory[address]=0x30000;self.memory[0xe000ed30]=2
-                        if address==0xe000edf4:
-                            if value&0x10000:self.regs[value&31]=self.memory[0xe000edf8]
-                            else:self.memory[0xe000edf8]=self.regs.get(value,0x08000100+value*4)
-                        if self.csw&0x30==0x10:address=(address&~0x3ff)|((address+4)&0x3ff)
+                        size=self.csw&7
+                        if size==0:
+                            word_addr=address&~3;shift=(address&3)*8;mask=0xff<<shift
+                            self.memory[word_addr]=(self.read(word_addr)&~mask)|(value&mask)
+                            step=1
+                        elif size==1:
+                            assert address%2==0
+                            word_addr=address&~3;shift=(address&2)*8;mask=0xffff<<shift
+                            self.memory[word_addr]=(self.read(word_addr)&~mask)|(value&mask)
+                            step=2
+                        elif size==2:
+                            assert address%4==0
+                            previous=self.memory.get(address,0)
+                            self.memory[address]=value
+                            if address==0xe000edf0:self.memory[address]=0x30000 if value&2 or value&4 else 0x10000
+                            if address==0xe000ed30:self.memory[address]=previous&~value
+                            if address==0xe000edf0 and value==0xa05f0001 and getattr(self,'halt_on_run',False):
+                                self.memory[address]=0x30000;self.memory[0xe000ed30]=2
+                            if address==0xe000edf4:
+                                if value&0x10000:self.regs[value&31]=self.memory[0xe000edf8]
+                                else:self.memory[0xe000edf8]=self.regs.get(value,0x08000100+value*4)
+                            step=4
+                        else:
+                            raise AssertionError(f'Unsupported CSW size: {size}')
+                        if self.csw&0x30==0x10:address=(address&~0x3ff)|((address+step)&0x3ff)
             out.append(bytes([5,p[2],1])+struct.pack('<'+'I'*len(data),*data))
         return out
 
@@ -170,6 +185,62 @@ class TargetEngineTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(ctx.exception.code,'DapNoAck')
             self.assertEqual(model.requests[-1],b'\x81\x09') # finally closes barrier even on failure
         finally:await broker.close()
+    async def test_subword_and_unaligned_write_memory_uses_mem_ap_widths(self):
+        for capacity in (64,512):
+            model=TargetModel(capacity);broker=Broker(model,'model');await broker.start()
+            engine=TargetEngine(broker,'owner');await engine.connect()
+            try:
+                base=0x200003f0
+                for offset in range(4):
+                    model.memory[base]=0x11223344
+                    model.requests.clear()
+                    result=await engine.execute('write_memory',{'address':base+offset,'data':f'{0xa0+offset:02x}'})
+                    self.assertEqual(result,{'address':base+offset,'bytes_written':1})
+                    expected_word=(0x11223344&~(0xff<<(offset*8)))|((0xa0+offset)<<(offset*8))
+                    self.assertEqual(model.memory[base],expected_word)
+                    csw_writes=[struct.unpack_from('<I',p,9)[0] for p in model.requests if p[0]==5]
+                    self.assertEqual(csw_writes,[0x23000050])
+                for offset in (0,2):
+                    model.memory[base]=0x55667788
+                    model.requests.clear()
+                    result=await engine.execute('write_memory',{'address':base+offset,'data':'beef'})
+                    self.assertEqual(result,{'address':base+offset,'bytes_written':2})
+                    expected_word=(0x55667788&~(0xffff<<(offset*8)))|(0xefbe<<(offset*8))
+                    self.assertEqual(model.memory[base],expected_word)
+                    csw_writes=[struct.unpack_from('<I',p,9)[0] for p in model.requests if p[0]==5]
+                    self.assertEqual(csw_writes,[0x23000051])
+                # Unaligned 2-byte write splits across byte lanes cleanly without RMW.
+                model.memory[base]=0x01020304
+                result=await engine.execute('write_memory',{'address':base+1,'data':'cdef'})
+                self.assertEqual(result,{'address':base+1,'bytes_written':2})
+                self.assertEqual(model.memory[base],0x01efcd04)
+                # Multi-byte unaligned range crossing a 1 KiB boundary preserves flanking bytes.
+                for a in range(0x200003fc,0x20000510,4):model.memory[a]=a^0xdeadbeef
+                payload=bytes((i*7+3)&0xff for i in range(259))
+                start=0x200003ff
+                before_head=model.read(0x200003fc)&0x00ffffff
+                after_tail=model.read(0x20000500)&0xffff0000
+                model.requests.clear()
+                result=await engine.execute('write_memory',{'address':start,'data':payload.hex()})
+                self.assertEqual(result,{'address':start,'bytes_written':len(payload)})
+                self.assertTrue(all(len(p)<=capacity for p in model.requests))
+                readback=await engine.execute('read_memory',{'address':start,'byte_length':len(payload)})
+                self.assertEqual(bytes.fromhex(readback['data']),payload)
+                self.assertEqual(model.read(0x200003fc)&0x00ffffff,before_head)
+                self.assertEqual(model.read(0x20000500)&0xffff0000,after_tail)
+                model.requests.clear()
+                for bad in ({'address':0x20000000,'data':''},{'address':0x20000000,'data':None},
+                            {'address':0x20000000,'data':'zz'},{'address':0x20000000,'data':'00'*4097},
+                            {'address':-1,'data':'01'},{'address':True,'data':'01'},
+                            {'address':0xffffffff,'data':'0102'}):
+                    with self.assertRaises(ValueError):await engine.execute('write_memory',bad)
+                self.assertEqual(model.requests,[])
+                model.fault=True
+                with self.assertRaises(TargetAccessError) as ctx:
+                    await engine.execute('write_memory',{'address':0x20000001,'data':'010203'})
+                self.assertEqual(ctx.exception.completed_bytes,0)
+            finally:await broker.close()
+
     async def test_native64_and_wireless512(self):
         await self.check_capacity(64);await self.check_capacity(512)
 

@@ -1,2 +1,5 @@
 # Reproducible comparison profile: executor CPU0, network receive CPU1.
 CONFIG_RMLINK_EXECUTOR_CORE=0
+# CONFIG_MDNS_TASK_AFFINITY_NO_AFFINITY is not set
+# CONFIG_MDNS_TASK_AFFINITY_CPU0 is not set
+CONFIG_MDNS_TASK_AFFINITY_CPU1=y

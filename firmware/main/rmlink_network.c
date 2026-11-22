@@ -36,6 +36,14 @@
 #include "rmlink_stream.h"
 #include "rmlink_swd_timing.h"
 #include "rmlink_ui.h"
+#if defined(CONFIG_MDNS_ACTION_QUEUE_LEN) && defined(CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM) && CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM > 0
+_Static_assert(CONFIG_MDNS_ACTION_QUEUE_LEN < CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM,
+               "mDNS raw LwIP queue must stay smaller than the Wi-Fi dynamic RX buffer pool");
+#endif
+#if !CONFIG_FREERTOS_UNICORE && CONFIG_DEBUG_PROBE_IFACE_SWD && defined(CONFIG_MDNS_TASK_AFFINITY)
+_Static_assert(CONFIG_MDNS_TASK_AFFINITY != CONFIG_RMLINK_EXECUTOR_CORE,
+               "mDNS task must not be pinned exclusively to the SWD executor core");
+#endif
 #endif
 
 #define WIFI_RECONNECT_GRACE_US 1000000LL
